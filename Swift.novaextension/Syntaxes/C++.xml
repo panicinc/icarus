@@ -35,6 +35,7 @@
     
     <tree-sitter>
         <highlights path="cpp/highlights.scm" />
+        <highlights path="c/highlights-preproc.scm" />
         <folds path="cpp/folds.scm" />
         <symbols path="cpp/symbols.scm" />
     </tree-sitter>

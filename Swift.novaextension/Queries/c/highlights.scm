@@ -1,3 +1,4 @@
+; Keywords
 "break" @keyword
 "case" @keyword
 "const" @keyword
@@ -20,16 +21,7 @@
 "volatile" @keyword
 "while" @keyword
 
-"#define" @keyword
-"#elif" @keyword
-"#else" @keyword
-"#endif" @keyword
-"#if" @keyword
-"#ifdef" @keyword
-"#ifndef" @keyword
-"#include" @keyword
-(preproc_directive) @keyword
-
+; Operators
 [
   "--"
   "-"
@@ -56,9 +48,12 @@
   "."
 ] @operator
 
+(conditional_expression "?" @operator ":" @operator)
+
 "." @punctuation.delimiter
 ";" @punctuation.delimiter
 
+; Literals
 (string_literal) @string
 (system_lib_string) @string
 
@@ -70,6 +65,7 @@
   (false)
 ] @value.boolean
 
+; Identifiers
 (call_expression
   function: (identifier) @identifier.function)
 (call_expression
@@ -77,8 +73,6 @@
     field: (field_identifier) @identifier.function))
 (function_declarator
   declarator: (identifier) @identifier.function)
-(preproc_function_def
-  name: (identifier) @identifier.function.special)
 
 (field_identifier) @identifier.property
 (statement_identifier) @identifier.label
@@ -89,4 +83,5 @@
 ((identifier) @identifier.constant
  (#match? @identifier.constant "^[A-Z][A-Z\\d_]*$"))
 
+; Comments
 (comment) @comment
