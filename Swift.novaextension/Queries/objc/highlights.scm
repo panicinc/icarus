@@ -390,7 +390,4 @@
 
 (attribute_specifier) @keyword.modifier.attribute
 
-((identifier) @identifier.constant
- (#match? @identifier.constant "^[A-Z][A-Z0-9_$]+$"))
-
 (ERROR) @error

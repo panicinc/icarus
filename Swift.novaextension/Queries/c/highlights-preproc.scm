@@ -4,10 +4,10 @@
     "#if"
     "#endif"
   ] @processing.directive
-  condition: (_) @processing.directive)
+  condition: (_) @processing.argument)
 (preproc_elif
   "#elif" @processing.directive
-  condition: (_) @processing.directive)
+  condition: (_) @processing.argument)
 (preproc_else
   "#else" @processing.directive)
 (preproc_if
@@ -17,16 +17,16 @@
     "#ifdef"
     "#ifndef"
   ] @processing.directive
-  name: (identifier) @processing.directive)
+  name: (identifier) @processing.argument)
 (preproc_ifdef
   "#endif" @processing.directive)
 (preproc_def
   "#define" @processing.directive
-  name: (identifier) @processing.directive
-  value: (preproc_arg)? @processing.directive)
+  name: (identifier) @processing.argument
+  value: (preproc_arg)? @processing.argument)
 (preproc_include
   "#include" @processing.directive
   path: (_) @string)
 (preproc_call
   directive: (preproc_directive) @processing.directive
-  argument: (preproc_arg) @processing.directive)
+  argument: (preproc_arg) @processing.argument)

@@ -3,17 +3,17 @@
 
 ; Identifiers
 (type_identifier) @identifier.type
+(type_parameter (type_identifier) @identifier.type)
 (attribute "@" @keyword (user_type) @keyword)
 (self_expression) @keyword.self
+
+(inheritance_constraint (identifier (simple_identifier) @identifier.type))
+(equality_constraint (identifier (simple_identifier) @identifier.type))
 
 ; Declarations
 (function_declaration (simple_identifier) @identifier.function)
 (function_declaration ["init" @identifier.function.constructor])
-
 (parameter name: (simple_identifier) @identifier.argument)
-(type_parameter (type_identifier) @identifier.argument)
-(inheritance_constraint (identifier (simple_identifier) @identifier.argument))
-(equality_constraint (identifier (simple_identifier) @identifier.argument))
 
 [
   "typealias"
@@ -49,6 +49,7 @@
   "async" @keyword
   (where_keyword) @keyword
   "return"
+  "if"
   (else)
   (as_operator)
 ] @keyword
@@ -155,6 +156,8 @@
 
  "..<"
  "..."
+ 
+ (bang)
 ] @operator
 
 (optional_type "?") @operator

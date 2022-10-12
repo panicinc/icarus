@@ -80,8 +80,5 @@
 (primitive_type) @identifier.type
 (sized_type_specifier) @identifier.type
 
-((identifier) @identifier.constant
- (#match? @identifier.constant "^[A-Z][A-Z\\d_]*$"))
-
 ; Comments
 (comment) @comment
