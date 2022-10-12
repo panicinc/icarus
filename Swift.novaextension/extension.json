@@ -1,0 +1,41 @@
+{
+    "identifier": "panic.Swift",
+    "name": "Swift, C, C++, Obj-C",
+    "organization": "Panic",
+    "description": "Language support and intelligence for Swift, C, C++, and Objective-C.",
+    "version": "1.0",
+    "categories": ["languages"],
+    
+    "main": "main.js",
+    
+    "activationEvents": [
+        "onLanguage:swift",
+        "onLanguage:c",
+        "onLanguage:cpp",
+        "onLanguage:objc"
+    ],
+    
+    "entitlements": {
+        "process": true,
+        "filesystem": "readonly"
+    },
+    
+    "config": [
+        {
+            "key": "sourcekit.language-server-path",
+            "title": "Language Server Path",
+            "type": "path",
+            "placeholder": "/usr/bin/xcrun sourcekit-lsp",
+            "description": "By default, SourceKit-LSP will be launched using `xcrun` and your chosen Xcode developer tools directory."
+        },
+        {
+            "key": "sourcekit.developer-dir",
+            "title": "Developer Directory",
+            "type": "path",
+            "allowFiles": false,
+            "allowFolders": true,
+            "placeholder": "Default for xcode-select",
+            "description": "Set a custom developer tools directory to use a toolchain separate from that provided by `xcode-select`."
+        }
+    ]
+}

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<syntax name="swift">
+    <meta>
+        <name>Swift</name>
+        <type>script</type>
+        <preferred-file-extension>swift</preferred-file-extension>
+    </meta>
+    
+    <detectors>
+        <extension priority="1.0">swift</extension>
+    </detectors>
+    
+    <indentation>
+        <increase>
+            <expression>(\{[^}\"']*$)|(\[[^\]\"']*$)|(\([^)\"']*$)</expression>
+        </increase>
+        <decrease>
+            <expression>^\s*(\s*/\*.*\*/\s*)*[\}\]\)\\]</expression>
+        </decrease>
+    </indentation>
+    
+    <comments>
+        <single>
+            <expression>//</expression>
+        </single>
+        <multiline>
+            <starts-with>
+                <expression>/*</expression>
+            </starts-with>
+            <ends-with>
+                <expression>*/</expression>
+            </ends-with>
+        </multiline>
+    </comments>
+    
+    <tree-sitter>
+        <highlights path="swift/highlights.scm" />
+        <folds path="swift/folds.scm" />
+        <symbols path="swift/symbols.scm" />
+    </tree-sitter>
+</syntax>
