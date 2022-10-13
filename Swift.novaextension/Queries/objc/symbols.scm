@@ -32,12 +32,12 @@
   (#set! role property)
 ) @subtree
 
-(method_definition
-  ; selector: [
-  ;   (identifier) @name
-  ;   (keyword_selector
-  ;     (keyword_declarator
-  ;       keyword: (identifier) @name))
-  ; ]
+(method_declaration
+  (#set! name.query "objc/methodDeclarationName.scm")
   (#set! role method)
-) @subtree
+) @subtree @name.target
+
+(method_definition
+  (#set! name.query "objc/methodDefinitionName.scm")
+  (#set! role method)
+) @subtree @name.target

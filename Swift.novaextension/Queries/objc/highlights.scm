@@ -185,15 +185,17 @@
 (number_expression) @value.number
 (char_literal) @value.number
 
+((type_identifier) @identifier.type
+  (#match? @identifier.type "^[A-Z]"))
+
 [
- (type_identifier)
- (primitive_type)
  (sized_type_specifier)
  (type_descriptor)
  (generics_type_reference)
 ] @identifier.type
 
 [
+ (primitive_type)
  (id)
  (Class)
  (Method)
@@ -221,24 +223,27 @@
 (class_forward_declaration name: (identifier) @identifier.type.class)
 (protocol_forward_declaration name: (identifier) @identifier.type.protocol)
 (protocol_declaration name: (identifier) @identifier.type.protocol)
-(protocol_qualifiers name: (identifier) @identifier.type.protocol)
+(protocol_qualifiers name: (identifier) @identifier.type.protocol
+  (#not-match? @identifier.type.protocol "^id$"))
+(protocol_qualifiers name: (identifier) @keyword.type
+  (#match? @keyword.type "^id$"))
 (protocol_expression (identifier) @identifier.type.protocol)
 
 ;; Property
-(property_declaration
+; (property_declaration
   ; type: _ @identifier.type
-  declarator: (identifier) @identifier.property)
+  ; declarator: (identifier) @identifier.property)
 
-(property_declaration
+; (property_declaration
   ; type: _ @identifier.type
-  declarator: (_
-    declarator: (identifier) @identifier.property))
+  ; declarator: (_
+  ;   declarator: (identifier) @identifier.property))
 
-(property_declaration
+; (property_declaration
   ; type: _ @identifier.type
-  declarator: (_
-    declarator: (_
-      declarator: (identifier) @identifier.property)))
+  ; declarator: (_
+  ;   declarator: (_
+  ;     declarator: (identifier) @identifier.property)))
 
 (((field_expression
  (field_identifier) @identifier.property)) @_parent
@@ -263,25 +268,25 @@
   declarator: (identifier) @identifier.function)
 (selector_expression 
   name: (identifier) @identifier.function)
-(method_declaration
-  selector: (identifier) @identifier.function)
+; (method_declaration
+;   selector: (identifier) @identifier.function)
 
-(method_declaration
-  (keyword_selector
-    (keyword_declarator
-      keyword: (identifier) @identifier.function)))
+; (method_declaration
+;   (keyword_selector
+;     (keyword_declarator
+;       keyword: (identifier) @identifier.function)))
 
-(method_declaration
-  (keyword_selector
-    (keyword_declarator
-      name: (identifier) @identifier.variable.parameter)))
+; (method_declaration
+;   (keyword_selector
+;     (keyword_declarator
+;       name: (identifier) @identifier.variable.parameter)))
 
-(message_expression
-  receiver: (field_expression
-    field: (field_identifier) @identifier.function))
+; (message_expression
+;   receiver: (field_expression
+;     field: (field_identifier) @identifier.function))
 
-(method_definition
-  selector: (identifier) @identifier.function)
+; (method_definition
+;   selector: (identifier) @identifier.function)
 
 (swift_name_attribute_sepcifier
   method: (identifier) @identifier.function)
@@ -289,10 +294,10 @@
 (setter
   name: (identifier) @identifier.function)
 
-(method_definition
-  (keyword_selector
-    (keyword_declarator
-      keyword: (identifier) @identifier.function)))
+; (method_definition
+;   (keyword_selector
+;     (keyword_declarator
+;       keyword: (identifier) @identifier.function)))
 
 (message_expression
   selector: (identifier) @identifier.function)

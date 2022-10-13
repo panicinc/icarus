@@ -41,7 +41,13 @@ class SourceKitLanguageServer {
             args: args
         };
         var clientOptions = {
-            syntaxes: ['swift', 'c', 'cpp', 'objc']
+            syntaxes: [
+                'swift',
+                'c',
+                'cpp',
+                {'syntax': 'objc', 'languageId': 'objective-c'},
+                {'syntax': 'objcpp', 'languageId': 'objective-cpp'}
+            ]
         };
         var client = new LanguageClient('sourcekit-langserver', 'SourceKit Language Server', serverOptions, clientOptions);
         
