@@ -11,9 +11,10 @@
 (equality_constraint (identifier (simple_identifier) @identifier.type))
 
 ; Declarations
-(function_declaration (simple_identifier) @identifier.function)
-(function_declaration ["init" @identifier.function.constructor])
+; (function_declaration (simple_identifier) @identifier.function)
+(function_declaration ["init" @keyword])
 (parameter name: (simple_identifier) @identifier.argument)
+(deinit_declaration "deinit" @keyword)
 
 [
   "typealias"
@@ -67,13 +68,17 @@
   (parameter_modifier)
   (inheritance_modifier)
   (ownership_modifier)
+  (mutation_modifier)
 ] @keyword.modifier
 
-(class_body (property_declaration (pattern (simple_identifier) @identifier.property)))
-(protocol_property_declaration (pattern (simple_identifier) @identifier.property))
+; (class_body (property_declaration (pattern (simple_identifier) @identifier.property)))
+; (protocol_property_declaration (pattern (simple_identifier) @identifier.property))
 
 ; Function calls
-(call_expression (simple_identifier) @identifier.function) ; foo()
+(call_expression (simple_identifier) @identifier.function
+  (#not-match? @identifier.function "^[A-Z]")) ; foo()
+(call_expression (simple_identifier) @identifier.type
+  (#match? @identifier.type "^[A-Z]")) ; SomeType()
 (call_expression ; foo.bar.baz(): highlight the baz()
   (navigation_expression
     (navigation_suffix (simple_identifier) @identifier.method)))
@@ -86,7 +91,7 @@
 ((navigation_expression
   (navigation_suffix
       suffix: (simple_identifier) @identifier.property)))
-(value_argument name: (simple_identifier) @identifier.function)
+(value_argument name: (simple_identifier) @identifier.argument)
 (value_argument value: (prefix_expression (simple_identifier) @identifier.property))
 
 (directive) @identifier.function.macro
