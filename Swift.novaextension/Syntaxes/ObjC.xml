@@ -39,6 +39,7 @@
     
     <tree-sitter>
         <highlights path="objc/highlights.scm" />
+        <highlights path="c/highlights-preproc.scm" />
         <folds path="objc/folds.scm" />
         <symbols path="objc/symbols.scm" />
     </tree-sitter>

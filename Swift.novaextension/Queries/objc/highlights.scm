@@ -96,19 +96,10 @@
   "do"
   "continue"
   "break"
+  "in"
 ] @keyword.repeat
 
 "#define" @identifier.constant.macro
-
-[
-  "#if"
-  "#ifdef"
-  "#ifndef"
-  "#else"
-  "#elif"
-  "#endif"
-  (preproc_directive)
-] @keyword
 
 "#include" @declaration.include
 "#import" @declaration.include
@@ -195,11 +186,6 @@
 (char_literal) @value.number
 
 [
- (preproc_arg)
- (preproc_defined)
-] @identifier.function.macro
-
-[
  (type_identifier)
  (primitive_type)
  (sized_type_specifier)
@@ -238,14 +224,6 @@
 (protocol_qualifiers name: (identifier) @identifier.type.protocol)
 (protocol_expression (identifier) @identifier.type.protocol)
 
-;; Preproc def / undef
-(preproc_def
-  name: (_) @identifier.constant)
-(preproc_call
-  directive: (preproc_directive) @_u
-  argument: (_) @identifier.constant
-  (#eq? @_u "#undef"))
-
 ;; Property
 (property_declaration
   ; type: _ @identifier.type
@@ -283,8 +261,6 @@
   function: (identifier) @identifier.function)
 (function_declarator
   declarator: (identifier) @identifier.function)
-(preproc_function_def
-  name: (identifier) @identifier.function.macro)
 (selector_expression 
   name: (identifier) @identifier.function)
 (method_declaration

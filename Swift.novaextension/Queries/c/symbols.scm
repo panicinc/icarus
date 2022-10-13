@@ -27,3 +27,8 @@
   )
   (#set! role function)
 ) @subtree
+
+(preproc_function_def
+  name: (identifier) @name
+  (#set! role function)
+) @subtree

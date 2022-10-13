@@ -65,3 +65,8 @@
   )
   (#set! role destructor)
 ) @subtree
+
+(preproc_function_def
+  name: (identifier) @name
+  (#set! role function)
+) @subtree

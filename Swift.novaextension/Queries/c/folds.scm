@@ -34,8 +34,13 @@
     "}" @end
   )
 )
-
 (while_statement
+  body: (compound_statement
+    "{" @start
+    "}" @end
+  )
+)
+(do_statement
   body: (compound_statement
     "{" @start
     "}" @end
