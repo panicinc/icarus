@@ -1,3 +1,6 @@
+[ "." ";" ":" "," ] @punctuation.delimiter
+[ "(" ")" "[" "]" "{" "}" ] @punctuation.bracket
+
 ; Keywords
 "break" @keyword
 "case" @keyword
@@ -71,10 +74,7 @@
 (call_expression
   function: (field_expression
     field: (field_identifier) @identifier.function))
-(function_declarator
-  declarator: (identifier) @identifier.function)
 
-(field_identifier) @identifier.property
 (statement_identifier) @identifier.label
 (type_identifier) @identifier.type
 (primitive_type) @identifier.type

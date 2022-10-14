@@ -1,3 +1,6 @@
+[ "." ";" ":" "," ] @punctuation.delimiter
+[ "(" ")" "[" "]" "{" "}" ] @punctuation.bracket
+
 ; Preprocessor
 (preproc_if
   [
@@ -47,25 +50,6 @@
 
 (template_function
   name: (identifier) @identifier.function)
-
-(function_declarator
-  declarator: (qualified_identifier
-    name: (identifier) @identifier.function))
-
-(function_declarator
-  declarator: (qualified_identifier
-    name: (identifier) @identifier.function))
-
-(function_declarator
-  declarator: (field_identifier) @identifier.function)
-  
-(function_declarator
-  declarator: (identifier) @identifier.function)
-
-(destructor_name (identifier) @identifier.function)
-
-(field_declaration
-  declarator: (field_identifier) @identifier.property)
 
 ; Types
 

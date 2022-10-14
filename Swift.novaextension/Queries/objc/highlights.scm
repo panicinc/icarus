@@ -1,3 +1,6 @@
+[ "." ";" ":" "," ] @punctuation.delimiter
+[ "(" ")" "[" "]" "{" "}" ] @punctuation.bracket
+
 [
   (comment)
   (pragma)

@@ -34,4 +34,4 @@
   value: (preproc_arg)? @processing.argument)
 (preproc_call
   directive: (preproc_directive) @processing.directive
-  argument: (preproc_arg) @processing.argument)
+  argument: (preproc_arg)? @processing.argument)
