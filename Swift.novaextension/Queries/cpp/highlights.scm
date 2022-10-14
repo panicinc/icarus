@@ -63,9 +63,6 @@
 ((namespace_identifier) @identifier.type
  (#match? @identifier.type "^[A-Z]"))
 
-(namespace_definition
-  name: (identifier) @identifier.type)
-
 (type_identifier) @identifier.type
 (primitive_type) @identifier.type
 
@@ -152,6 +149,9 @@
  "else"
  "while"
  "for"
+ "struct"
+ "union"
+ "enum"
 ] @keyword
 
 ; Preprocessor
@@ -162,6 +162,15 @@
 
 (string_literal) @string
 (raw_string_literal) @string
+
+; Declarations
+
+(class_specifier name: (type_identifier) @identifier.type.declare)
+(namespace_definition name: (identifier) @identifier.type.declare)
+(struct_specifier name: (type_identifier) @identifier.type.declare)
+(union_specifier name: (type_identifier) @identifier.type.declare)
+(enum_specifier name: (type_identifier) @identifier.type.declare)
+(type_definition declarator: (type_identifier) @identifier.type.declare)
 
 ; Comments
 

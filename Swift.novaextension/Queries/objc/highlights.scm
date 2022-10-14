@@ -213,24 +213,26 @@
 (sizeof_expression value: (parenthesized_expression (identifier) @identifier.type))
 
 ;; Type Class & Category & Protocol
-(class_interface name: (identifier) @identifier.type.class)
-(category_interface name: (identifier) @identifier.type.class)
+(class_interface name: (identifier) @identifier.type.class.declare)
+(category_interface name: (identifier) @identifier.type.class.declare)
 (category_interface category: (identifier) @identifier.type.category)
 (superclass_reference name: (identifier) @identifier.type.class)
 (parameterized_class_type_arguments) @identifier.type.class
-(class_implementation name: (identifier) @identifier.type.class)
-(category_implementation name: (identifier) @identifier.type.class)
+(class_implementation name: (identifier) @identifier.type.class.declare)
+(category_implementation name: (identifier) @identifier.type.class.declare)
 (compatibility_alias_declaration (identifier) @identifier.type.class)
 (parameterized_class_type_arguments (identifier) @identifier.type.class)
 (category_implementation category: (identifier) @identifier.type.category)
 (class_forward_declaration name: (identifier) @identifier.type.class)
 (protocol_forward_declaration name: (identifier) @identifier.type.protocol)
-(protocol_declaration name: (identifier) @identifier.type.protocol)
+(protocol_declaration name: (identifier) @identifier.type.protocol.declare)
 (protocol_qualifiers name: (identifier) @identifier.type.protocol
   (#not-match? @identifier.type.protocol "^id$"))
 (protocol_qualifiers name: (identifier) @keyword.type
   (#match? @keyword.type "^id$"))
 (protocol_expression (identifier) @identifier.type.protocol)
+
+(ns_enum_specifier name: (type_identifier) @identifier.type.enum.declare)
 
 ;; Property
 ; (property_declaration
@@ -323,7 +325,6 @@
 (unary_expression argument: (identifier) @identifier.function)
 (va_arg_expression) @identifier.function
 (va_arg_expression va_list: (identifier) @identifier.variable)
-(enumerator name: (identifier) @identifier.variable)
 
 
 ;; Parameters

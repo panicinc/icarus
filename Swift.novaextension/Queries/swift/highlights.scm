@@ -71,8 +71,8 @@
   (mutation_modifier)
 ] @keyword.modifier
 
-; (class_body (property_declaration (pattern (simple_identifier) @identifier.property)))
-; (protocol_property_declaration (pattern (simple_identifier) @identifier.property))
+; Declarations
+(class_declaration name: (type_identifier) @identifier.type.declare)
 
 ; Function calls
 (call_expression (simple_identifier) @identifier.function

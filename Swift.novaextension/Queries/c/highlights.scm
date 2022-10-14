@@ -80,5 +80,12 @@
 (primitive_type) @identifier.type
 (sized_type_specifier) @identifier.type
 
+; Declarations
+
+(struct_specifier name: (type_identifier) @identifier.type.declare)
+(union_specifier name: (type_identifier) @identifier.type.declare)
+(enum_specifier name: (type_identifier) @identifier.type.declare)
+(type_definition declarator: (type_identifier) @identifier.type.declare)
+
 ; Comments
 (comment) @comment
