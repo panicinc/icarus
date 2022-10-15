@@ -1,5 +1,6 @@
 import Darwin
 import Dispatch
+import LLDBObjC
 
 class Adapter: DebugAdapterServerRequestHandler {
     static internal let shared = Adapter()

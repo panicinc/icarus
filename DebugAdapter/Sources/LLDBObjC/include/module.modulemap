@@ -1,5 +1,4 @@
-module lldb_API {
-  requires cplusplus
-  umbrella "lldb/API"
+module LLDBObjC {
+  umbrella header "LLDB.h"
   export *
 }

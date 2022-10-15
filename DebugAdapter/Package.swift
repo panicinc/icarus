@@ -8,18 +8,18 @@ let package = Package(
     ],
     products: [
         .executable(name: "LLDBAdapter", targets: ["LLDBAdapter"]),
-        .library(name: "LLDBObjC", targets: ["LLDBObjC"])
+        .library(name: "LLDBObjC", type: .static, targets: ["LLDBObjC"])
     ],
     dependencies: [
     ],
     targets: [
         .executableTarget(name: "LLDBAdapter", dependencies: ["LLDBObjC"]),
-        .target(name: "LLDBObjC", cSettings: [
-            .headerSearchPath("lldb"),
-            .headerSearchPath("llvm"),
-            .unsafeFlags(["-fmodules", "-fcxx-modules", "-std=c++11", "-stdlib=libc++"])
-        ], linkerSettings: [
-            .unsafeFlags(["-F/Applications/Xcode.app/Contents/SharedFrameworks/", "-framework", "LLDB"])
-        ])
+        .target(name: "LLDBObjC",
+                cSettings: [
+                    .headerSearchPath("../../ExternalHeaders/"),
+                    .unsafeFlags(["-fmodules", "-fcxx-modules", "-std=c++11", "-stdlib=libc++"])
+                ], linkerSettings: [
+                    .unsafeFlags(["-F/Applications/Xcode.app/Contents/SharedFrameworks/", "-framework", "LLDB"])
+                ])
     ]
 )
