@@ -1,0 +1,12 @@
+{
+  "actions" : {
+    "build" : {
+      "enabled" : true,
+      "script" : "swift build"
+    },
+    "clean" : {
+      "enabled" : true,
+      "script" : "swift package clean"
+    }
+  }
+}
