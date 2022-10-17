@@ -42,3 +42,11 @@
   ":" @start) @end.after
  (#set! fold.byLine)
 )
+
+(array_literal
+  "[" @start
+  "]" @end)
+
+(dictionary_literal
+  "[" @start
+  "]" @end)

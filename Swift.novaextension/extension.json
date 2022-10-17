@@ -20,6 +20,31 @@
         "filesystem": "readonly"
     },
     
+    "breakpoints": [
+        {
+            "syntax": "swift"
+        },
+        {
+            "syntax": "c"
+        },
+        {
+            "syntax": "cpp"
+        },
+        {
+            "syntax": "objc"
+        },
+        {
+            "syntax": "objcpp"
+        }
+    ],
+    
+    "debugAdapters": {
+        "lldb": {
+            "name": "LLDB",
+            "image": "lldb"
+        }
+    },
+    
     "config": [
         {
             "key": "sourcekit.language-server-path",
@@ -37,5 +62,50 @@
             "placeholder": "Default for xcode-select",
             "description": "Set a custom developer tools directory to use a toolchain separate from that provided by `xcode-select`."
         }
-    ]
+    ],
+    
+    "taskTemplates": {
+        "lldbDebug": {
+            "name": "LLDB Debug",
+            "description": "Debug Swift, C, C++, and Objective-C applications and command line tools.",
+            "image": "lldb",
+            "tasks": {
+                "run": {
+                    "resolve": "sourcekit",
+                    "data": {
+                        "type": "lldbDebug"
+                    }
+                }
+            },
+            "config": [
+                {
+                    "key": "launchPath",
+                    "title": "Executable",
+                    "type": "path",
+                    "description": "The application bundle or command line tool to debug."
+                },
+                {
+                    "key": "request",
+                    "title": "Launch",
+                    "type": "enum",
+                    "default": "launch",
+                    "values": [
+                        ["launch", "Automatically"],
+                        ["attach", "Wait for the executable to be launched"]
+                    ]
+                },
+                {
+                    "key": "launchArgs",
+                    "title": "Arguments Passed on Launch",
+                    "type": "stringArray"
+                },
+                {
+                    "key": "runInRosetta",
+                    "title": "Run using Rosetta",
+                    "type": "boolean",
+                    "default": false
+                }
+            ]
+        }
+    }
 }

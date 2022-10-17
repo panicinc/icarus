@@ -1,2 +1,5 @@
 #import "LLDBDebugger.h"
+#import "LLDBErrors.h"
+#import "LLDBListener.h"
+#import "LLDBProcess.h"
 #import "LLDBTarget.h"

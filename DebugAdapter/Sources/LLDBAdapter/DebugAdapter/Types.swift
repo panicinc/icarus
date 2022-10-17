@@ -1755,8 +1755,9 @@ public enum DebugAdapter {
         public var line: Int?
         public var column: Int?
         
-        public init(output: String) {
+        public init(output: String, category: Category? = nil) {
             self.output = output
+            self.category = category
         }
     }
     

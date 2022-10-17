@@ -10,7 +10,7 @@
         <extension priority="1.0">m,mm</extension>
         <combo priority="1.0">
             <extension priority="1.0">h,hh</extension>
-            <match-content lines="0">(@interface|@class|@protocol|#import)</match-content>
+            <match-content lines="0">(@interface|@class|@protocol|#import)\b</match-content>
         </combo>
     </detectors>
     

@@ -8,6 +8,10 @@
     
     <detectors>
         <extension priority="1.0">cpp,c++,hpp,h++</extension>
+        <combo priority="1.0">
+            <extension priority="1.0">h</extension>
+            <match-content lines="0">(?&lt;!@)\b(namespace|class)\b</match-content>
+        </combo>
     </detectors>
     
     <indentation>

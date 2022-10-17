@@ -1,0 +1,37 @@
+{
+  "actions" : {
+    "build" : {
+      "postActions" : [
+        {
+          "name" : "Build",
+          "script" : "swift build --product LLDBAdapter",
+          "type" : "runScript"
+        },
+        {
+          "name" : "Copy to Extension",
+          "script" : "#rm -f ..\/Swift.novaextension\/Executables\/LLDBAdapter\n#cp .build\/Debug\/LLDBAdapter ..\/Swift.novaextension\/Executables\/LLDBAdapter",
+          "type" : "runScript"
+        }
+      ]
+    },
+    "clean" : {
+      "postActions" : [
+        {
+          "name" : "Clean",
+          "script" : "swift package clean",
+          "type" : "runScript"
+        }
+      ]
+    }
+  },
+  "buildBeforeRunning" : true,
+  "extension" : {
+    "identifier" : "panic.Swift",
+    "name" : "Swift, C, C++, Obj-C"
+  },
+  "extensionTemplate" : "lldbDebug",
+  "extensionValues" : {
+    "launchPath" : "..\/Swift.novaextension\/Executables\/LLDBAdapter",
+    "request" : "attach"
+  }
+}

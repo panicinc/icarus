@@ -257,9 +257,9 @@
 (field_expression
   field: (field_identifier) @identifier.property)
 
-(((field_identifier) @identifier.property)
- (#has-ancestor? @identifier.property field_declaration)
- (#not-has-ancestor? @identifier.property function_declarator))
+; (((field_identifier) @identifier.property)
+;  (#has-ancestor? @identifier.property field_declaration)
+;  (#not-has-ancestor? @identifier.property function_declarator))
 
 ;; Variable
 ; declarator: (identifier) @identifier.variable

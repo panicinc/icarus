@@ -125,6 +125,23 @@ public enum JSONCodable: Codable {
             return nil
         }
     }
+    
+    private var typeDescription: String {
+        switch self {
+        case .null:
+            return "null"
+        case .bool(_):
+            return "bool"
+        case .string(_):
+            return "string"
+        case .number(_):
+            return "number"
+        case .array(_):
+            return "array"
+        case .object(_):
+            return "object"
+        }
+    }
 }
 
 extension JSONCodable: ExpressibleByNilLiteral {
@@ -167,5 +184,160 @@ extension JSONCodable: ExpressibleByDictionaryLiteral {
     public init(dictionaryLiteral elements: (String, JSONCodable)...) {
         let dictionary = Dictionary(uniqueKeysWithValues: elements)
         self = .object(dictionary)
+    }
+}
+
+extension JSONCodable {
+    public enum JSONCodableError: LocalizedError {
+        case notAnObject(key: String)
+        case typeMismatch(Any.Type, key: String)
+        case valueNotFound(Any.Type, key: String)
+        
+        public var errorDescription: String? {
+            switch (self) {
+                case .notAnObject(key: let key):
+                    return "Cannot get key \"\(key)\" on a value that is not an object."
+                case .valueNotFound(let type, key: let key):
+                    return "Expected \(type) for key \"\(key)\"."
+                case .typeMismatch(let type, key: let key):
+                    return "Expected \(type) for key \"\(key)\"."
+            }
+        }
+    }
+    
+    private func getMember<T>(_ type: T.Type, for key: String) throws -> JSONCodable {
+        switch self {
+        case .object(let value):
+            if let member = value[key] {
+                return member
+            }
+            else {
+                throw JSONCodableError.valueNotFound(T.self, key: key)
+            }
+        default:
+            throw JSONCodableError.notAnObject(key: key)
+        }
+    }
+    
+    private func getMemberIfPresent<T>(_ type: T.Type, for key: String) throws -> JSONCodable? {
+        switch self {
+        case .object(let value):
+            return value[key]
+        default:
+            throw JSONCodableError.notAnObject(key: key)
+        }
+    }
+    
+    public func get(_ type: String.Type, for key: String) throws -> String {
+        let member = try getMember(type, for: key)
+        switch member {
+        case .string(let memberValue):
+            return memberValue
+        default:
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func getIfPresent(_ type: String.Type, for key: String) throws -> String? {
+        let member = try getMemberIfPresent(type, for: key)
+        switch member {
+        case .string(let memberValue):
+            return memberValue
+        case .none, .null:
+            return nil
+        default:
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func get(_ type: Bool.Type, for key: String) throws -> Bool {
+        let member = try getMember(type, for: key)
+        switch member {
+        case .bool(let memberValue):
+            return memberValue
+        default:
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func getIfPresent(_ type: Bool.Type, for key: String) throws -> Bool? {
+        let member = try getMemberIfPresent(type, for: key)
+        switch member {
+        case .bool(let memberValue):
+            return memberValue
+        case .none, .null:
+            return nil
+        default:
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func get(_ type: Double.Type, for key: String) throws -> Double {
+        let member = try getMember(type, for: key)
+        switch member {
+        case .number(let memberValue):
+            return memberValue
+        default:
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func getIfPresent(_ type: Double.Type, for key: String) throws -> Double? {
+        let member = try getMemberIfPresent(type, for: key)
+        switch member {
+        case .number(let memberValue):
+            return memberValue
+        case .none, .null:
+            return nil
+        default:
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func get(_ type: Int.Type, for key: String) throws -> Int {
+        let member = try getMember(type, for: key)
+        switch member {
+        case .number(let memberValue):
+            return Int(memberValue)
+        default:
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func getIfPresent(_ type: Int.Type, for key: String) throws -> Int? {
+        let member = try getMemberIfPresent(type, for: key)
+        switch member {
+        case .number(let memberValue):
+            return Int(memberValue)
+        case .none, .null:
+            return nil
+        default:
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func get<T>(_ type: T.Type, for key: String) throws -> T {
+        let member = try getMember(type, for: key)
+        if let memberValue = member.JSONValue as? T {
+            return memberValue
+        }
+        else {
+            throw JSONCodableError.typeMismatch(type, key: key)
+        }
+    }
+    
+    public func getIfPresent<T>(_ type: T.Type, for key: String) throws -> T? {
+        let member = try getMemberIfPresent(type, for: key)
+        switch member {
+        case .none, .null:
+            return nil
+        default:
+            if let memberValue = member?.JSONValue as? T {
+                return memberValue
+            }
+            else {
+                throw JSONCodableError.typeMismatch(type, key: key)
+            }
+        }
     }
 }

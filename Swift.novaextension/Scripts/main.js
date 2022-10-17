@@ -1,14 +1,55 @@
 
 var langserver = null;
+var taskProvider = null;
 
 exports.activate = function() {
     langserver = new SourceKitLanguageServer();
+    taskProvider = new SourceKitTaskProvider();
+    
+    nova.assistants.registerTaskAssistant(taskProvider, {
+        'identifier': "sourcekit"
+    })
 }
 
 exports.deactivate = function() {
     if (langserver) {
         langserver.deactivate();
         langserver = null;
+    }
+    taskProvider = null;
+}
+
+class SourceKitTaskProvider {
+    resolveTaskAction(context) {
+        let action = context.action;
+        let data = context.data;
+        let config = context.config;
+        
+        if (action == Task.Run && data.type == "lldbDebug") {
+            let action = new TaskDebugAdapterAction("lldb");
+            
+            action.command = nova.path.normalize(nova.path.join(nova.extension.path, "Executables/LLDBAdapter"))
+            
+            // Debug Args
+            let request = config.get("request", "string");
+            if (!request) {
+                request = "launch";
+            }
+            action.debugRequest = request;
+            
+            let debugArgs = {};
+            
+            debugArgs.program = config.get("launchPath", "string");
+            debugArgs.args = config.get("launchArgs", "array");
+            debugArgs.runInRosetta = config.get("runInRosetta", "boolean");
+            
+            action.debugArgs = debugArgs;
+            
+            return action;
+        }
+        else {
+            return null;
+        }
     }
 }
 

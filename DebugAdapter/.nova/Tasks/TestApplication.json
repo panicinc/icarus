@@ -1,0 +1,38 @@
+{
+  "actions" : {
+    "build" : {
+      "postActions" : [
+        {
+          "action" : "build",
+          "name" : "Build LLDBAdapter",
+          "taskName" : "LLDBAdapter",
+          "type" : "runTask"
+        },
+        {
+          "name" : "Build TestApplication",
+          "script" : "xcrun swift build --product TestApplication",
+          "type" : "runScript"
+        }
+      ]
+    },
+    "clean" : {
+      "postActions" : [
+        {
+          "name" : "Clean",
+          "script" : "swift package clean",
+          "type" : "runScript"
+        }
+      ]
+    }
+  },
+  "buildBeforeRunning" : true,
+  "extension" : {
+    "identifier" : "panic.Swift",
+    "name" : "Swift, C, C++, Obj-C"
+  },
+  "extensionTemplate" : "lldbDebug",
+  "extensionValues" : {
+    "launchPath" : ".build\/release\/TestApplication",
+    "runInRosetta" : false
+  }
+}

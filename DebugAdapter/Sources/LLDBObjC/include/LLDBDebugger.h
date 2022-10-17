@@ -4,9 +4,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class LLDBTarget;
 
-@interface LLDBDebugger: NSObject
+@interface LLDBDebugger : NSObject
 
-- (nullable LLDBTarget *)createTargetWithURL:(NSURL *)fileURL platformName:(NSString *)platformName error:(NSError **)outError;
+@property (copy, readonly) NSArray <LLDBTarget *> *targets;
+- (nullable LLDBTarget *)createTargetWithURL:(NSURL *)fileURL architecture:(nullable NSString *)architecture error:(NSError **)outError;
+- (nullable LLDBTarget *)findTargetWithURL:(NSURL *)fileURL architecture:(nullable NSString *)architecture error:(NSError **)outError;
+- (nullable LLDBTarget *)findTargetWithProcessIdentifier:(pid_t)pid error:(NSError **)outError;
+- (BOOL)deleteTarget:(LLDBTarget *)target;
 
 @end
 
