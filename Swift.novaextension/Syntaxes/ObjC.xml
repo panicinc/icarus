@@ -35,7 +35,14 @@
                 <expression>*/</expression>
             </ends-with>
         </multiline>
+        <bookmark>
+            <expression capture="1">^\#pragma\s+mark\s+(.*)</expression>
+        </bookmark>
     </comments>
+    
+    <injection>
+        <expression>^(objc|obj-c|objective-c)$</expression>
+    </injection>
     
     <tree-sitter>
         <highlights path="objc/highlights.scm" />

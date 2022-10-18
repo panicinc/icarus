@@ -3,8 +3,12 @@
 
 [
   (comment)
-  (pragma)
 ] @comment
+
+((pragma) @comment
+  (#match? @comment "^#pragma\\s+mark\\s+"))
+((pragma) @processing.directive
+  (#not-match? @processing.directive "^#pragma\\s+mark\\s+"))
 
 [
   (self)

@@ -1,7 +1,18 @@
-; Classes and structs
+; Structs, enums, and classes
 (class_declaration
+  declaration_kind: "struct"
   name: (type_identifier) @name
- (#set! role class)
+  (#set! role struct)
+) @subtree
+(class_declaration
+  declaration_kind: "enum"
+  name: (type_identifier) @name
+  (#set! role enum)
+) @subtree
+(class_declaration
+  declaration_kind: "class"
+  name: (type_identifier) @name
+  (#set! role class)
 ) @subtree
 
 ; Initializers

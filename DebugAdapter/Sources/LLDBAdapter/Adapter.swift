@@ -4,12 +4,10 @@ import Dispatch
 import LLDBObjC
 
 class Adapter: DebugAdapterServerRequestHandler {
-    static internal let shared = Adapter()
+    static let shared = Adapter()
     
     let connection = DebugAdapterConnection(transport: DebugAdapterFileHandleTransport())
     let queue = DispatchQueue(label: "com.panic.lldb-adapter")
-    
-    // MARK: Lifecycle
     
     private(set) var isRunning = false
     
@@ -69,7 +67,7 @@ class Adapter: DebugAdapterServerRequestHandler {
         }
     }
     
-    // MARK: Configuration
+    // MARK: - Configuration
     
     private struct ClientOptions {
         var clientID: String?
@@ -103,8 +101,6 @@ class Adapter: DebugAdapterServerRequestHandler {
         capabilities.supportsCompletionsRequest = true
         capabilities.supportTerminateDebuggee = true
         capabilities.supportsExceptionInfoRequest = true
-        
-        connection.send(DebugAdapter.OutputEvent(output: "Foobar", category: .console))
         
         // let caughtExceptionsFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "*", label: "All Exceptions")
         // 
@@ -317,7 +313,7 @@ class Adapter: DebugAdapterServerRequestHandler {
         }
     }
     
-    // MARK: Breakpoints
+    // MARK: - Breakpoints
     
     private var _nextBreakpointId = 1
     private var nextBreakpointId: Int {
@@ -458,7 +454,7 @@ class Adapter: DebugAdapterServerRequestHandler {
         replyHandler(.success(.init(breakpoints: breakpoints)))
     }
     
-    // MARK: Execution
+    // MARK: - Execution
     
     func disconnect(_ request: DebugAdapter.DisconnectRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
         defer {
@@ -503,7 +499,7 @@ class Adapter: DebugAdapterServerRequestHandler {
         
     }
     
-    // MARK: Threads
+    // MARK: - Threads
     
     func threads(_ request: DebugAdapter.ThreadsRequest, replyHandler: @escaping (Result<DebugAdapter.ThreadsRequest.Result, Error>) -> ()) {
         

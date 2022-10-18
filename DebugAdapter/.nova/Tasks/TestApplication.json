@@ -10,7 +10,7 @@
         },
         {
           "name" : "Build TestApplication",
-          "script" : "xcrun swift build --product TestApplication",
+          "script" : "swift build --product TestApplication",
           "type" : "runScript"
         }
       ]
@@ -32,7 +32,7 @@
   },
   "extensionTemplate" : "lldbDebug",
   "extensionValues" : {
-    "launchPath" : ".build\/release\/TestApplication",
+    "launchPath" : ".build\/debug\/TestApplication",
     "runInRosetta" : false
   }
 }

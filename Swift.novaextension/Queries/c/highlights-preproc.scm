@@ -34,4 +34,15 @@
   value: (preproc_arg)? @processing.argument)
 (preproc_call
   directive: (preproc_directive) @processing.directive
-  argument: (preproc_arg)? @processing.argument)
+  argument: (preproc_arg)? @processing.argument
+  (#not-eq? @processing.directive "#pragma"))
+(preproc_call
+  directive: (preproc_directive) @processing.directive
+  argument: (preproc_arg)? @processing.argument
+  (#eq? @processing.directive "#pragma")
+  (#not-match? @processing.argument "^\\s+mark\\s+"))
+(preproc_call 
+  directive: (preproc_directive) @_directive
+  argument: (preproc_arg) @_argument @comment.doctag
+  (#eq? @_directive "#pragma")
+  (#match? @_argument "^\\s+mark\\s+")) @comment

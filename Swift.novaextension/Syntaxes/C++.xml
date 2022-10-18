@@ -37,6 +37,10 @@
         </multiline>
     </comments>
     
+    <injection>
+        <expression>^(cpp|c++)$</expression>
+    </injection>
+    
     <tree-sitter>
         <highlights path="cpp/highlights.scm" />
         <highlights path="c/highlights-preproc.scm" />
