@@ -74,11 +74,34 @@
 
 ; Functions and methods
 
+(declaration
+  declarator: (function_declarator
+    declarator: (qualified_identifier
+      name: (identifier) @name
+    ) @displayName
+  )
+  (#set! role function-or-method)
+) @subtree
+
+(declaration
+  declarator: (function_declarator
+    declarator: (identifier) @name
+  )
+  (#set! role function-or-method)
+) @subtree
+
 (function_definition
   declarator: (function_declarator
     declarator: (qualified_identifier
       name: (identifier) @name
     ) @displayName
+  )
+  (#set! role function-or-method)
+) @subtree
+
+(function_definition
+  declarator: (function_declarator
+    declarator: (identifier) @name
   )
   (#set! role function-or-method)
 ) @subtree

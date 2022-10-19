@@ -23,6 +23,7 @@
 "union" @keyword
 "volatile" @keyword
 "while" @keyword
+"goto" @keyword
 
 ; Operators
 [

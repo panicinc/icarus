@@ -21,10 +21,25 @@
   (#set! role type)
 ) @subtree
 
+(declaration
+  declarator: (function_declarator
+    declarator: (identifier) @name
+  )
+  (#set! role function)
+) @subtree
+
 (function_definition
   declarator: (function_declarator
     declarator: (identifier) @name
   )
+  (#set! role function)
+) @subtree
+
+(function_definition
+  declarator: (pointer_declarator
+    declarator: (function_declarator
+      declarator: (identifier) @name
+    ))
   (#set! role function)
 ) @subtree
 

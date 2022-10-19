@@ -65,6 +65,7 @@
 
 (type_identifier) @identifier.type
 (primitive_type) @identifier.type
+(sized_type_specifier) @identifier.type
 
 (auto) @keyword.modifier
 (type_qualifier) @keyword.modifier
@@ -152,6 +153,7 @@
  "struct"
  "union"
  "enum"
+ "typedef"
 ] @keyword
 
 ; Preprocessor
