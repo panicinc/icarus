@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<syntax name="c">
+    <meta>
+        <name>C</name>
+        <type>compiled</type>
+        <preferred-file-extension>c</preferred-file-extension>
+    </meta>
+    
+    <detectors>
+        <extension priority="1.0">c</extension>
+        <extension priority="0.5">h</extension>
+    </detectors>
+    
+    <indentation>
+        <increase>
+            <expression>(\{[^}\"']*$)|(\[[^\]\"']*$)|(\([^)\"']*$)</expression>
+        </increase>
+        <decrease>
+            <expression>^\s*(\s*/\*.*\*/\s*)*[\}\]\)\\]</expression>
+        </decrease>
+    </indentation>
+    
+    <comments>
+        <single>
+            <expression>//</expression>
+        </single>
+        <multiline>
+            <starts-with>
+                <expression>/*</expression>
+            </starts-with>
+            <ends-with>
+                <expression>*/</expression>
+            </ends-with>
+        </multiline>
+    </comments>
+    
+    <tree-sitter>
+        <highlights path="c/highlights.scm" />
+        <highlights path="c/highlights-preproc.scm" />
+        <folds path="c/folds.scm" />
+        <symbols path="c/symbols.scm" />
+    </tree-sitter>
+</syntax>

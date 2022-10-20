@@ -79,6 +79,15 @@ class Adapter: DebugAdapterServerRequestHandler {
     private var clientOptions = ClientOptions()
     
     func initialize(_ request: DebugAdapter.InitializeRequest, replyHandler: @escaping (Result<DebugAdapter.InitializeRequest.Result?, Error>) -> ()) {
+        // Initialize LLDB
+        do {
+            try LLDBDebugger.initializeWithError()
+        }
+        catch {
+            replyHandler(.failure(error))
+            return
+        }
+        
         // Client options
         var options = ClientOptions()
         
@@ -101,12 +110,11 @@ class Adapter: DebugAdapterServerRequestHandler {
         capabilities.supportTerminateDebuggee = true
         capabilities.supportsExceptionInfoRequest = true
         
-        // let caughtExceptionsFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "*", label: "All Exceptions")
-        // 
-        // var uncaughtExceptionsFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "uncaught", label: "Uncaught Exceptions")
-        // uncaughtExceptionsFilter.defaultValue = true
+        let swiftRuntimeFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "swiftErrors", label: "Swift Errors")
+        let cppExceptionsFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "cppExceptions", label: "C++ Exceptions")
+        let objcExceptionsFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "objcExceptions", label: "Objective-C Exceptions")
         
-        // capabilities.exceptionBreakpointFilters = [caughtExceptionsFilter, uncaughtExceptionsFilter]
+        capabilities.exceptionBreakpointFilters = [swiftRuntimeFilter, cppExceptionsFilter, objcExceptionsFilter]
         
         replyHandler(.success(capabilities))
     }

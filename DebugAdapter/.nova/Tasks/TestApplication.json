@@ -27,8 +27,8 @@
   },
   "buildBeforeRunning" : true,
   "extension" : {
-    "identifier" : "panic.Swift",
-    "name" : "Swift, C, C++, Obj-C"
+    "identifier" : "panic.Icarus",
+    "name" : "Icarus"
   },
   "extensionTemplate" : "lldbDebug",
   "extensionValues" : {

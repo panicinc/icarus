@@ -1,4 +1,5 @@
 #import "LLDBDebugger+Private.h"
+#import "LLDBBroadcaster+Private.h"
 #import "LLDBTarget+Private.h"
 #import "LLDBErrors+Private.h"
 
@@ -8,10 +9,21 @@
     lldb::SBDebugger _debugger;
 }
 
-+ (void)initialize {
-    if (self == [LLDBDebugger class]) {
-        lldb::SBDebugger::Initialize();
++ (BOOL)initializeWithError:(NSError *__autoreleasing *)outError {
+    lldb::SBError error = lldb::SBDebugger::InitializeWithErrorHandling();
+    if (error.Success()) {
+        return YES;
     }
+    else {
+        if (outError != NULL) {
+            *outError = [NSError lldb_errorWithLLDBError:error];
+        }
+        return NO;
+    }
+}
+
++ (void)terminate {
+    lldb::SBDebugger::Terminate();
 }
 
 - (instancetype)init {
@@ -28,6 +40,11 @@
 
 - (lldb::SBDebugger)debugger {
     return _debugger;
+}
+
+- (LLDBBroadcaster *)broadcaster {
+    lldb::SBBroadcaster bc = _debugger.GetBroadcaster();
+    return [[LLDBBroadcaster alloc] initWithBroadcaster:bc];
 }
 
 - (NSArray <LLDBTarget *> *)targets {

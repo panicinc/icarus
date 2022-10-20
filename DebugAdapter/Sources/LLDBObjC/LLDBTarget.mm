@@ -1,5 +1,5 @@
-#import "LLDBTarget.h"
 #import "LLDBTarget+Private.h"
+#import "LLDBBreakpoint+Private.h"
 #import "LLDBDebugger+Private.h"
 #import "LLDBErrors+Private.h"
 #import "LLDBProcess+Private.h"
@@ -43,6 +43,8 @@
 - (uint32_t)addressByteSize {
     return _target.GetAddressByteSize();
 }
+
+#pragma mark - Launch & Attach
 
 - (LLDBProcess *)launchWithOptions:(LLDBLaunchOptions *)options error:(NSError *__autoreleasing *)outError {
     lldb::SBLaunchInfo launchInfo = _target.GetLaunchInfo();
@@ -108,6 +110,42 @@
         }
         return nil;
     }
+}
+
+#pragma mark - Breakpoints
+
+// Breakpoints
+- (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line {
+    const char * path = fileURL.fileSystemRepresentation;
+    lldb::SBBreakpoint bp = _target.BreakpointCreateByLocation(path, line.intValue);
+    
+    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp target:self];
+}
+
+- (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line column:(nullable NSNumber *)column offset:(nullable NSNumber *)offset moveToNearestCode:(BOOL)moveToNearestCode {
+    const char * path = fileURL.fileSystemRepresentation;
+    lldb::SBFileSpec fileSpec(path);
+    lldb::SBFileSpecList moduleList;
+    int lineVal = line.intValue;
+    int columnVal = column.intValue;
+    lldb::addr_t offsetVal = (lldb::addr_t)offset.integerValue;
+    lldb::SBBreakpoint bp = _target.BreakpointCreateByLocation(fileSpec, lineVal, columnVal, offsetVal, moduleList, moveToNearestCode);
+    
+    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp target:self];
+}
+
+- (LLDBBreakpoint *)createBreakpointForName:(NSString *)name {
+    const char * symbolName = name.UTF8String;
+    lldb::SBBreakpoint bp = _target.BreakpointCreateByName(symbolName);
+    
+    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp target:self];
+}
+
+- (LLDBBreakpoint *)createBreakpointForExceptionInLanguageType:(LLDBLanguageType)languageType onCatch:(BOOL)onCatch onThrow:(BOOL)onThrow {
+    lldb::LanguageType langtype = (lldb::LanguageType)languageType;
+    lldb::SBBreakpoint bp = _target.BreakpointCreateForException(langtype, onCatch, onThrow);
+    
+    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp target:self];
 }
 
 @end
