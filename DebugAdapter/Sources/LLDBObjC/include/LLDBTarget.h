@@ -4,19 +4,21 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBBreakpoint, LLDBDebugger, LLDBAttachOptions, LLDBLaunchOptions, LLDBProcess;
+@class LLDBBreakpoint, LLDBBroadcaster, LLDBAttachOptions, LLDBLaunchOptions, LLDBProcess;
 
 @interface LLDBTarget : NSObject
 
+@property (class, readonly) NSString *broadcasterClassName;
+
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
-
-@property (strong, readonly) LLDBDebugger *debugger;
 
 @property (readonly, getter=isValid) BOOL valid;
 
 @property (readonly) CFByteOrder byteOrder;
 @property (readonly) uint32_t addressByteSize;
+
+@property (strong, readonly) LLDBBroadcaster *broadcaster;
 
 // Launch and attach
 - (nullable LLDBProcess *)launchWithOptions:(nullable LLDBLaunchOptions *)options error:(NSError **)outError;

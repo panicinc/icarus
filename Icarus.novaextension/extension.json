@@ -5,6 +5,7 @@
     "description": "Swift, C, C++, & Objective-C language support and intelligence.",
     "version": "1.0",
     "categories": ["languages"],
+    "keywords": ["swift", "c", "c++", "cpp", "objective-c", "objc", "objective-c++", "objc++", "objcpp", "llvm", "clang", "lldb", "xcode"],
     
     "main": "main.js",
     
@@ -12,12 +13,13 @@
         "onLanguage:swift",
         "onLanguage:c",
         "onLanguage:cpp",
-        "onLanguage:objc"
+        "onLanguage:objc",
+        "onLanguage:objcpp"
     ],
     
     "entitlements": {
         "process": true,
-        "filesystem": "readonly"
+        "filesystem": "readwrite"
     },
     
     "breakpoints": [

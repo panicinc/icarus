@@ -1,5 +1,6 @@
 #import "LLDBTarget+Private.h"
 #import "LLDBBreakpoint+Private.h"
+#import "LLDBBroadcaster+Private.h"
 #import "LLDBDebugger+Private.h"
 #import "LLDBErrors+Private.h"
 #import "LLDBProcess+Private.h"
@@ -8,12 +9,16 @@
 
 @implementation LLDBTarget {
     lldb::SBTarget _target;
+    LLDBBroadcaster *_broadcaster;
 }
 
-- (instancetype)initWithTarget:(lldb::SBTarget)target debugger:(LLDBDebugger *)debugger {
++ (NSString *)broadcasterClassName {
+    return @(lldb::SBTarget::GetBroadcasterClassName());
+}
+
+- (instancetype)initWithTarget:(lldb::SBTarget)target {
     self = [super init];
     if (self) {
-        self.debugger = debugger;
         _target = target;
     }
     return self;
@@ -42,6 +47,16 @@
 
 - (uint32_t)addressByteSize {
     return _target.GetAddressByteSize();
+}
+
+- (LLDBBroadcaster *)broadcaster {
+    @synchronized(self) {
+        if (_broadcaster == nil) {
+            lldb::SBBroadcaster bc = _target.GetBroadcaster();
+            _broadcaster = [[LLDBBroadcaster alloc] initWithBroadcaster:bc];
+        }
+        return _broadcaster;
+    }
 }
 
 #pragma mark - Launch & Attach
@@ -82,7 +97,7 @@
     lldb::SBError error;
     lldb::SBProcess lldbProcess = _target.Launch(launchInfo, error);
     if (lldbProcess.IsValid()) {
-        LLDBProcess *process = [[LLDBProcess alloc] initWithProcess:lldbProcess target:self];
+        LLDBProcess *process = [[LLDBProcess alloc] initWithProcess:lldbProcess];
         return process;
     }
     else {
@@ -101,7 +116,7 @@
     lldb::SBError error;
     lldb::SBProcess lldbProcess = _target.Attach(attachInfo, error);
     if (lldbProcess.IsValid()) {
-        LLDBProcess *process = [[LLDBProcess alloc] initWithProcess:lldbProcess target:self];
+        LLDBProcess *process = [[LLDBProcess alloc] initWithProcess:lldbProcess];
         return process;
     }
     else {
@@ -119,7 +134,7 @@
     const char * path = fileURL.fileSystemRepresentation;
     lldb::SBBreakpoint bp = _target.BreakpointCreateByLocation(path, line.intValue);
     
-    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp target:self];
+    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp];
 }
 
 - (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line column:(nullable NSNumber *)column offset:(nullable NSNumber *)offset moveToNearestCode:(BOOL)moveToNearestCode {
@@ -131,21 +146,21 @@
     lldb::addr_t offsetVal = (lldb::addr_t)offset.integerValue;
     lldb::SBBreakpoint bp = _target.BreakpointCreateByLocation(fileSpec, lineVal, columnVal, offsetVal, moduleList, moveToNearestCode);
     
-    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp target:self];
+    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp];
 }
 
 - (LLDBBreakpoint *)createBreakpointForName:(NSString *)name {
     const char * symbolName = name.UTF8String;
     lldb::SBBreakpoint bp = _target.BreakpointCreateByName(symbolName);
     
-    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp target:self];
+    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp];
 }
 
 - (LLDBBreakpoint *)createBreakpointForExceptionInLanguageType:(LLDBLanguageType)languageType onCatch:(BOOL)onCatch onThrow:(BOOL)onThrow {
     lldb::LanguageType langtype = (lldb::LanguageType)languageType;
     lldb::SBBreakpoint bp = _target.BreakpointCreateForException(langtype, onCatch, onThrow);
     
-    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp target:self];
+    return [[LLDBBreakpoint alloc] initWithBreakpoint:bp];
 }
 
 @end

@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBTarget;
+@class LLDBBroadcaster, LLDBTarget;
 
 typedef NS_ENUM(NSUInteger, LLDBProcessState) {
     LLDBProcessStateInvalid,
@@ -21,10 +21,10 @@ typedef NS_ENUM(NSUInteger, LLDBProcessState) {
 
 @interface LLDBProcess : NSObject
 
+@property (class, readonly) NSString *broadcasterClassName;
+
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
-
-@property (strong, readonly) LLDBTarget *target;
 
 @property (readonly) LLDBProcessState state;
 
@@ -33,6 +33,8 @@ typedef NS_ENUM(NSUInteger, LLDBProcessState) {
 
 @property (readonly) CFByteOrder byteOrder;
 @property (readonly) uint32_t addressByteSize;
+
+@property (strong, readonly) LLDBBroadcaster *broadcaster;
 
 @property (readonly) int exitStatus;
 @property (readonly) const char * exitDescription;

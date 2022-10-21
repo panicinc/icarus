@@ -7,6 +7,7 @@
 
 @implementation LLDBDebugger {
     lldb::SBDebugger _debugger;
+    LLDBBroadcaster *_broadcaster;
 }
 
 + (BOOL)initializeWithError:(NSError *__autoreleasing *)outError {
@@ -43,8 +44,13 @@
 }
 
 - (LLDBBroadcaster *)broadcaster {
-    lldb::SBBroadcaster bc = _debugger.GetBroadcaster();
-    return [[LLDBBroadcaster alloc] initWithBroadcaster:bc];
+    @synchronized(self) {
+        if (_broadcaster == nil) {
+            lldb::SBBroadcaster bc = _debugger.GetBroadcaster();
+            _broadcaster = [[LLDBBroadcaster alloc] initWithBroadcaster:bc];
+        }
+        return _broadcaster;
+    }
 }
 
 - (NSArray <LLDBTarget *> *)targets {
@@ -52,7 +58,7 @@
     NSMutableArray <LLDBTarget *> *targets = [NSMutableArray arrayWithCapacity:count];
     for (uint32_t i = 0; i < count; i++) {
         lldb::SBTarget lldbTarget = _debugger.GetTargetAtIndex(i);
-        LLDBTarget *target = [[LLDBTarget alloc] initWithTarget:lldbTarget debugger:self];
+        LLDBTarget *target = [[LLDBTarget alloc] initWithTarget:lldbTarget];
         [targets addObject:target];
     }
     return targets;
@@ -68,7 +74,7 @@
     
     lldb::SBTarget lldbTarget = _debugger.CreateTargetWithFileAndArch(path, arch);
     if (lldbTarget.IsValid()) {
-        return [[LLDBTarget alloc] initWithTarget:lldbTarget debugger:self];
+        return [[LLDBTarget alloc] initWithTarget:lldbTarget];
     }
     else {
         if (outError != NULL) {
@@ -88,7 +94,7 @@
     
     lldb::SBTarget lldbTarget = _debugger.FindTargetWithFileAndArch(path, arch);
     if (lldbTarget.IsValid()) {
-        return [[LLDBTarget alloc] initWithTarget:lldbTarget debugger:self];
+        return [[LLDBTarget alloc] initWithTarget:lldbTarget];
     }
     else {
         if (outError != NULL) {
@@ -101,7 +107,7 @@
 - (LLDBTarget *)findTargetWithProcessIdentifier:(pid_t)pid error:(NSError *__autoreleasing *)outError {
     lldb::SBTarget lldbTarget = _debugger.FindTargetWithProcessID(pid);
     if (lldbTarget.IsValid()) {
-        return [[LLDBTarget alloc] initWithTarget:lldbTarget debugger:self];
+        return [[LLDBTarget alloc] initWithTarget:lldbTarget];
     }
     else {
         if (outError != NULL) {

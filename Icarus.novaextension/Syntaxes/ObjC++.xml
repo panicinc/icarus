@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<syntax name="objcpp">
+    <meta>
+        <name>Objective-C++</name>
+        <type>compiled</type>
+        <preferred-file-extension>mm</preferred-file-extension>
+    </meta>
+    
+    <detectors>
+        <extension priority="1.0">mm,M</extension>
+        <combo priority="1.0">
+            <extension priority="1.0">hh</extension>
+            <match-content lines="0">(@interface|@class|@protocol|#import)\b</match-content>
+        </combo>
+    </detectors>
+    
+    <indentation>
+        <increase>
+            <expression>(\{[^}\"']*$)|(\[[^\]\"']*$)|(\([^)\"']*$)</expression>
+        </increase>
+        <decrease>
+            <expression>^\s*(\s*/\*.*\*/\s*)*[\}\]\)\\]</expression>
+        </decrease>
+    </indentation>
+    
+    <comments>
+        <single>
+            <expression>//</expression>
+        </single>
+        <multiline>
+            <starts-with>
+                <expression>/*</expression>
+            </starts-with>
+            <ends-with>
+                <expression>*/</expression>
+            </ends-with>
+        </multiline>
+        <bookmark>
+            <expression capture="1">^\#pragma\s+mark\s+(.*)</expression>
+        </bookmark>
+    </comments>
+    
+    <injection>
+        <expression>^(objc++|obj-c++|objective-c++)$</expression>
+    </injection>
+    
+    <tree-sitter>
+        <highlights path="objc/highlights.scm" />
+        <highlights path="cpp/highlights.scm" />
+        <highlights path="c/highlights-preproc.scm" />
+        <folds path="objc/folds.scm" />
+        <folds path="cpp/folds.scm" />
+        <symbols path="objc/symbols.scm" />
+        <symbols path="cpp/symbols.scm" />
+    </tree-sitter>
+</syntax>

@@ -6,9 +6,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface LLDBListener ()
 
-- (instancetype)initWithListener:(lldb::SBListener)listener NS_DESIGNATED_INITIALIZER;
-
 @property (readonly) lldb::SBListener listener;
+
+@property (nullable, copy, readwrite) NSString *name;
+@property (nullable, strong, readwrite) dispatch_queue_t queue;
+@property (getter=isListening) BOOL listening;
 
 @end
 

@@ -4,17 +4,12 @@
     lldb::SBBreakpoint _breakpoint;
 }
 
-- (instancetype)initWithBreakpoint:(lldb::SBBreakpoint)breakpoint target:(LLDBTarget *)target {
+- (instancetype)initWithBreakpoint:(lldb::SBBreakpoint)breakpoint {
     self = [super init];
     if (self) {
         _breakpoint = breakpoint;
-        self.target = target;
     }
     return self;
-}
-
-- (void)dealloc {
-    
 }
 
 - (lldb::SBBreakpoint)breakpoint {

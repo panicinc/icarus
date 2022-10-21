@@ -68,6 +68,9 @@ class Adapter: DebugAdapterServerRequestHandler {
     
     // MARK: - Configuration
     
+    private var debugger: LLDBDebugger?
+    private var listener: LLDBListener?
+    
     private struct ClientOptions {
         var clientID: String?
         var clientName: String?
@@ -87,6 +90,21 @@ class Adapter: DebugAdapterServerRequestHandler {
             replyHandler(.failure(error))
             return
         }
+        
+        // Debugger
+        let debugger = LLDBDebugger()
+        self.debugger = debugger
+        
+        // Event listener
+        let listener = LLDBListener(name: "com.panic.lldb-adapter.listener", queue: queue)
+        listener.eventHandler = { [weak self] event in
+            self?.handleDebuggerEvent(event)
+        }
+        listener.startListening(in: debugger, eventClass: LLDBTarget.broadcasterClassName, mask: UInt32.max)
+        listener.startListening(in: debugger, eventClass: LLDBProcess.broadcasterClassName, mask: UInt32.max)
+        // listener.startListening(in: debugger, eventClass: LLDBThread.broadcasterClassName, mask: UInt32.max)
+        self.listener = listener
+        listener.resume()
         
         // Client options
         var options = ClientOptions()
@@ -117,6 +135,18 @@ class Adapter: DebugAdapterServerRequestHandler {
         capabilities.exceptionBreakpointFilters = [swiftRuntimeFilter, cppExceptionsFilter, objcExceptionsFilter]
         
         replyHandler(.success(capabilities))
+    }
+    
+    private func handleDebuggerEvent(_ event: LLDBEvent) {
+        if let breakpointEvent = event.toBreakpointEvent() {
+            
+        }
+        else if let targetEvent = event.toTargetEvent() {
+            
+        }
+        else {
+            
+        }
     }
     
     private enum DebugStartRequest {
@@ -233,11 +263,14 @@ class Adapter: DebugAdapterServerRequestHandler {
     
     func configurationDone(_ request: DebugAdapter.ConfigurationDoneRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
         do {
+            guard let debugger = debugger else {
+                throw AdapterError.invalidArguments(reason: "No `initialize` request was sent before `configurationDone`.")
+            }
+            
             guard let configuration = configuration else {
                 throw AdapterError.invalidArguments(reason: "No `launch` or `attach` request was sent before `configurationDone`.")
             }
             
-            let debugger = LLDBDebugger()
             let startMethod: DebugAdapter.ProcessEvent.StartMethod
             
             let process: LLDBProcess

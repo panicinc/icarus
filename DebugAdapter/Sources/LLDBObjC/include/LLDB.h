@@ -2,6 +2,7 @@
 #import "LLDBBroadcaster.h"
 #import "LLDBDebugger.h"
 #import "LLDBErrors.h"
+#import "LLDBEvent.h"
 #import "LLDBListener.h"
 #import "LLDBProcess.h"
 #import "LLDBTarget.h"

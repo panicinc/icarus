@@ -1,16 +1,21 @@
 #import "LLDBProcess+Private.h"
+#import "LLDBBroadcaster+Private.h"
 #import "LLDBErrors+Private.h"
 
 @import lldb_API;
 
 @implementation LLDBProcess {
     lldb::SBProcess _process;
+    LLDBBroadcaster *_broadcaster;
 }
 
-- (instancetype)initWithProcess:(lldb::SBProcess)process target:(LLDBTarget *)target {
++ (NSString *)broadcasterClassName {
+    return @(lldb::SBProcess::GetBroadcasterClassName());
+}
+
+- (instancetype)initWithProcess:(lldb::SBProcess)process {
     self = [super init];
     if (self) {
-        self.target = target;
         _process = process;
     }
     return self;
@@ -73,6 +78,16 @@
 
 - (uint32_t)addressByteSize {
     return _process.GetAddressByteSize();
+}
+
+- (LLDBBroadcaster *)broadcaster {
+    @synchronized(self) {
+        if (_broadcaster == nil) {
+            lldb::SBBroadcaster bc = _process.GetBroadcaster();
+            _broadcaster = [[LLDBBroadcaster alloc] initWithBroadcaster:bc];
+        }
+        return _broadcaster;
+    }
 }
 
 - (int)exitStatus {

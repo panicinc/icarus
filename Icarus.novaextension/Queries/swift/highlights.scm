@@ -69,6 +69,7 @@
   (inheritance_modifier)
   (ownership_modifier)
   (mutation_modifier)
+  (property_behavior_modifier)
 ] @keyword.modifier
 
 ; Declarations

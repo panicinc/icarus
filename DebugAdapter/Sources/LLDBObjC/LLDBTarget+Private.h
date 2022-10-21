@@ -1,14 +1,14 @@
 #import "LLDBTarget.h"
+
 @import lldb_API;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface LLDBTarget ()
 
-- (instancetype)initWithTarget:(lldb::SBTarget)target debugger:(LLDBDebugger *)debugger NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithTarget:(lldb::SBTarget)target NS_DESIGNATED_INITIALIZER;
 
 @property (readonly) lldb::SBTarget target;
-@property (strong, readwrite) LLDBDebugger *debugger;
 
 @end
 
