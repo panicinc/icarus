@@ -7,6 +7,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
 
+@property (readonly) uint32_t breakpointID;
+
 @end
 
 NS_ASSUME_NONNULL_END

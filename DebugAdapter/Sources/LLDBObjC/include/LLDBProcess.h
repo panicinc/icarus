@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBBroadcaster, LLDBTarget;
+@class LLDBTarget, LLDBThread;
 
 typedef NS_ENUM(NSUInteger, LLDBProcessState) {
     LLDBProcessStateInvalid,
@@ -31,15 +31,35 @@ typedef NS_ENUM(NSUInteger, LLDBProcessState) {
 @property (readonly) pid_t processIdentifier;
 @property (readonly) uint32_t uniqueIdentifier;
 
+@property (nullable, copy, readonly) NSString *name;
+
 @property (readonly) CFByteOrder byteOrder;
 @property (readonly) uint32_t addressByteSize;
 
-@property (strong, readonly) LLDBBroadcaster *broadcaster;
+@property (readonly) NSUInteger threadCount;
+- (nullable LLDBThread *)threadAtIndex:(NSUInteger)idx;
+- (nullable LLDBThread *)threadWithID:(uint64_t)threadID;
+- (nullable LLDBThread *)threadWithIndexID:(uint32_t)indexID;
+@property (copy, readonly) NSArray <LLDBThread *> *threads;
+
+@property (nullable, readonly) LLDBThread *selectedThread;
+- (BOOL)setSelectedThread:(LLDBThread *)thread;
+- (BOOL)setSelectedThreadByID:(uint64_t)threadID;
+- (BOOL)setSelectedThreadByIndexID:(uint32_t)indexID;
+
+- (NSUInteger)writeBytesToStandardIn:(const char *)bytes length:(NSUInteger)length;
+- (NSUInteger)writeDataToStandardIn:(NSData *)data;
+
+- (NSUInteger)readBytesFromStandardOut:(char *)bytes length:(NSUInteger)length;
+- (nullable NSData *)readDataFromStandardOutToLength:(NSUInteger)length;
+
+- (NSUInteger)readBytesFromStandardError:(char *)bytes length:(NSUInteger)length;
+- (nullable NSData *)readDataFromStandardErrorToLength:(NSUInteger)length;
 
 @property (readonly) int exitStatus;
 @property (readonly) const char * exitDescription;
 
-- (BOOL)continue:(NSError **)outError;
+- (BOOL)resume:(NSError **)outError;
 - (BOOL)stop:(NSError **)outError;
 - (BOOL)kill:(NSError **)outError;
 - (BOOL)detach:(NSError **)outError;

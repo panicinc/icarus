@@ -37,7 +37,7 @@
 
 - (void)resume {
     @synchronized(self) {
-        if (!self.listening) {
+        if (self.listening) {
             return;
         }
         

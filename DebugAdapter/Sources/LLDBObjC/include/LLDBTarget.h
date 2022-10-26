@@ -4,7 +4,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBBreakpoint, LLDBBroadcaster, LLDBAttachOptions, LLDBLaunchOptions, LLDBProcess;
+@class LLDBBreakpoint, LLDBAttachOptions, LLDBLaunchOptions, LLDBProcess;
 
 @interface LLDBTarget : NSObject
 
@@ -18,19 +18,23 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) CFByteOrder byteOrder;
 @property (readonly) uint32_t addressByteSize;
 
-@property (strong, readonly) LLDBBroadcaster *broadcaster;
-
 // Launch and attach
 - (nullable LLDBProcess *)launchWithOptions:(nullable LLDBLaunchOptions *)options error:(NSError **)outError;
 - (nullable LLDBProcess *)attachWithOptions:(nullable LLDBAttachOptions *)options error:(NSError **)outError;
 
+@property (nullable, readonly) LLDBProcess *process;
+
 // Breakpoints
-- (nullable LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line;
-- (nullable LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line column:(nullable NSNumber *)column offset:(nullable NSNumber *)offset moveToNearestCode:(BOOL)moveToNearestCode;
+- (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line;
+- (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line column:(nullable NSNumber *)column offset:(nullable NSNumber *)offset moveToNearestCode:(BOOL)moveToNearestCode;
 
-- (nullable LLDBBreakpoint *)createBreakpointForName:(NSString *)name;
+- (LLDBBreakpoint *)createBreakpointForName:(NSString *)name;
 
-- (nullable LLDBBreakpoint *)createBreakpointForExceptionInLanguageType:(LLDBLanguageType)languageType onCatch:(BOOL)onCatch onThrow:(BOOL)onThrow;
+- (LLDBBreakpoint *)createBreakpointForExceptionInLanguageType:(LLDBLanguageType)languageType onCatch:(BOOL)onCatch onThrow:(BOOL)onThrow;
+
+- (nullable LLDBBreakpoint *)findBreakpointByID:(uint32_t)breakpointID;
+
+- (BOOL)removeBreakpointWithID:(uint32_t)breakpointID;
 
 @end
 
@@ -39,12 +43,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, copy) NSArray <NSString *> *arguments;
 @property (nullable, copy) NSDictionary <NSString *, NSString *> *environment;
 @property (nullable, copy) NSURL *currentDirectoryURL;
+@property BOOL stopAtEntry;
 
 @end
 
 @interface LLDBAttachOptions : NSObject
 
 @property BOOL waitForLaunch;
+@property BOOL stopAtEntry;
 
 @end
 

@@ -16,4 +16,8 @@
     return _breakpoint;
 }
 
+- (uint32_t)breakpointID {
+    return _breakpoint.GetID();
+}
+
 @end

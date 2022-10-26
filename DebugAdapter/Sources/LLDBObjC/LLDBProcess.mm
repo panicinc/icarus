@@ -1,12 +1,13 @@
 #import "LLDBProcess+Private.h"
-#import "LLDBBroadcaster+Private.h"
+#import "LLDBThread+Private.h"
 #import "LLDBErrors+Private.h"
+
+#import <libproc.h>
 
 @import lldb_API;
 
 @implementation LLDBProcess {
     lldb::SBProcess _process;
-    LLDBBroadcaster *_broadcaster;
 }
 
 + (NSString *)broadcasterClassName {
@@ -63,6 +64,20 @@
     return _process.GetUniqueID();
 }
 
+#define MAX_PROC_NAME_LENGTH 50
+
+- (NSString *)name {
+    pid_t pid = (pid_t)_process.GetProcessID();
+    char * buffer = (char *)malloc(sizeof(char) * MAX_PROC_NAME_LENGTH);
+    int len = proc_name(pid, buffer, MAX_PROC_NAME_LENGTH);
+    NSString *string = nil;
+    if (len > 0) {
+        string = [NSString stringWithCString:buffer encoding:NSUTF8StringEncoding];
+    }
+    free(buffer);
+    return string;
+}
+
 - (CFByteOrder)byteOrder {
     lldb::ByteOrder byteOrder = _process.GetByteOrder();
     switch (byteOrder) {
@@ -80,13 +95,111 @@
     return _process.GetAddressByteSize();
 }
 
-- (LLDBBroadcaster *)broadcaster {
-    @synchronized(self) {
-        if (_broadcaster == nil) {
-            lldb::SBBroadcaster bc = _process.GetBroadcaster();
-            _broadcaster = [[LLDBBroadcaster alloc] initWithBroadcaster:bc];
-        }
-        return _broadcaster;
+- (NSUInteger)threadCount {
+    return _process.GetNumThreads();
+}
+
+- (LLDBThread *)threadAtIndex:(NSUInteger)idx {
+    lldb::SBThread thread = _process.GetThreadAtIndex((size_t)idx);
+    if (thread.IsValid()) {
+        return [[LLDBThread alloc] initWithThread:thread];
+    }
+    else {
+        return nil;
+    }
+}
+
+- (LLDBThread *)threadWithID:(uint64_t)threadID {
+    lldb::SBThread thread = _process.GetThreadByID(threadID);
+    if (thread.IsValid()) {
+        return [[LLDBThread alloc] initWithThread:thread];
+    }
+    else {
+        return nil;
+    }
+}
+
+- (LLDBThread *)threadWithIndexID:(uint32_t)indexID {
+    lldb::SBThread thread = _process.GetThreadByIndexID(indexID);
+    if (thread.IsValid()) {
+        return [[LLDBThread alloc] initWithThread:thread];
+    }
+    else {
+        return nil;
+    }
+}
+
+- (NSArray<LLDBThread *> *)threads {
+    size_t threadCount = _process.GetNumThreads();
+    NSMutableArray <LLDBThread *> *threads = [NSMutableArray arrayWithCapacity:threadCount];
+    for (size_t i = 0; i < threadCount; i++) {
+        lldb::SBThread th = _process.GetThreadAtIndex(i);
+        LLDBThread *thread = [[LLDBThread alloc] initWithThread:th];
+        [threads addObject:thread];
+    }
+    return threads;
+}
+
+- (LLDBThread *)selectedThread {
+    lldb::SBThread thread = _process.GetSelectedThread();
+    if (thread.IsValid()) {
+        return [[LLDBThread alloc] initWithThread:thread];
+    }
+    else {
+        return nil;
+    }
+}
+
+- (BOOL)setSelectedThread:(LLDBThread *)thread {
+    return _process.SetSelectedThread(thread.thread);
+}
+
+- (BOOL)setSelectedThreadByID:(uint64_t)threadID {
+    return _process.SetSelectedThreadByID(threadID);
+}
+
+- (BOOL)setSelectedThreadByIndexID:(uint32_t)indexID {
+    return _process.SetSelectedThreadByIndexID(indexID);
+}
+
+- (NSUInteger)writeBytesToStandardIn:(const char *)bytes length:(NSUInteger)length {
+    return _process.PutSTDIN(bytes, (size_t)length);
+}
+
+- (NSUInteger)writeDataToStandardIn:(NSData *)data {
+    return _process.PutSTDIN((const char *)data.bytes, (size_t)data.length);
+}
+
+- (NSUInteger)readBytesFromStandardOut:(char *)bytes length:(NSUInteger)length {
+    return _process.GetSTDOUT(bytes, (size_t)length);
+}
+
+- (NSData *)readDataFromStandardOutToLength:(NSUInteger)length {
+    NSMutableData *data = [NSMutableData dataWithLength:length];
+    size_t readLength = _process.GetSTDOUT((char *)data.mutableBytes, (size_t)length);
+    if (readLength > 0) {
+        data.length = readLength;
+        return data;
+    }
+    else {
+        return nil;
+    }
+}
+
+- (NSUInteger)readBytesFromStandardError:(char *)bytes length:(NSUInteger)length {
+    return _process.GetSTDERR(bytes, (size_t)length);
+}
+
+- (NSData *)readDataFromStandardErrorToLength:(NSUInteger)length {
+    NSMutableData *data = [NSMutableData dataWithLength:length];
+    size_t readLength = _process.GetSTDERR((char *)data.mutableBytes, (size_t)length);
+    data.length = readLength;
+    if (readLength > 0) {
+        data.length = readLength;
+        return data;
+    }
+    else {
+        return nil;
     }
 }
 
@@ -98,7 +211,7 @@
     return _process.GetExitDescription();
 }
 
-- (BOOL)continue:(NSError **)outError {
+- (BOOL)resume:(NSError **)outError {
     lldb::SBError error = _process.Continue();
     if (error.Success()) {
         return YES;

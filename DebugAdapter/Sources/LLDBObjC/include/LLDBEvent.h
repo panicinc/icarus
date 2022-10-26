@@ -1,9 +1,9 @@
 @import Foundation;
+#import <LLDBProcess.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBBreakpointEvent;
-@class LLDBTargetEvent;
+@class LLDBBreakpointEvent, LLDBProcessEvent, LLDBTargetEvent, LLDBThreadEvent;
 
 @interface LLDBEvent : NSObject
 
@@ -11,16 +11,18 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 
 @property (copy, readonly) NSString *broadcasterClassName;
-@property (readonly) uint32_t eventType;
+@property (readonly) uint32_t flags;
 
 - (nullable LLDBBreakpointEvent *)toBreakpointEvent;
+- (nullable LLDBProcessEvent *)toProcessEvent;
 - (nullable LLDBTargetEvent *)toTargetEvent;
+- (nullable LLDBThreadEvent *)toThreadEvent;
 
 @end
 
 @class LLDBBreakpoint;
 
-typedef NS_ENUM(NSUInteger, LLDBBreakpointEventType) {
+typedef NS_OPTIONS(NSUInteger, LLDBBreakpointEventType) {
     LLDBBreakpointEventTypeInvalid = (1u << 0),
     LLDBBreakpointEventTypeAdded = (1u << 1),
     LLDBBreakpointEventTypeRemoved = (1u << 2),
@@ -48,7 +50,38 @@ typedef NS_ENUM(NSUInteger, LLDBBreakpointEventType) {
 
 @end
 
+@class LLDBProcess;
+
+enum: uint32_t {
+    LLDBTargetEventFlagBreakpointChanged = (1 << 0),
+    LLDBTargetEventFlagModulesLoaded = (1 << 1),
+    LLDBTargetEventFlagModulesUnloaded = (1 << 2),
+    LLDBTargetEventFlagWatchpointChanged = (1 << 3), 
+    LLDBTargetEventFlagSymbolsLoaded = (1 << 4) 
+};
+
+@interface LLDBProcessEvent : NSObject
+
++ (instancetype)new NS_UNAVAILABLE;
+- (instancetype)init NS_UNAVAILABLE;
+
+@property (readonly) LLDBProcess *process;
+@property (readonly) LLDBProcessState processState;
+@property (readonly, getter=isRestarted) BOOL restarted;
+@property (readonly, getter=isInterrupted) BOOL interrupted;
+
+@end
+
 @class LLDBTarget;
+
+enum: uint32_t {
+    LLDBProcessEventFlagStateChanged = (1 << 0),
+    LLDBProcessEventFlagInterrupt = (1 << 1),
+    LLDBProcessEventFlagSTDOUT = (1 << 2),
+    LLDBProcessEventFlagSTDERR = (1 << 3),
+    LLDBProcessEventFlagProfileData = (1 << 4),
+    LLDBProcessEventFlagStructuredData = (1 << 5)
+};
 
 @interface LLDBTargetEvent : NSObject
 
@@ -59,14 +92,15 @@ typedef NS_ENUM(NSUInteger, LLDBBreakpointEventType) {
 
 @end
 
-@class LLDBProcess;
+@class LLDBThread, LLDBFrame;
 
-@interface LLDBProcessEvent : NSObject
+@interface LLDBThreadEvent : NSObject
 
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
 
-@property (readonly) LLDBProcess *process;
+@property (readonly) LLDBThread *thread;
+@property (readonly) LLDBFrame *stackFrame;
 
 @end
 

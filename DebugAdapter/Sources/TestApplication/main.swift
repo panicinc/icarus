@@ -7,10 +7,23 @@ class MyClass {
     var isTrue = true
     var isFalse = false
     
+    enum MyError: Error {
+        case foobar
+    }
+    
     func doThing() {
-        dispatchMain()
+        print("Doing the thing!")
+        do {
+            throw MyError.foobar
+        }
+        catch {
+        }
     }
 }
 
+print("Starting up!")
+
 let myObj = MyClass()
 myObj.doThing()
+
+print("Finished!")

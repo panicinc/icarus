@@ -42,6 +42,7 @@ class SourceKitTaskProvider {
             debugArgs.program = config.get("launchPath", "string");
             debugArgs.args = config.get("launchArgs", "array");
             debugArgs.runInRosetta = config.get("runInRosetta", "boolean");
+            debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
             
             action.debugArgs = debugArgs;
             
@@ -62,6 +63,11 @@ class SourceKitLanguageServer {
     
     deactivate() {
         this.stop();
+    }
+    
+    start() {
+        let path = nova.config.get('sourcekit.language-server-path');
+        this.start(path);
     }
     
     start(path) {
@@ -92,6 +98,12 @@ class SourceKitLanguageServer {
         };
         var client = new LanguageClient('sourcekit-langserver', 'SourceKit Language Server', serverOptions, clientOptions);
         
+        client.onDidStop((error) => {
+            if (error) {
+                this.showStoppedUnexpectedlyNotification(error);
+            }
+        }, this);
+        
         try {
             client.start();
             
@@ -109,5 +121,22 @@ class SourceKitLanguageServer {
             nova.subscriptions.remove(this.languageClient);
             this.languageClient = null;
         }
+    }
+    
+    showStoppedUnexpectedlyNotification(error) {
+        let request = new NotificationRequest("panic.sourcekit-langserver.quit-unexpectedly");
+        request.title = "SourceKit-LSP Quit Unexpectedly";
+        request.body = `The language server encountered an error: ${error}`;
+        request.actions = ["Restart", "Ignore"];
+        
+        let langserver = this;
+        
+        let promise = nova.notifications.add(request);
+        promise.then(reply => {
+            if (reply.actionIdx == 0) {
+                // Restart server
+                langserver.start();
+            }
+        });
     }
 }

@@ -1,4 +1,4 @@
-import Cocoa
+import Foundation
 import Dispatch
 import LLDBObjC
 
@@ -66,6 +66,10 @@ class Adapter: DebugAdapterServerRequestHandler {
         }
     }
     
+    private func logOutput(_ message: String, category: DebugAdapter.OutputEvent.Category) {
+        connection.send(DebugAdapter.OutputEvent(output: message, category: category))
+    }
+    
     // MARK: - Configuration
     
     private var debugger: LLDBDebugger?
@@ -80,6 +84,29 @@ class Adapter: DebugAdapterServerRequestHandler {
         var columnsStartAt1 = true
     }
     private var clientOptions = ClientOptions()
+    
+    private enum ExceptionBreakpointFilter: String {
+        case swift
+        case cppThrow = "cpp_throw"
+        case cppCatch = "cpp_catch"
+        case objcThrow = "objc_throw"
+        case objcCatch = "objc_catch"
+        
+        var name: String {
+            switch self {
+            case .swift:
+                return "Swift"
+            case .cppThrow:
+                return "C++: on Throw"
+            case .cppCatch:
+                return "C++: on Catch"
+            case .objcThrow:
+                return "Objective-C: on Throw"
+            case .objcCatch:
+                return "Objective-C: on Catch"
+            }
+        }
+    }
     
     func initialize(_ request: DebugAdapter.InitializeRequest, replyHandler: @escaping (Result<DebugAdapter.InitializeRequest.Result?, Error>) -> ()) {
         // Initialize LLDB
@@ -122,31 +149,20 @@ class Adapter: DebugAdapterServerRequestHandler {
         var capabilities = DebugAdapter.Capabilities()
         
         capabilities.supportsConfigurationDoneRequest = true
+        capabilities.supportsFunctionBreakpoints = true
         capabilities.supportsConditionalBreakpoints = true
-        capabilities.supportsEvaluateForHovers = true
-        capabilities.supportsCompletionsRequest = true
+        capabilities.supportsSetVariable = true
         capabilities.supportTerminateDebuggee = true
         capabilities.supportsExceptionInfoRequest = true
+        capabilities.supportsEvaluateForHovers = true
+        capabilities.supportsReadMemoryRequest = true
+        capabilities.supportsCompletionsRequest = true
+        capabilities.supportsWriteMemoryRequest = true
         
-        let swiftRuntimeFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "swiftErrors", label: "Swift Errors")
-        let cppExceptionsFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "cppExceptions", label: "C++ Exceptions")
-        let objcExceptionsFilter = DebugAdapter.ExceptionBreakpointFilter(filter: "objcExceptions", label: "Objective-C Exceptions")
-        
-        capabilities.exceptionBreakpointFilters = [swiftRuntimeFilter, cppExceptionsFilter, objcExceptionsFilter]
+        let breakpointFilters: [ExceptionBreakpointFilter] = [.swift, .cppThrow, .cppCatch, .objcThrow, .objcCatch]
+        capabilities.exceptionBreakpointFilters = breakpointFilters.map { .init(filter: $0.rawValue, label: $0.name) }
         
         replyHandler(.success(capabilities))
-    }
-    
-    private func handleDebuggerEvent(_ event: LLDBEvent) {
-        if let breakpointEvent = event.toBreakpointEvent() {
-            
-        }
-        else if let targetEvent = event.toTargetEvent() {
-            
-        }
-        else {
-            
-        }
     }
     
     private enum DebugStartRequest {
@@ -165,33 +181,21 @@ class Adapter: DebugAdapterServerRequestHandler {
     }
     
     enum Configuration {
-        struct LaunchOptions {
-            var url: URL
-            var arguments: [String]?
-            var environment: [String: String]?
-            var currentDirectoryURL: URL?
-            var architecture: Architecture?
-        }
-        case launch(LaunchOptions)
-        
-        struct AttachToPIDOptions {
-            var pid: pid_t
-            var waitForProcess = false
-        }
-        case attachToPID(AttachToPIDOptions)
-        
-        struct AttachToURLOptions {
-            var url: URL
-            var waitForProcess = false
-        }
-        case attachToURL(AttachToURLOptions)
+        case launch(LLDBLaunchOptions)
+        case attach(LLDBAttachOptions)
     }
     private(set) var configuration: Configuration?
     
-    private var process: LLDBProcess?
+    private var terminateOnDisconnect = false
+    
+    private var target: LLDBTarget?
     
     func launch(_ request: DebugAdapter.LaunchRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
         do {
+            guard let debugger = debugger else {
+                throw AdapterError.invalidArguments(reason: "No `initialize` request was sent before `launch`.")
+            }
+            
             guard let body = request.body else {
                 throw AdapterError.invalidArguments(reason: "Missing `launch` request body.")
             }
@@ -199,10 +203,11 @@ class Adapter: DebugAdapterServerRequestHandler {
             let launchPath = try body.get(String.self, for: "program")
             let launchURL = URL(fileURLWithPath: launchPath)
             
-            var options = Configuration.LaunchOptions(url: launchURL)
+            let options = LLDBLaunchOptions()
             
             options.arguments = try body.getIfPresent([String].self, for: "args")
             options.environment = try body.getIfPresent([String: String].self, for: "env")
+            
             let cwd = try body.getIfPresent(String.self, for: "cwd")
             options.currentDirectoryURL = cwd != nil ? URL(fileURLWithPath: cwd!, isDirectory: true) : nil
             
@@ -213,14 +218,20 @@ class Adapter: DebugAdapterServerRequestHandler {
                     throw AdapterError.invalidArguments(reason: "Unknown architecture `\(archString)`.")
                 }
             }
-            else if let runInRosetta = try body.getIfPresent(Bool.self, for: "runInRosetta") {
-                if runInRosetta {
-                    options.architecture = .x86_64
-                }
+            else if let runInRosetta = try body.getIfPresent(Bool.self, for: "runInRosetta"), runInRosetta {
+                architecture = .x86_64
             }
+            
+            if let stopAtEntry = try body.getIfPresent(Bool.self, for: "stopAtEntry"), stopAtEntry {
+                options.stopAtEntry = stopAtEntry
+            }
+            
+            let target = try debugger.createTarget(with: launchURL, architecture: architecture?.rawValue)
+            self.target = target
             
             configuration = .launch(options)
             debugStartRequest = .launch(request, replyHandler)
+            terminateOnDisconnect = true
             connection.send(DebugAdapter.InitializedEvent())
         }
         catch {
@@ -229,31 +240,41 @@ class Adapter: DebugAdapterServerRequestHandler {
     }
     
     func attach(_ request: DebugAdapter.AttachRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
-        guard let body = request.body else {
-            replyHandler(.failure(AdapterError.invalidArguments(reason: "Missing `attach` request body.")))
-            return
-        }
-        
         do {
+            guard let debugger = debugger else {
+                throw AdapterError.invalidArguments(reason: "No `initialize` request was sent before `launch`.")
+            }
+            
+            guard let body = request.body else {
+                throw AdapterError.invalidArguments(reason: "Missing `attach` request body.")
+            }
+            
+            let options = LLDBAttachOptions()
+            options.waitForLaunch = try body.getIfPresent(Bool.self, for: "wait") ?? false
+            configuration = .attach(options)
+            
+            let target: LLDBTarget?
             if let pid = try body.getIfPresent(Int.self, for: "pid") {
                 // Process Identifier
-                var options = Configuration.AttachToPIDOptions(pid: pid_t(pid))
-                options.waitForProcess = try body.getIfPresent(Bool.self, for: "wait") ?? false
-                configuration = .attachToPID(options)
+                let options = LLDBAttachOptions()
+                
+                options.waitForLaunch = try body.getIfPresent(Bool.self, for: "wait") ?? false
+                target = try debugger.findTarget(withProcessIdentifier: pid_t(pid))
             }
             else if let attachPath = try body.getIfPresent(String.self, for: "program") {
                 // Process Path
                 let attachURL = URL(fileURLWithPath: attachPath)
-                var options = Configuration.AttachToURLOptions(url: attachURL)
-                options.waitForProcess = try body.getIfPresent(Bool.self, for: "wait") ?? false
-                configuration = .attachToURL(options)
+                target = try debugger.findTarget(with: attachURL, architecture: nil)
             }
             else {
                 replyHandler(.failure(AdapterError.invalidArguments(reason: "No pid or process name specified for `attach` request.")))
                 return
             }
             
+            self.target = target
+            
             debugStartRequest = .attach(request, replyHandler)
+            terminateOnDisconnect = false
             connection.send(DebugAdapter.InitializedEvent())
         }
         catch {
@@ -262,56 +283,32 @@ class Adapter: DebugAdapterServerRequestHandler {
     }
     
     func configurationDone(_ request: DebugAdapter.ConfigurationDoneRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
+        replyHandler(.success(()))
+        startSession()
+    }
+    
+    private func startSession() {
         do {
-            guard let debugger = debugger else {
-                throw AdapterError.invalidArguments(reason: "No `initialize` request was sent before `configurationDone`.")
-            }
-            
-            guard let configuration = configuration else {
+            guard let configuration = configuration, let target = target else {
                 throw AdapterError.invalidArguments(reason: "No `launch` or `attach` request was sent before `configurationDone`.")
             }
             
             let startMethod: DebugAdapter.ProcessEvent.StartMethod
             
             let process: LLDBProcess
-            var fallbackName: String?
             switch configuration {
                 case .launch(let options):
                     startMethod = .launch
-                    fallbackName = options.url.lastPathComponent
+                    process = try target.launch(with: options)
                     
-                    let target = try debugger.createTarget(with: options.url, architecture: options.architecture?.rawValue)
+                    if options.stopAtEntry {
+                        notifyProcessStopped()
+                    }
                     
-                    let launchOptions = LLDBLaunchOptions()
-                    launchOptions.arguments = options.arguments
-                    launchOptions.environment = options.environment
-                    launchOptions.currentDirectoryURL = options.currentDirectoryURL
-                    
-                    process = try target.launch(with: launchOptions)
-                    
-                case .attachToPID(let options):
+                case .attach(let options):
                     startMethod = .attach
-                    
-                    let target = try debugger.findTarget(withProcessIdentifier: options.pid)
-                    
-                    let attachOptions = LLDBAttachOptions()
-                    attachOptions.waitForLaunch = options.waitForProcess
-                    
-                    process = try target.attach(with: attachOptions)
-                    
-                case .attachToURL(let options):
-                    startMethod = .attach
-                    fallbackName = options.url.lastPathComponent
-                    
-                    let target = try debugger.findTarget(with: options.url, architecture: nil)
-                    
-                    let attachOptions = LLDBAttachOptions()
-                    attachOptions.waitForLaunch = options.waitForProcess
-                    
-                    process = try target.attach(with: attachOptions)
+                    process = try target.attach(with: options)
             }
-            
-            self.process = process
             
             // Reply to launch or attach request
             if let request = debugStartRequest {
@@ -324,12 +321,9 @@ class Adapter: DebugAdapterServerRequestHandler {
                 debugStartRequest = nil
             }
             
-            replyHandler(.success(()))
-            
             // Process event
             let processIdentifier = process.processIdentifier
-            let runningApplication = NSRunningApplication(processIdentifier: processIdentifier)
-            let name = runningApplication?.localizedName ?? fallbackName ?? "(unknown)"
+            let name = process.name ?? "(unknown)"
             
             var event = DebugAdapter.ProcessEvent(name: name)
             event.startMethod = startMethod
@@ -348,35 +342,37 @@ class Adapter: DebugAdapterServerRequestHandler {
                 }
                 debugStartRequest = nil
             }
-            
-            replyHandler(.failure(error))
+        }
+    }
+    
+    private func handleDebuggerEvent(_ event: LLDBEvent) {
+        if let breakpointEvent = event.toBreakpointEvent() {
+            handleBreakpointEvent(event, breakpointEvent: breakpointEvent)
+        }
+        else if let processEvent = event.toProcessEvent() {
+            handleProcessEvent(event, processEvent: processEvent)
+        }
+        else if let targetEvent = event.toTargetEvent() {
+            handleTargetEvent(event, targetEvent: targetEvent)
+        }
+        else if let threadEvent = event.toThreadEvent() {
+            handleThreadEvent(event, threadEvent: threadEvent)
         }
     }
     
     // MARK: - Breakpoints
     
-    private var _nextBreakpointId = 1
-    private var nextBreakpointId: Int {
-        let id = _nextBreakpointId
-        if _nextBreakpointId == Int.max {
-            _nextBreakpointId = 1
-        }
-        else {
-            _nextBreakpointId += 1
-        }
-        return id
-    }
-    
-    var breakpointsByID: [Int: DebugAdapter.Breakpoint] = [:]
-    
-    private(set) var sourceBreakpointIDs: [URL: Set<Int>] = [:]
-    private(set) var sourceBreakpointsByID: [URL: [Int: DebugAdapter.SourceBreakpoint]] = [:]
+    private(set) var sourceBreakpoints: [URL: [Int: DebugAdapter.SourceBreakpoint]] = [:]
     
     private func standardizedFileURL(forPath path: String, isDirectory: Bool) -> URL {
         var fileURL = URL(fileURLWithPath: path, isDirectory: isDirectory)
         fileURL.standardize()
         fileURL.standardizeVolumeInFileURL()
         return fileURL
+    }
+    
+    private func handleBreakpointEvent(_ event: LLDBEvent, breakpointEvent: LLDBBreakpointEvent) {
+        
     }
     
     func setBreakpoints(_ request: DebugAdapter.SetBreakpointsRequest, replyHandler: @escaping (Result<DebugAdapter.SetBreakpointsRequest.Result, Error>) -> ()) {
@@ -387,130 +383,347 @@ class Adapter: DebugAdapterServerRequestHandler {
             return
         }
         
+        guard let target = target else {
+            replyHandler(.failure(AdapterError.invalidArguments(reason: "Not debugging a target.")))
+            return
+        }
+        
         let fileURL = standardizedFileURL(forPath: path, isDirectory: false)
         
         // Create new breakpoints
         var breakpoints: [DebugAdapter.Breakpoint] = []
-        var breakpointsIDs: Set<Int> = []
-        var sourceBreakpointsByID: [Int: DebugAdapter.SourceBreakpoint] = [:]
+        var newBreakpoints: [Int: DebugAdapter.SourceBreakpoint] = [:]
         
-        let previousBreakpointIDs = sourceBreakpointIDs[fileURL] ?? []
-        
-        for id in previousBreakpointIDs {
-            sourceBreakpointsByID[id] = nil
-        }
+        var previousBreakpoints = sourceBreakpoints[fileURL] ?? [:]
         
         for sourceBreakpoint in request.breakpoints ?? [] {
-            let id = nextBreakpointId
+            let line = sourceBreakpoint.line
+            let column = sourceBreakpoint.column
+            
+            let matchingBP = previousBreakpoints.first(where: { $0.value.line == line && $0.value.column == column })
+            
+            let bp: LLDBBreakpoint
+            if let matchingBP, let breakpoint = target.findBreakpoint(byID: UInt32(truncatingIfNeeded: matchingBP.key)) {
+                bp = breakpoint
+                previousBreakpoints[matchingBP.key] = nil
+            }
+            else {
+                bp = target.createBreakpoint(for: fileURL, line: line as NSNumber, column: column as? NSNumber, offset: nil, moveToNearestCode: true)
+            }
+            
+            let id = Int(bp.breakpointID)
             
             var breakpoint = DebugAdapter.Breakpoint()
             breakpoint.id = id
             
-            breakpoint.line = sourceBreakpoint.line
-            breakpoint.column = sourceBreakpoint.column
-            
-            breakpoint.verified = false
-            
+            breakpoint.line = line
+            breakpoint.column = column
             breakpoint.source = source
             
             breakpoints.append(breakpoint)
-            breakpointsIDs.insert(id)
-            sourceBreakpointsByID[id] = sourceBreakpoint
-            breakpointsByID[id] = breakpoint
+            newBreakpoints[id] = sourceBreakpoint
         }
         
         // Update active session
+        for (id, _) in previousBreakpoints {
+            _ = target.removeBreakpoint(withID: UInt32(truncatingIfNeeded: id))
+        }
         
-        
-        sourceBreakpointIDs[fileURL] = breakpointsIDs.count > 0 ? breakpointsIDs : nil
-        self.sourceBreakpointsByID[fileURL] = sourceBreakpointsByID.count > 0 ? sourceBreakpointsByID : nil
+        sourceBreakpoints[fileURL] = newBreakpoints.count > 0 ? newBreakpoints : nil
         
         replyHandler(.success(.init(breakpoints: breakpoints)))
     }
     
-    private(set) var functionBreakpointIDs: Set<Int> = []
-    private(set) var functionBreakpointsByID: [Int: DebugAdapter.FunctionBreakpoint] = [:]
+    private(set) var functionBreakpoints: [Int: DebugAdapter.FunctionBreakpoint] = [:]
     
     func setFunctionBreakpoints(_ request: DebugAdapter.SetFunctionBreakpointsRequest, replyHandler: @escaping (Result<DebugAdapter.SetFunctionBreakpointsRequest.Result?, Error>) -> ()) {
-        // Create new breakpoints
-        var breakpoints: [DebugAdapter.Breakpoint] = []
-        var breakpointIDs: Set<Int> = []
-        var functionBreakpointsByID: [Int: DebugAdapter.FunctionBreakpoint] = [:]
-        
-        let previousBreakpointIDs = functionBreakpointIDs
-        
-        for id in previousBreakpointIDs {
-            breakpointsByID[id] = nil
+        guard let target = target else {
+            replyHandler(.failure(AdapterError.invalidArguments(reason: "Not debugging a target.")))
+            return
         }
         
+        // Create new breakpoints
+        var breakpoints: [DebugAdapter.Breakpoint] = []
+        var newFunctionBreakpoints: [Int: DebugAdapter.FunctionBreakpoint] = [:]
+        
+        var previousBreakpoints = functionBreakpoints
+        
         for functionBreakpoint in request.breakpoints {
-            let id = nextBreakpointId
+            let name = functionBreakpoint.name
+            
+            let matchingBP = previousBreakpoints.first(where: { $0.value.name == name })
+            
+            let bp: LLDBBreakpoint
+            if let matchingBP, let breakpoint = target.findBreakpoint(byID: UInt32(truncatingIfNeeded: matchingBP.key)) {
+                bp = breakpoint
+                previousBreakpoints[matchingBP.key] = nil
+            }
+            else {
+                bp = target.createBreakpoint(forName: name)
+            }
+            
+            let id = Int(bp.breakpointID)
             
             var breakpoint = DebugAdapter.Breakpoint()
             breakpoint.id = id
             breakpoint.verified = false
             
             breakpoints.append(breakpoint)
-            breakpointIDs.insert(id)
-            functionBreakpointsByID[id] = functionBreakpoint
-            breakpointsByID[id] = breakpoint
+            newFunctionBreakpoints[id] = functionBreakpoint
         }
         
-        functionBreakpointIDs = breakpointIDs
-        self.functionBreakpointsByID = functionBreakpointsByID
-        
         // Update active session
+        for (id, _) in previousBreakpoints {
+            _ = target.removeBreakpoint(withID: UInt32(truncatingIfNeeded: id))
+        }
         
+        functionBreakpoints = newFunctionBreakpoints
         
         replyHandler(.success(.init(breakpoints: breakpoints)))
     }
     
-    private(set) var exceptionFiltersByID: [Int: String] = [:]
+    private(set) var exceptionFilters: [Int: String] = [:]
     
     func setExceptionBreakpoints(_ request: DebugAdapter.SetExceptionBreakpointsRequest, replyHandler: @escaping (Result<DebugAdapter.SetExceptionBreakpointsRequest.Result?, Error>) -> ()) {
-        var exceptionFiltersByID: [Int: String] = [:]
+        guard let target = target else {
+            replyHandler(.failure(AdapterError.invalidArguments(reason: "Not debugging a target.")))
+            return
+        }
+        
+        var newExceptionFilters: [Int: String] = [:]
         var breakpoints: [DebugAdapter.Breakpoint] = []
         
-        let previousBreakpointIDs = exceptionFiltersByID.keys
+        var previousFilters = exceptionFilters
         
         if let filters = request.filters {
-            for filter in filters {
-                let id = nextBreakpointId
+            for filterName in filters {
+                let matchingBP = previousFilters.first(where: { $0.value == filterName })
+                
+                let bp: LLDBBreakpoint
+                if let matchingBP, let breakpoint = target.findBreakpoint(byID: UInt32(truncatingIfNeeded: matchingBP.key)) {
+                    bp = breakpoint
+                    previousFilters[matchingBP.key] = nil
+                }
+                else if let filter = ExceptionBreakpointFilter(rawValue: filterName) {
+                    switch filter {
+                    case .swift:
+                        bp = target.createBreakpointForException(in: .swift, onCatch: false, onThrow: true)
+                    case .cppThrow:
+                        bp = target.createBreakpointForException(in: .cPlusPlus, onCatch: false, onThrow: true)
+                    case .cppCatch:
+                        bp = target.createBreakpointForException(in: .cPlusPlus, onCatch: true, onThrow: false)
+                    case .objcThrow:
+                        bp = target.createBreakpointForException(in: .objectiveC, onCatch: false, onThrow: true)
+                    case .objcCatch:
+                        bp = target.createBreakpointForException(in: .objectiveC, onCatch: true, onThrow: false)
+                    }
+                }
+                else {
+                    replyHandler(.failure(AdapterError.invalidArguments(reason: "Unsupported exception filter: \(filterName).")))
+                    return
+                }
+                
+                let id = Int(bp.breakpointID)
                 
                 var breakpoint = DebugAdapter.Breakpoint()
                 breakpoint.id = id
                 breakpoint.verified = false
-                exceptionFiltersByID[id] = filter
-                breakpointsByID[id] = breakpoint
+                
                 breakpoints.append(breakpoint)
+                newExceptionFilters[id] = filterName
             }
         }
         
-        self.exceptionFiltersByID = exceptionFiltersByID
+        exceptionFilters = newExceptionFilters
         
-        // Update active session
-        
+        for (id, _) in previousFilters {
+            _ = target.removeBreakpoint(withID: UInt32(truncatingIfNeeded: id))
+        }
         
         replyHandler(.success(.init(breakpoints: breakpoints)))
     }
     
     // MARK: - Execution
     
-    func disconnect(_ request: DebugAdapter.DisconnectRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
-        defer {
-            process = nil
-            configuration = nil
+    private func handleProcessEvent(_ event: LLDBEvent, processEvent: LLDBProcessEvent) {
+        let process = processEvent.process
+        let flags = event.flags
+        
+        if (flags & LLDBProcessEventFlagStateChanged) != 0 {
+            let state = processEvent.processState
+            switch state {
+            case .running, .stepping:
+                notifyProcessRunning()
+            case .stopped:
+                if !processEvent.isRestarted {
+                    notifyProcessStopped()
+                }
+            case .crashed, .suspended:
+                notifyProcessStopped()
+            case .exited:
+                let process = processEvent.process
+                let exitCode = Int(process.exitStatus)
+                logOutput("Process exited with code \(exitCode).", category: .console)
+                connection.send(DebugAdapter.ExitedEvent(exitCode: exitCode))
+                connection.send(DebugAdapter.TerminatedEvent())
+            case .detached:
+                logOutput("Detached from debuggee.", category: .console)
+                connection.send(DebugAdapter.TerminatedEvent())
+            default:
+                break
+            }
         }
         
-        do {
-            if let configuration = configuration, let process = process {
-                switch configuration {
-                    case .launch:
-                        try process.kill()
-                    case .attachToPID, .attachToURL:
-                        try process.detach()
+        if (flags & LLDBProcessEventFlagSTDOUT) != 0 {
+            while let chunk = process.readDataFromStandardOut(toLength: 1024),
+                  let string = String(data: chunk, encoding: .ascii) {
+                logOutput(string, category: .standardOut)
+            }
+        }
+        
+        if (flags & LLDBProcessEventFlagSTDERR) != 0 {
+            while let chunk = process.readDataFromStandardError(toLength: 1024),
+                  let string = String(data: chunk, encoding: .ascii) {
+                logOutput(string, category: .standardError)
+            }
+        }
+    }
+    
+    private func notifyProcessRunning() {
+        var event = DebugAdapter.ContinuedEvent(threadId: 0)
+        event.allThreadsContinued = true
+        connection.send(event)
+    }
+    
+    private func notifyProcessStopped() {
+        guard let process = target?.process else {
+            return
+        }
+        
+        let selectedThread = process.selectedThread
+        var stoppedThread: LLDBThread?
+        if let selectedThread = selectedThread {
+            let stopReason = selectedThread.stopReason
+            if stopReason != .invalid && stopReason != .none {
+                stoppedThread = selectedThread
+            }
+        }
+        
+        if stoppedThread == nil {
+            for thread in process.threads {
+                let stopReason = thread.stopReason
+                if stopReason != .invalid && stopReason != .none {
+                    process.setSelectedThread(thread)
+                    stoppedThread = thread
+                    break
                 }
             }
+        }
+        
+        let reason: DebugAdapter.StoppedEvent.Reason
+        switch stoppedThread?.stopReason {
+            case .breakpoint:
+                reason = .breakpoint
+            case .exception:
+                reason = .exception
+            case .trace, .planComplete:
+                reason = .step
+            case .signal:
+                reason = .init(rawValue: "signal")
+            case .watchpoint:
+                reason = .dataBreakpoint
+            default:
+                reason = .init(rawValue: "unknown")
+        }
+        
+        var event = DebugAdapter.StoppedEvent(reason: reason)
+        event.allThreadsStopped = true
+        event.threadId = Int(truncatingIfNeeded: stoppedThread?.threadID ?? 0)
+        
+        connection.send(event)
+    }
+    
+    private func handleTargetEvent(_ event: LLDBEvent, targetEvent s: LLDBTargetEvent) {
+        let flags = event.flags
+        if (flags & LLDBTargetEventFlagModulesLoaded) != 0 {
+            
+        }
+        else if (flags & LLDBTargetEventFlagSymbolsLoaded) != 0 {
+            
+        }
+        else if (flags & LLDBTargetEventFlagModulesUnloaded) != 0 {
+            
+        }
+    }
+    
+    private func handleThreadEvent(_ event: LLDBEvent, threadEvent: LLDBThreadEvent) {
+        
+    }
+    
+    func disconnect(_ request: DebugAdapter.DisconnectRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
+        if let process = target?.process {
+            let shouldTerminate = request.terminateDebugee ?? terminateOnDisconnect
+            do {
+                if shouldTerminate {
+                    try process.kill()
+                }
+                else {
+                    try process.detach()
+                }
+            }
+            catch {
+                
+            }
+        }
+        self.target = nil
+        
+        configuration = nil
+        replyHandler(.success(()))
+    }
+    
+    func pause(_ request: DebugAdapter.PauseRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
+        do {
+            guard let target = target, let process = target.process else {
+                throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+            }
+            
+            try process.stop()
+            replyHandler(.success(()))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
+    }
+    
+    func `continue`(_ request: DebugAdapter.ContinueRequest, replyHandler: @escaping (Result<DebugAdapter.ContinueRequest.Result, Error>) -> ()) {
+        do {
+            guard let target = target, let process = target.process else {
+                throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+            }
+            
+            try process.resume()
+            
+            var result = DebugAdapter.ContinueRequest.Result()
+            result.allThreadsContinued = true
+            replyHandler(.success(result))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
+    }
+    
+    func next(_ request: DebugAdapter.NextRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
+        do {
+            guard let target = target, let process = target.process else {
+                throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+            }
+            
+            let threadID = request.threadId
+            guard let thread = process.thread(withID: UInt64(threadID)) else {
+                throw AdapterError.invalidArguments(reason: "Unknown thread \(threadID).")
+            }
+            
+            try thread.stepOver()
             
             replyHandler(.success(()))
         }
@@ -519,53 +732,114 @@ class Adapter: DebugAdapterServerRequestHandler {
         }
     }
     
-    func pause(_ request: DebugAdapter.PauseRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
-        
-    }
-    
-    func `continue`(_ request: DebugAdapter.ContinueRequest, replyHandler: @escaping (Result<DebugAdapter.ContinueRequest.Result, Error>) -> ()) {
-        
-    }
-    
-    func next(_ request: DebugAdapter.NextRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
-        
-    }
-    
     func stepIn(_ request: DebugAdapter.StepInRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
-        
+        do {
+            guard let target = target, let process = target.process else {
+                throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+            }
+            
+            let threadID = request.threadId
+            guard let thread = process.thread(withID: UInt64(threadID)) else {
+                throw AdapterError.invalidArguments(reason: "Unknown thread \(threadID).")
+            }
+            
+            thread.stepInto()
+            
+            replyHandler(.success(()))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
     }
     
     func stepOut(_ request: DebugAdapter.StepOutRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
-        
+        do {
+            guard let target = target, let process = target.process else {
+                throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+            }
+            
+            let threadID = request.threadId
+            guard let thread = process.thread(withID: UInt64(threadID)) else {
+                throw AdapterError.invalidArguments(reason: "Unknown thread \(threadID).")
+            }
+            
+            try thread.stepOut()
+            
+            replyHandler(.success(()))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
     }
     
     // MARK: - Threads
     
     func threads(_ request: DebugAdapter.ThreadsRequest, replyHandler: @escaping (Result<DebugAdapter.ThreadsRequest.Result, Error>) -> ()) {
+        guard let target = target, let process = target.process else {
+            replyHandler(.failure(AdapterError.invalidArguments(reason: "No debuggee is running.")))
+            return
+        }
         
+        let threads = process.threads.map { thread in
+            return DebugAdapter.Thread(id: Int(truncatingIfNeeded: thread.threadID), name: thread.name ?? "Thread \(thread.indexID)")
+        }
+        
+        replyHandler(.success(.init(threads: threads)))
     }
     
     func stackTrace(_ request: DebugAdapter.StackTraceRequest, replyHandler: @escaping (Result<DebugAdapter.StackTraceRequest.Result, Error>) -> ()) {
+        guard let target = target, let process = target.process else {
+            replyHandler(.failure(AdapterError.invalidArguments(reason: "No debuggee is running.")))
+            return
+        }
         
+        let threadID = request.threadId
+        guard let thread = process.thread(withID: UInt64(threadID)) else {
+            replyHandler(.failure(AdapterError.invalidArguments(reason: "Invalid thread ID \(threadID).")))
+            return
+        }
+        
+        let frames = thread.frames.map { frame in
+            var debugFrame = DebugAdapter.StackFrame(id: Int(frame.frameID))
+            
+            debugFrame.name = frame.displayFunctionName ?? "\(String(format: "%02X", frame.pcAddress))"
+            
+            if let fileURL = frame.fileURL {
+                var source = DebugAdapter.Source()
+                source.name = fileURL.lastPathComponent
+                source.path = fileURL.path
+                debugFrame.source = source
+                
+                debugFrame.line = Int(frame.line)
+                debugFrame.column = Int(frame.column)
+            }
+            else {
+                debugFrame.presentationHint = .subtle
+            }
+            
+            return debugFrame
+        }
+        
+        replyHandler(.success(.init(stackFrames: frames)))
     }
     
     func scopes(_ request: DebugAdapter.ScopesRequest, replyHandler: @escaping (Result<DebugAdapter.ScopesRequest.Result, Error>) -> ()) {
-        
+        replyHandler(.success(.init(scopes: [])))
     }
     
     func exceptionInfo(_ request: DebugAdapter.ExceptionInfoRequest, replyHandler: @escaping (Result<DebugAdapter.ExceptionInfoRequest.Result, Error>) -> ()) {
-        
+        replyHandler(.failure(AdapterError.invalidArguments(reason: "No exception has occurred.")))
     }
     
     func variables(_ request: DebugAdapter.VariablesRequest, replyHandler: @escaping (Result<DebugAdapter.VariablesRequest.Result, Error>) -> ()) {
-        
+        replyHandler(.success(.init(variables: [])))
     }
     
     func evaluate(_ request: DebugAdapter.EvaluateRequest, replyHandler: @escaping (Result<DebugAdapter.EvaluateRequest.Result, Error>) -> ()) {
-        
+        replyHandler(.failure(AdapterError.invalidArguments(reason: "Not yet implemented.")))
     }
     
     func completions(_ request: DebugAdapter.CompletionsRequest, replyHandler: @escaping (Result<DebugAdapter.CompletionsRequest.Result, Error>) -> ()) {
-        
+        replyHandler(.failure(AdapterError.invalidArguments(reason: "Not yet implemented.")))
     }
 }

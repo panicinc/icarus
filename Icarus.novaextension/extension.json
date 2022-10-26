@@ -102,6 +102,13 @@
                     "type": "stringArray"
                 },
                 {
+                    "key": "stopAtEntry",
+                    "title": "Stop at Entry",
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Stop at the program entry point when launching."
+                },
+                {
                     "key": "runInRosetta",
                     "title": "Run using Rosetta",
                     "type": "boolean",

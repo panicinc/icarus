@@ -20,6 +20,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+@interface LLDBProcessEvent ()
+
+- (instancetype)initWithEvent:(lldb::SBEvent)event NS_DESIGNATED_INITIALIZER;
+
+@property (readonly) lldb::SBEvent event;
+
+@end
+
 @interface LLDBTargetEvent ()
 
 - (instancetype)initWithEvent:(lldb::SBEvent)event NS_DESIGNATED_INITIALIZER;
@@ -28,7 +36,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface LLDBProcessEvent ()
+@interface LLDBThreadEvent ()
 
 - (instancetype)initWithEvent:(lldb::SBEvent)event NS_DESIGNATED_INITIALIZER;
 
