@@ -7,4 +7,7 @@
 #import "LLDBProcess.h"
 #import "LLDBTarget.h"
 #import "LLDBThread.h"
+#import "LLDBType.h"
 #import "LLDBTypes.h"
+#import "LLDBValue.h"
+#import "LLDBValueList.h"

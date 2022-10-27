@@ -643,6 +643,10 @@ class Adapter: DebugAdapterServerRequestHandler {
         connection.send(event)
     }
     
+    private func beforeContinue() {
+        
+    }
+    
     private func handleTargetEvent(_ event: LLDBEvent, targetEvent s: LLDBTargetEvent) {
         let flags = event.flags
         if (flags & LLDBTargetEventFlagModulesLoaded) != 0 {
@@ -701,6 +705,8 @@ class Adapter: DebugAdapterServerRequestHandler {
                 throw AdapterError.invalidArguments(reason: "No debuggee is running.")
             }
             
+            beforeContinue()
+            
             try process.resume()
             
             var result = DebugAdapter.ContinueRequest.Result()
@@ -723,6 +729,8 @@ class Adapter: DebugAdapterServerRequestHandler {
                 throw AdapterError.invalidArguments(reason: "Unknown thread \(threadID).")
             }
             
+            beforeContinue()
+            
             try thread.stepOver()
             
             replyHandler(.success(()))
@@ -742,6 +750,8 @@ class Adapter: DebugAdapterServerRequestHandler {
             guard let thread = process.thread(withID: UInt64(threadID)) else {
                 throw AdapterError.invalidArguments(reason: "Unknown thread \(threadID).")
             }
+            
+            beforeContinue()
             
             thread.stepInto()
             
@@ -763,6 +773,8 @@ class Adapter: DebugAdapterServerRequestHandler {
                 throw AdapterError.invalidArguments(reason: "Unknown thread \(threadID).")
             }
             
+            beforeContinue()
+            
             try thread.stepOut()
             
             replyHandler(.success(()))
@@ -773,6 +785,16 @@ class Adapter: DebugAdapterServerRequestHandler {
     }
     
     // MARK: - Threads
+    
+    enum VariableContainer {
+        case stackFrame(LLDBFrame)
+        case locals(LLDBFrame)
+        case statics(LLDBFrame)
+        case globals(LLDBFrame)
+        case registers(LLDBFrame)
+        case value(LLDBValue)
+    }
+    var variables = ReferenceTree<Int, VariableContainer>(startingAt: 1000)
     
     func threads(_ request: DebugAdapter.ThreadsRequest, replyHandler: @escaping (Result<DebugAdapter.ThreadsRequest.Result, Error>) -> ()) {
         guard let target = target, let process = target.process else {
@@ -799,8 +821,11 @@ class Adapter: DebugAdapterServerRequestHandler {
             return
         }
         
-        let frames = thread.frames.map { frame in
-            var debugFrame = DebugAdapter.StackFrame(id: Int(frame.frameID))
+        let frames = thread.frames.enumerated().map { (idx, frame) in
+            let key = "[\(thread.indexID), \(idx)]"
+            let ref = variables.insert(parent: nil, key: key, value: .stackFrame(frame))
+            
+            var debugFrame = DebugAdapter.StackFrame(id: ref)
             
             debugFrame.name = frame.displayFunctionName ?? "\(String(format: "%02X", frame.pcAddress))"
             
@@ -824,15 +849,117 @@ class Adapter: DebugAdapterServerRequestHandler {
     }
     
     func scopes(_ request: DebugAdapter.ScopesRequest, replyHandler: @escaping (Result<DebugAdapter.ScopesRequest.Result, Error>) -> ()) {
-        replyHandler(.success(.init(scopes: [])))
+        let frameID = request.frameId
+        
+        switch variables[frameID] {
+            case .stackFrame(let frame):
+                let localsRef = variables.insert(parent: frameID, key: "._locals", value: .locals(frame))
+                var localsScope = DebugAdapter.Scope(name: "Local", variablesReference: localsRef)
+                localsScope.presentationHint = .locals
+                
+                let staticsRef = variables.insert(parent: frameID, key: "._statics", value: .statics(frame))
+                let staticsScope = DebugAdapter.Scope(name: "Static", variablesReference: staticsRef)
+                
+                let globalsRef = variables.insert(parent: frameID, key: "._globals", value: .globals(frame))
+                var globalsScope = DebugAdapter.Scope(name: "Global", variablesReference: globalsRef)
+                globalsScope.presentationHint = .globals
+                
+                let registersRef = variables.insert(parent: frameID, key: "._registers", value: .registers(frame))
+                var registersScope = DebugAdapter.Scope(name: "Registers", variablesReference: registersRef)
+                registersScope.presentationHint = .registers
+                
+                let scopes = [localsScope, staticsScope, globalsScope, registersScope]
+                
+                replyHandler(.success(.init(scopes: scopes)))
+            
+            default:
+                replyHandler(.failure(AdapterError.invalidArguments(reason: "Invalid stack frame ID \(frameID).")))
+                return
+        }
+    }
+    
+    func variables(_ request: DebugAdapter.VariablesRequest, replyHandler: @escaping (Result<DebugAdapter.VariablesRequest.Result, Error>) -> ()) {
+        let ref = request.variablesReference
+        
+        if let container = variables[ref] {
+            switch container {
+                case .locals(let frame):
+                    let values = frame.variables(withArguments: false, locals: true, statics: false, inScopeOnly: true)
+                    let variables = self.variables(for: values.values, containerRef: ref, uniquing: true)
+                    replyHandler(.success(.init(variables: variables)))
+                    
+                case .statics(let frame):
+                    let values = frame.variables(withArguments: false, locals: false, statics: true, inScopeOnly: true)
+                    let variables = self.variables(for: values.values, types: [.variableStatic], containerRef: ref, uniquing: false)
+                    replyHandler(.success(.init(variables: variables)))
+                    
+                case .globals(let frame):
+                    let values = frame.variables(withArguments: false, locals: false, statics: true, inScopeOnly: true)
+                    let variables = self.variables(for: values.values, types: [.variableGlobal], containerRef: ref, uniquing: false)
+                    replyHandler(.success(.init(variables: variables)))
+                    
+                case .registers(let frame):
+                    let values = frame.registers
+                    let variables = self.variables(for: values.values, containerRef: ref, uniquing: false)
+                    replyHandler(.success(.init(variables: variables)))
+                    
+                case .value(let value):
+                    let variables = self.variables(for: value.children, containerRef: ref, uniquing: false)
+                    replyHandler(.success(.init(variables: variables)))
+                
+                case .stackFrame(_):
+                    replyHandler(.success(.init(variables: [])))
+            }
+        }
+        else {
+            replyHandler(.failure(AdapterError.invalidArguments(reason: "Invalid variables reference: \(ref).")))
+        }
+    }
+    
+    private func variables(for values: [LLDBValue], types: Set<LLDBValueType>? = nil, containerRef: Int, uniquing: Bool) -> [DebugAdapter.Variable] {
+        var variables: [DebugAdapter.Variable] = []
+        var variablesIndexesByName: [String: Int] = [:]
+        
+        for item in values {
+            if let types = types, !types.contains(item.valueType) {
+                continue
+            }
+            
+            let name = item.name
+            let value = displayString(forValue: item)
+            
+            var variable = DebugAdapter.Variable(name: name, value: value)
+            
+            variable.type = item.displayTypeName
+            
+            if item.childCount > 0 {
+                let ref = self.variables.insert(parent: containerRef, key: name, value: .value(item))
+                variable.variablesReference = ref
+            }
+            
+            if uniquing {
+                if let idx = variablesIndexesByName[name] {
+                    variables[idx] = variable
+                }
+                else {
+                    variablesIndexesByName[name] = variables.count
+                    variables.append(variable)
+                }
+            }
+            else {
+                variables.append(variable)
+            }
+        }
+        
+        return variables;
+    }
+    
+    private func displayString(forValue value: LLDBValue) -> String {
+        return value.summary ?? value.stringValue ?? "<unavailable>"
     }
     
     func exceptionInfo(_ request: DebugAdapter.ExceptionInfoRequest, replyHandler: @escaping (Result<DebugAdapter.ExceptionInfoRequest.Result, Error>) -> ()) {
         replyHandler(.failure(AdapterError.invalidArguments(reason: "No exception has occurred.")))
-    }
-    
-    func variables(_ request: DebugAdapter.VariablesRequest, replyHandler: @escaping (Result<DebugAdapter.VariablesRequest.Result, Error>) -> ()) {
-        replyHandler(.success(.init(variables: [])))
     }
     
     func evaluate(_ request: DebugAdapter.EvaluateRequest, replyHandler: @escaping (Result<DebugAdapter.EvaluateRequest.Result, Error>) -> ()) {

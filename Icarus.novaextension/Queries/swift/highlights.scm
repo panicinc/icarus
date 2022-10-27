@@ -53,6 +53,7 @@
   "if"
   (else)
   (as_operator)
+  "subscript"
 ] @keyword
 
 [

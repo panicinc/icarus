@@ -1,4 +1,5 @@
 #import "LLDBFrame+Private.h"
+#import "LLDBValueList+Private.h"
 
 @implementation LLDBFrame {
     lldb::SBFrame _frame;
@@ -73,6 +74,16 @@
 
 - (BOOL)isArtificial {
     return _frame.IsArtificial();
+}
+
+- (LLDBValueList *)registers {
+    lldb::SBValueList registers = _frame.GetRegisters();
+    return [[LLDBValueList alloc] initWithValueList:registers];
+}
+
+- (LLDBValueList *)variablesWithArguments:(BOOL)arguments locals:(BOOL)locals statics:(BOOL)statics inScopeOnly:(BOOL)inScopeOnly {
+    lldb::SBValueList values = _frame.GetVariables(arguments, locals, statics, inScopeOnly);
+    return [[LLDBValueList alloc] initWithValueList:values];
 }
 
 @end

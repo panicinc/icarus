@@ -12,6 +12,10 @@ class MyClass {
     }
     
     func doThing() {
+        let foo = 12
+        let bar = "foo"
+        let bin = [12, 14, 18]
+        
         print("Doing the thing!")
         do {
             throw MyError.foobar

@@ -2,6 +2,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class LLDBValueList;
+
 @interface LLDBFrame : NSObject
 
 + (instancetype)new NS_UNAVAILABLE;
@@ -20,6 +22,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (readonly, getter=isInlined) BOOL inlined;
 @property (readonly, getter=isArtificial) BOOL artificial;
+
+@property (readonly) LLDBValueList *registers;
+
+- (LLDBValueList *)variablesWithArguments:(BOOL)arguments locals:(BOOL)locals statics:(BOOL)statics inScopeOnly:(BOOL)inScopeOnly;
 
 @end
 
