@@ -1715,6 +1715,7 @@ public enum DebugAdapter {
             public typealias RawValue = String
             
             public static let console: Category = "console"
+            public static let important: Category = "important"
             public static let standardOut: Category = "stdout"
             public static let standardError: Category = "stderr"
             public static let telemetry: Category = "telemetry"

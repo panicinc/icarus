@@ -1,4 +1,7 @@
 #import "LLDBFrame+Private.h"
+#import "LLDBCompileUnit+Private.h"
+#import "LLDBLineEntry+Private.h"
+#import "LLDBSymbolContext+Private.h"
 #import "LLDBValueList+Private.h"
 
 @implementation LLDBFrame {
@@ -21,27 +24,13 @@
     return _frame.GetFrameID();
 }
 
-- (NSUInteger)line {
-    lldb::SBLineEntry lineEntry = _frame.GetLineEntry();
-    return (NSUInteger)lineEntry.GetLine();
+- (LLDBLineEntry *)lineEntry {
+    return [[LLDBLineEntry alloc] initWithLineEntry:_frame.GetLineEntry()];
 }
 
-- (NSUInteger)column {
-    lldb::SBLineEntry lineEntry = _frame.GetLineEntry();
-    return (NSUInteger)lineEntry.GetColumn();
-}
-
-- (NSURL *)fileURL {
-    lldb::SBLineEntry lineEntry = _frame.GetLineEntry();
-    lldb::SBFileSpec fileSpec = lineEntry.GetFileSpec();
-    const char * directory = fileSpec.GetDirectory();
-    const char * filename = fileSpec.GetFilename();
-    if (directory != NULL && filename != NULL) {
-        return [[NSURL fileURLWithPath:@(directory) isDirectory:YES] URLByAppendingPathComponent:@(filename) isDirectory:NO];
-    }
-    else {
-        return nil;
-    }
+- (LLDBSymbolContext *)symbolContextWithItems:(LLDBSymbolContextItem)items {
+    lldb::SBSymbolContext symbolContext = _frame.GetSymbolContext((uint32_t)items);
+    return [[LLDBSymbolContext alloc] initWithSymbolContext:symbolContext];
 }
 
 - (NSString *)functionName {
@@ -74,6 +63,10 @@
 
 - (BOOL)isArtificial {
     return _frame.IsArtificial();
+}
+
+- (LLDBCompileUnit *)compileUnit {
+    return [[LLDBCompileUnit alloc] initWithCompileUnit:_frame.GetCompileUnit()];
 }
 
 - (LLDBValueList *)registers {

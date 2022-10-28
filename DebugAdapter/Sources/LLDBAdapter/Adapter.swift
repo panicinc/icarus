@@ -621,30 +621,50 @@ class Adapter: DebugAdapterServerRequestHandler {
         }
         
         let reason: DebugAdapter.StoppedEvent.Reason
-        switch stoppedThread?.stopReason {
-            case .breakpoint:
-                reason = .breakpoint
-            case .exception:
-                reason = .exception
-            case .trace, .planComplete:
-                reason = .step
-            case .signal:
-                reason = .init(rawValue: "signal")
-            case .watchpoint:
-                reason = .dataBreakpoint
-            default:
-                reason = .init(rawValue: "unknown")
+        var hitBreakpointIDs: [Int] = []
+        
+        if let stoppedThread = stoppedThread {
+            switch stoppedThread.stopReason {
+                case .breakpoint:
+                    reason = .breakpoint
+                    
+                    let reasonCount = stoppedThread.stopReasonDataCount
+                    if reasonCount >= 2 {
+                        // Breakpoint reason data consists of pairs of [breakpointID, breakpointLocationID].
+                        for i in 0 ..< (reasonCount / 2) {
+                            let breakpointID = stoppedThread.stopReasonData(at: i)
+                            hitBreakpointIDs.append(Int(breakpointID))
+                        }
+                    }
+                    
+                case .exception:
+                    reason = .exception
+                case .trace, .planComplete:
+                    reason = .step
+                case .signal:
+                    reason = .init(rawValue: "signal")
+                case .watchpoint:
+                    reason = .dataBreakpoint
+                default:
+                    reason = .init(rawValue: "unknown")
+            }
+        }
+        else {
+            reason = .init(rawValue: "unknown")
         }
         
         var event = DebugAdapter.StoppedEvent(reason: reason)
         event.allThreadsStopped = true
         event.threadId = Int(truncatingIfNeeded: stoppedThread?.threadID ?? 0)
+        if hitBreakpointIDs.count > 0 {
+            event.hitBreakpointIds = hitBreakpointIDs
+        }
         
         connection.send(event)
     }
     
     private func beforeContinue() {
-        
+        variables.removeAll()
     }
     
     private func handleTargetEvent(_ event: LLDBEvent, targetEvent s: LLDBTargetEvent) {
@@ -829,14 +849,15 @@ class Adapter: DebugAdapterServerRequestHandler {
             
             debugFrame.name = frame.displayFunctionName ?? "\(String(format: "%02X", frame.pcAddress))"
             
-            if let fileURL = frame.fileURL {
+            let lineEntry = frame.lineEntry
+            if let fileURL = lineEntry.fileSpec.fileURL {
                 var source = DebugAdapter.Source()
                 source.name = fileURL.lastPathComponent
                 source.path = fileURL.path
                 debugFrame.source = source
                 
-                debugFrame.line = Int(frame.line)
-                debugFrame.column = Int(frame.column)
+                debugFrame.line = Int(lineEntry.line)
+                debugFrame.column = Int(lineEntry.column)
             }
             else {
                 debugFrame.presentationHint = .subtle
@@ -963,6 +984,21 @@ class Adapter: DebugAdapterServerRequestHandler {
     }
     
     func evaluate(_ request: DebugAdapter.EvaluateRequest, replyHandler: @escaping (Result<DebugAdapter.EvaluateRequest.Result, Error>) -> ()) {
+        if let frameID = request.frameId {
+            let container = variables[frameID]
+            switch container {
+            case .stackFrame(let frame):
+                break
+            default:
+                break
+            }
+        }
+        else {
+            // No frame selected
+            
+        }
+        
+        
         replyHandler(.failure(AdapterError.invalidArguments(reason: "Not yet implemented.")))
     }
     

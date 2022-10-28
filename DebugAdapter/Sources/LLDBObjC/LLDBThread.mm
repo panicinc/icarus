@@ -37,38 +37,15 @@
 }
 
 - (LLDBThreadStopReason)stopReason {
-    switch (_thread.GetStopReason()) {
-        case lldb::eStopReasonInvalid:
-            return LLDBThreadStopReasonInvalid;
-        case lldb::eStopReasonNone:
-            return LLDBThreadStopReasonNone;
-        case lldb::eStopReasonTrace:
-            return LLDBThreadStopReasonTrace;
-        case lldb::eStopReasonBreakpoint:
-            return LLDBThreadStopReasonBreakpoint;
-        case lldb::eStopReasonWatchpoint:
-            return LLDBThreadStopReasonWatchpoint;
-        case lldb::eStopReasonSignal:
-            return LLDBThreadStopReasonSignal;
-        case lldb::eStopReasonException:
-            return LLDBThreadStopReasonException;
-        case lldb::eStopReasonExec:
-            return LLDBThreadStopReasonExec;
-        case lldb::eStopReasonPlanComplete:
-            return LLDBThreadStopReasonPlanComplete;
-        case lldb::eStopReasonThreadExiting:
-            return LLDBThreadStopReasonThreadExiting;
-        case lldb::eStopReasonInstrumentation:
-            return LLDBThreadStopReasonInstrumentation;
-        case lldb::eStopReasonProcessorTrace:
-            return LLDBThreadStopReasonProcessorTrace;
-        case lldb::eStopReasonFork:
-            return LLDBThreadStopReasonFork;
-        case lldb::eStopReasonVFork:
-            return LLDBThreadStopReasonVFork;
-        case lldb::eStopReasonVForkDone:
-            return LLDBThreadStopReasonVForkDone;
-    }
+    return (LLDBThreadStopReason)_thread.GetStopReason();
+}
+
+- (NSUInteger)stopReasonDataCount {
+    return _thread.GetStopReasonDataCount();
+}
+
+- (uint64_t)stopReasonDataAtIndex:(NSUInteger)idx {
+    return _thread.GetStopReasonDataAtIndex(idx);
 }
 
 - (NSUInteger)frameCount {

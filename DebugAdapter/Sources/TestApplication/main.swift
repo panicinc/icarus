@@ -1,6 +1,9 @@
 import Foundation
 import Dispatch
 
+import func Darwin.fputs
+import var Darwin.stderr
+
 class MyClass {
     var names = ["John", "Jane", "Joan"]
     var numbers = [12, 13e12, 11.2]
@@ -21,6 +24,7 @@ class MyClass {
             throw MyError.foobar
         }
         catch {
+            fputs("Failed to do the thing!\n", stderr);
         }
     }
 }

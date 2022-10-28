@@ -33,6 +33,9 @@ typedef NS_ENUM(NSUInteger, LLDBThreadStopReason) {
 
 @property (readonly) LLDBThreadStopReason stopReason;
 
+@property (readonly) NSUInteger stopReasonDataCount;
+- (uint64_t)stopReasonDataAtIndex:(NSUInteger)idx;
+
 @property (readonly) NSUInteger frameCount;
 - (nullable LLDBFrame *)frameAtIndex:(NSUInteger)idx;
 @property (copy, readonly) NSArray <LLDBFrame *> *frames;
