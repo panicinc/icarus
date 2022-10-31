@@ -1,4 +1,5 @@
 #import "LLDBValue+Private.h"
+#import "LLDBErrors+Private.h"
 #import "LLDBType+Private.h"
 
 @implementation LLDBValue {
@@ -66,6 +67,10 @@
     return (value != NULL ? @(value) : NULL);
 }
 
+- (BOOL)isSynthetic {
+    return _value.IsSynthetic();
+}
+
 - (NSUInteger)childCount {
     return _value.GetNumChildren();
 }
@@ -88,6 +93,30 @@
         [children addObject:value];
     }
     return children;
+}
+
+- (LLDBValue *)childMemberWithName:(NSString *)childName {
+    lldb::SBValue child = _value.GetChildMemberWithName(childName.UTF8String);
+    if (child.IsValid()) {
+        return [[LLDBValue alloc] initWithValue:child];
+    }
+    else {
+        return nil;
+    }
+}
+
+- (BOOL)setValueFromString:(NSString *)value error:(NSError **)outError {
+    lldb::SBError error;
+    bool result = _value.SetValueFromCString(value.UTF8String, error);
+    if (result) {
+        return YES;
+    }
+    else {
+        if (outError != NULL) {
+            *outError = [NSError lldb_errorWithLLDBError:error];
+        }
+        return NO;
+    }
 }
 
 @end

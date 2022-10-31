@@ -15,7 +15,7 @@ typedef NS_OPTIONS(uint32_t, LLDBSymbolContextItem) {
     LLDBSymbolContextItemVariable = (1u << 7),
 };
 
-@class LLDBCompileUnit, LLDBLineEntry, LLDBSymbolContext, LLDBValueList;
+@class LLDBCompileUnit, LLDBLineEntry, LLDBSymbolContext, LLDBValue, LLDBValueList;
 
 @interface LLDBFrame : NSObject
 
@@ -41,6 +41,10 @@ typedef NS_OPTIONS(uint32_t, LLDBSymbolContextItem) {
 @property (readonly) LLDBValueList *registers;
 
 - (LLDBValueList *)variablesWithArguments:(BOOL)arguments locals:(BOOL)locals statics:(BOOL)statics inScopeOnly:(BOOL)inScopeOnly;
+
+- (nullable LLDBValue *)evaluateExpression:(NSString *)expression error:(NSError **)outError;
+
+- (nullable LLDBValue *)findVariable:(NSString *)variableName;
 
 @end
 

@@ -2,12 +2,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBTarget;
+@class LLDBCommandInterpreter, LLDBTarget;
 
 @interface LLDBDebugger : NSObject
 
 + (BOOL)initializeWithError:(NSError **)outError;
 + (void)terminate;
+
+@property (readonly) LLDBCommandInterpreter *commandInterpreter;
 
 @property (copy, readonly) NSArray <LLDBTarget *> *targets;
 - (nullable LLDBTarget *)createTargetWithURL:(NSURL *)fileURL architecture:(nullable NSString *)architecture error:(NSError **)outError;

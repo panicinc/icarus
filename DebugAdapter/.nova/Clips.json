@@ -1,7 +1,7 @@
 {
   "clips" : [
     {
-      "content" : "@import Foundation;\n\nNS_ASSUME_NONNULL_BEGIN\n\n@interface ${:ClassName} : NSObject\n\n+ (instancetype)new NS_UNAVAILABLE;\n- (instancetype)init NS_UNAVAILABLE;\n\n@end\n\nNS_ASSUME_NONNULL_END\n",
+      "content" : "@import Foundation;\n\nNS_ASSUME_NONNULL_BEGIN\n\n@interface LLDB${:ClassName} : NSObject\n\n+ (instancetype)new NS_UNAVAILABLE;\n- (instancetype)init NS_UNAVAILABLE;\n\n@end\n\nNS_ASSUME_NONNULL_END\n",
       "name" : "Objective-C++ Header Template",
       "scope" : "editor",
       "syntax" : "objcpp",

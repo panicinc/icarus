@@ -372,7 +372,16 @@ class Adapter: DebugAdapterServerRequestHandler {
     }
     
     private func handleBreakpointEvent(_ event: LLDBEvent, breakpointEvent: LLDBBreakpointEvent) {
-        
+        let eventType = breakpointEvent.eventType
+        if eventType.contains(.added) {
+            
+        }
+        else if eventType.contains(.locationsAdded) || eventType.contains(.locationsResolved) {
+            
+        }
+        else if eventType.contains(.removed) {
+            
+        }
     }
     
     func setBreakpoints(_ request: DebugAdapter.SetBreakpointsRequest, replyHandler: @escaping (Result<DebugAdapter.SetBreakpointsRequest.Result, Error>) -> ()) {
@@ -409,6 +418,10 @@ class Adapter: DebugAdapterServerRequestHandler {
             }
             else {
                 bp = target.createBreakpoint(for: fileURL, line: line as NSNumber, column: column as? NSNumber, offset: nil, moveToNearestCode: true)
+            }
+            
+            if let condition = sourceBreakpoint.condition {
+                bp.condition = condition
             }
             
             let id = Int(bp.breakpointID)
@@ -460,6 +473,10 @@ class Adapter: DebugAdapterServerRequestHandler {
             }
             else {
                 bp = target.createBreakpoint(forName: name)
+            }
+            
+            if let condition = functionBreakpoint.condition {
+                bp.condition = condition
             }
             
             let id = Int(bp.breakpointID)
@@ -700,6 +717,8 @@ class Adapter: DebugAdapterServerRequestHandler {
             }
         }
         self.target = nil
+        
+        LLDBBreakpoint.clearAllCallbacks()
         
         configuration = nil
         replyHandler(.success(()))
@@ -952,11 +971,7 @@ class Adapter: DebugAdapterServerRequestHandler {
             var variable = DebugAdapter.Variable(name: name, value: value)
             
             variable.type = item.displayTypeName
-            
-            if item.childCount > 0 {
-                let ref = self.variables.insert(parent: containerRef, key: name, value: .value(item))
-                variable.variablesReference = ref
-            }
+            variable.variablesReference = variableReference(for: item, key: name, parent: containerRef)
             
             if uniquing {
                 if let idx = variablesIndexesByName[name] {
@@ -975,34 +990,191 @@ class Adapter: DebugAdapterServerRequestHandler {
         return variables;
     }
     
+    private func variableReference(for value: LLDBValue, key: String, parent: Int?) -> Int? {
+        if value.childCount > 0 && !value.isSynthetic {
+            return variables.insert(parent: parent, key: key, value: .value(value))
+        }
+        else {
+            return nil
+        }
+    }
+    
     private func displayString(forValue value: LLDBValue) -> String {
         return value.summary ?? value.stringValue ?? "<unavailable>"
     }
     
     func exceptionInfo(_ request: DebugAdapter.ExceptionInfoRequest, replyHandler: @escaping (Result<DebugAdapter.ExceptionInfoRequest.Result, Error>) -> ()) {
-        replyHandler(.failure(AdapterError.invalidArguments(reason: "No exception has occurred.")))
-    }
-    
-    func evaluate(_ request: DebugAdapter.EvaluateRequest, replyHandler: @escaping (Result<DebugAdapter.EvaluateRequest.Result, Error>) -> ()) {
-        if let frameID = request.frameId {
-            let container = variables[frameID]
-            switch container {
-            case .stackFrame(let frame):
-                break
-            default:
-                break
-            }
-        }
-        else {
-            // No frame selected
-            
-        }
-        
-        
         replyHandler(.failure(AdapterError.invalidArguments(reason: "Not yet implemented.")))
     }
     
     func completions(_ request: DebugAdapter.CompletionsRequest, replyHandler: @escaping (Result<DebugAdapter.CompletionsRequest.Result, Error>) -> ()) {
-        replyHandler(.failure(AdapterError.invalidArguments(reason: "Not yet implemented.")))
+        do {
+            guard let debugger = debugger else {
+                throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+            }
+            
+            let text = request.text
+            
+            if let first = text.first, !first.isLetter && !first.isNumber {
+                // LLDB can crash if the first character of the expression is non-alphanumeric.
+                replyHandler(.success(.init(targets: [])))
+                return
+            }
+            
+            var column = request.column
+            if clientOptions.columnsStartAt1, column > 0 {
+                column -= 1
+            }
+            
+            // Translate the UTF-16 offset to UTF-8 byte offset
+            let cursorIndex = text.utf16.index(text.startIndex, offsetBy: column)
+            let cursorPosition = text.unicodeScalars.distance(from: text.startIndex, to: cursorIndex)
+            
+            let interpreter = debugger.commandInterpreter
+            let strings = interpreter.handleCompletions(text, cursorPosition: UInt(cursorPosition), matchStart: 0, maxResults: 0)
+            
+            let targets: [DebugAdapter.CompletionItem] = strings.compactMap { string in
+                return nil
+            }
+            
+            replyHandler(.success(.init(targets: targets)))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
+    }
+    
+    func evaluate(_ request: DebugAdapter.EvaluateRequest, replyHandler: @escaping (Result<DebugAdapter.EvaluateRequest.Result, Error>) -> ()) {
+        do {
+            var frame: LLDBFrame?
+            if let frameID = request.frameId {
+                let container = variables[frameID]
+                switch container {
+                case .stackFrame(let f):
+                    frame = f
+                default:
+                    break
+                }
+            }
+            
+            let expression = request.expression
+            
+            let result: DebugAdapter.EvaluateRequest.Result
+            if let context = request.context {
+                switch context {
+                case .repl:
+                    if let hookRange = expression.range(of: "?", options: [.anchored]) {
+                        let substring = String(expression[hookRange.upperBound...])
+                        result = try evaluateExpression(substring, frame: frame)
+                    }
+                    else {
+                        result = try executeCommand(expression, frame: frame)
+                    }
+                    
+                default:
+                    result = try evaluateExpression(expression, frame: frame)
+                }
+            }
+            else {
+                result = try evaluateExpression(expression, frame: frame)
+            }
+            
+            replyHandler(.success(result))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
+    }
+    
+    private func executionContext(for frame: LLDBFrame?) throws -> LLDBExecutionContext {
+        if let frame = frame {
+            return LLDBExecutionContext(from: frame)
+        }
+        else {
+            guard let target = target else {
+                throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+            }
+            
+            if let process = target.process, let thread = process.selectedThread {
+                return LLDBExecutionContext(from: thread)
+            }
+            else {
+                return LLDBExecutionContext(from: target)
+            }
+        }
+    }
+    
+    private func executeCommand(_ expression: String, frame: LLDBFrame?) throws -> DebugAdapter.EvaluateRequest.Result {
+        guard let debugger = debugger else {
+            throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+        }
+        
+        let interpreter = debugger.commandInterpreter
+        let context = try executionContext(for: frame)
+        
+        let result = try interpreter.handleCommand(expression, context: context, addToHistory: false)
+        let output = result.output ?? ""
+        
+        return .init(result: output)
+    }
+    
+    private func evaluateExpression(_ expression: String, frame: LLDBFrame?) throws -> DebugAdapter.EvaluateRequest.Result {
+        guard let target = target else {
+            throw AdapterError.invalidArguments(reason: "No debuggee is running.")
+        }
+        
+        let result: LLDBValue
+        if let frame = frame {
+            result = try frame.evaluateExpression(expression)
+        }
+        else {
+            result = try target.evaluateExpression(expression)
+        }
+        
+        let summary = displayString(forValue: result)
+        
+        var requestResult = DebugAdapter.EvaluateRequest.Result(result: summary)
+        requestResult.type = result.displayTypeName
+        requestResult.variablesReference = variableReference(for: result, key: expression, parent: nil) ?? 0
+        
+        return requestResult
+    }
+    
+    func setVariable(_ request: DebugAdapter.SetVariableRequest, replyHandler: @escaping (Result<DebugAdapter.SetVariableRequest.Result, Error>) -> ()) {
+        do {
+            let name = request.name
+            
+            let ref = request.variablesReference
+            let container = variables[ref]
+            
+            let child: LLDBValue?
+            switch container {
+            case .value(let value):
+                child = value.childMember(withName: name)
+            case .locals(let frame), .globals(let frame), .statics(let frame):
+                child = frame.findVariable(name)
+            default:
+                child = nil
+            }
+            
+            if let child = child {
+                let value = request.value
+                try child.setValue(from: value)
+                
+                let summary = displayString(forValue: child)
+                
+                var result = DebugAdapter.SetVariableRequest.Result(value: summary)
+                result.type = child.displayTypeName
+                result.variablesReference = variableReference(for: child, key: child.name, parent: ref)
+                
+                replyHandler(.success(result))
+            }
+            else {
+                throw AdapterError.invalidArguments(reason: "Unable to set variable value \"\(name)\".")
+            }
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
     }
 }

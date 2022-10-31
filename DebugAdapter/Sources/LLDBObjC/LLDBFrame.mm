@@ -1,7 +1,9 @@
 #import "LLDBFrame+Private.h"
 #import "LLDBCompileUnit+Private.h"
+#import "LLDBErrors+Private.h"
 #import "LLDBLineEntry+Private.h"
 #import "LLDBSymbolContext+Private.h"
+#import "LLDBValue+Private.h"
 #import "LLDBValueList+Private.h"
 
 @implementation LLDBFrame {
@@ -77,6 +79,30 @@
 - (LLDBValueList *)variablesWithArguments:(BOOL)arguments locals:(BOOL)locals statics:(BOOL)statics inScopeOnly:(BOOL)inScopeOnly {
     lldb::SBValueList values = _frame.GetVariables(arguments, locals, statics, inScopeOnly);
     return [[LLDBValueList alloc] initWithValueList:values];
+}
+
+- (LLDBValue *)evaluateExpression:(NSString *)expression error:(NSError *__autoreleasing *)outError {
+    lldb::SBValue result = _frame.EvaluateExpression(expression.UTF8String);
+    if (result.IsValid()) {
+        return [[LLDBValue alloc] initWithValue:result];
+    }
+    else {
+        if (outError != NULL) {
+            lldb::SBError error = result.GetError();
+            *outError = [NSError lldb_errorWithLLDBError:error];
+        }
+        return nil;
+    }
+}
+
+- (LLDBValue *)findVariable:(NSString *)variableName {
+    lldb::SBValue result = _frame.FindVariable(variableName.UTF8String);
+    if (result.IsValid()) {
+        return [[LLDBValue alloc] initWithValue:result];
+    }
+    else {
+        return nil;
+    }
 }
 
 @end

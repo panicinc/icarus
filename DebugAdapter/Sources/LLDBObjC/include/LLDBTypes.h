@@ -71,4 +71,16 @@ typedef NS_ENUM(NSUInteger, LLDBFormat) {
     LLDBFormatUnicode8,
 };
 
+// Equivalent to lldb::ReturnStatus
+typedef NS_ENUM(NSUInteger, LLDBReturnStatus) {
+    LLDBReturnStatusInvalid,
+    LLDBReturnStatusSuccessFinishNoResult,
+    LLDBReturnStatusSuccessFinishResult,
+    LLDBReturnStatusSuccessContinuingNoResult,
+    LLDBReturnStatusSuccessContinuingResult,
+    LLDBReturnStatusStarted,
+    LLDBReturnStatusFailed,
+    LLDBReturnStatusQuit,
+};
+
 NS_ASSUME_NONNULL_END

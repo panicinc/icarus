@@ -3,6 +3,7 @@
 #import "LLDBDebugger+Private.h"
 #import "LLDBErrors+Private.h"
 #import "LLDBProcess+Private.h"
+#import "LLDBValue+Private.h"
 
 @import lldb_API;
 
@@ -176,6 +177,22 @@
 
 - (BOOL)removeBreakpointWithID:(uint32_t)breakpointID {
     return _target.BreakpointDelete(breakpointID);
+}
+
+#pragma mark - Evaluation
+
+- (LLDBValue *)evaluateExpression:(NSString *)expression error:(NSError *__autoreleasing *)outError {
+    lldb::SBValue result = _target.EvaluateExpression(expression.UTF8String);
+    if (result.IsValid()) {
+        return [[LLDBValue alloc] initWithValue:result];
+    }
+    else {
+        if (outError != NULL) {
+            lldb::SBError error = result.GetError();
+            *outError = [NSError lldb_errorWithLLDBError:error];
+        }
+        return nil;
+    }
 }
 
 @end

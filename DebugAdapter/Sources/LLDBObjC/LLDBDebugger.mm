@@ -1,4 +1,5 @@
 #import "LLDBDebugger+Private.h"
+#import "LLDBCommandInterpreter+Private.h"
 #import "LLDBTarget+Private.h"
 #import "LLDBErrors+Private.h"
 
@@ -39,6 +40,10 @@
 
 - (lldb::SBDebugger)debugger {
     return _debugger;
+}
+
+- (LLDBCommandInterpreter *)commandInterpreter {
+    return [[LLDBCommandInterpreter alloc] initWithCommandInterpreter:_debugger.GetCommandInterpreter()];
 }
 
 - (NSArray <LLDBTarget *> *)targets {

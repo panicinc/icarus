@@ -40,9 +40,15 @@ typedef NS_ENUM(NSUInteger, LLDBValueType) {
 @property (nullable, copy, readonly) NSString *summary;
 @property (nullable, copy, readonly) NSString *objectDescription;
 
+@property (readonly, getter=isSynthetic) BOOL synthetic;
+
 @property (readonly) NSUInteger childCount;
 - (nullable LLDBValue *)childAtIndex:(NSUInteger)idx;
 @property (copy, readonly) NSArray <LLDBValue *> *children;
+
+- (nullable LLDBValue *)childMemberWithName:(NSString *)childName;
+
+- (BOOL)setValueFromString:(NSString *)value error:(NSError **)outError NS_SWIFT_NAME(setValue(from:));
 
 @end
 

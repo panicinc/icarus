@@ -120,6 +120,7 @@
   ">>"
   "!"
   "."
+  "?"
 ] @operator
 
 ; Keywords
@@ -163,6 +164,12 @@
  "union"
  "enum"
  "typedef"
+ "switch"
+ "case"
+ "default"
+ "break"
+ "continue"
+ "extern"
 ] @keyword
 
 ; Preprocessor
@@ -173,6 +180,7 @@
 
 (string_literal) @string
 (raw_string_literal) @string
+(char_literal) @value.number
 
 ; Declarations
 

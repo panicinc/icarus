@@ -4,7 +4,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBBreakpoint, LLDBAttachOptions, LLDBLaunchOptions, LLDBProcess;
+@class LLDBBreakpoint, LLDBAttachOptions, LLDBLaunchOptions, LLDBProcess, LLDBValue;
 
 @interface LLDBTarget : NSObject
 
@@ -35,6 +35,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable LLDBBreakpoint *)findBreakpointByID:(uint32_t)breakpointID;
 
 - (BOOL)removeBreakpointWithID:(uint32_t)breakpointID;
+
+// Evaluation
+- (nullable LLDBValue *)evaluateExpression:(NSString *)expression error:(NSError **)outError;
 
 @end
 
