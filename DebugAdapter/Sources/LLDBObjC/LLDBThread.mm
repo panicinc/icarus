@@ -45,7 +45,7 @@
 }
 
 - (uint64_t)stopReasonDataAtIndex:(NSUInteger)idx {
-    return _thread.GetStopReasonDataAtIndex(idx);
+    return (uint64_t)_thread.GetStopReasonDataAtIndex(idx);
 }
 
 - (NSUInteger)frameCount {
