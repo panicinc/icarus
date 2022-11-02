@@ -5,7 +5,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class LLDBTarget, LLDBThread;
 
 typedef NS_ENUM(NSUInteger, LLDBProcessState) {
-    LLDBProcessStateInvalid,
+    LLDBProcessStateInvalid = 0,
     LLDBProcessStateUnloaded,
     LLDBProcessStateConnected,
     LLDBProcessStateAttaching,

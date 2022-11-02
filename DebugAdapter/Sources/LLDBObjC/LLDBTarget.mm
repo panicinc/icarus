@@ -106,7 +106,19 @@
 - (LLDBProcess *)attachWithOptions:(LLDBAttachOptions *)options error:(NSError *__autoreleasing *)outError {
     lldb::SBAttachInfo attachInfo;
     
+    pid_t processIdentifier = options.processIdentifier;
+    if (processIdentifier != 0) {
+        attachInfo.SetProcessID(processIdentifier);
+    }
+    else {
+        NSURL *executableURL = options.executableURL;
+        if (executableURL != nil) {
+            attachInfo.SetExecutable(executableURL.fileSystemRepresentation);
+        }
+    }
+    
     attachInfo.SetWaitForLaunch(options.waitForLaunch, true);
+    attachInfo.SetIgnoreExisting(false);
     
     lldb::SBError error;
     lldb::SBProcess lldbProcess = _target.Attach(attachInfo, error);

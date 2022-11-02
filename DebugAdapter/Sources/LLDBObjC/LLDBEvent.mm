@@ -149,6 +149,14 @@
     }
 }
 
+- (BOOL)isRestarted {
+    return lldb::SBProcess::GetRestartedFromEvent(_event);
+}
+
+- (BOOL)isInterrupted {
+    return lldb::SBProcess::GetInterruptedFromEvent(_event);
+}
+
 @end
 
 @implementation LLDBTargetEvent {

@@ -163,6 +163,7 @@ public enum DebugAdapter {
         public var label: String
         public var text: String?
         public var sortText: String?
+        public var detail: String?
         
         public struct Kind: RawRepresentable, Equatable, ExpressibleByStringLiteral, Codable {
             public typealias RawValue = String
@@ -221,19 +222,20 @@ public enum DebugAdapter {
     
     public struct DataBreakpoint: Codable {
         public var dataId: String
-        public var accessType: DataBreakpointAccessType?
+        
+        public enum AccessType: Codable {
+            case read
+            case write
+            case readWrite
+        }
+        public var accessType: AccessType?
+        
         public var condition: String?
         public var hitCondition: String?
         
         public init(dataId: String) {
             self.dataId = dataId
         }
-    }
-    
-    public enum DataBreakpointAccessType: Codable {
-        case read
-        case write
-        case readWrite
     }
     
     public struct DisassembledInstruction: Codable {
@@ -657,6 +659,8 @@ public enum DebugAdapter {
             }
             public var visibility: Visibility?
             
+            public var lazy: Bool?
+            
             public init(kind: Kind?, attributes: [Attribute]?, visibility: Visibility?) {
                 self.kind = kind
                 self.attributes = attributes
@@ -772,7 +776,7 @@ public enum DebugAdapter {
         public struct Result: Codable {
             public var dataId: String?
             public var description: String
-            public var accessTypes: [DataBreakpointAccessType]
+            public var accessTypes: [DataBreakpoint.AccessType]
             public var canPersist: Bool?
         }
         
@@ -808,8 +812,8 @@ public enum DebugAdapter {
         public static let command: String = "disconnect"
         
         public var restart: Bool?
-        public var terminateDebugee: Bool?
-        public var suspendDebugee: Bool?
+        public var terminateDebuggee: Bool?
+        public var suspendDebuggee: Bool?
         
         public typealias Result = Void
         
@@ -826,6 +830,7 @@ public enum DebugAdapter {
         public struct Context: RawRepresentable, Equatable, ExpressibleByStringLiteral, Codable {
             public typealias RawValue = String
             
+            public static let variables: Context = "variables"
             public static let watch: Context = "watch"
             public static let repl: Context = "repl"
             public static let hover: Context = "hover"
@@ -983,6 +988,7 @@ public enum DebugAdapter {
         public var supportsProgressReporting: Bool?
         public var supportsInvalidatedEvent: Bool?
         public var supportsMemoryEvent: Bool?
+        public var supportsArgsCanBeInterpretedByShell: Bool?
         
         public typealias Result = Capabilities
         
@@ -1077,8 +1083,7 @@ public enum DebugAdapter {
     public struct RestartRequest: DebugAdapterRequest {
         public static let command: String = "restart"
         
-        public var noDebug: Bool?
-        public var __restart: JSONCodable?
+        public var arguments: JSONCodable?
         
         public typealias Result = Void
         
@@ -1117,6 +1122,7 @@ public enum DebugAdapter {
         public var cmd: String
         public var args: [String]
         public var env: [String: JSONCodable]?
+        public var argsCanBeInterpretedByShell: Bool?
         
         public enum Kind: Codable {
             case integrated

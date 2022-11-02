@@ -24,6 +24,8 @@ typedef NS_ENUM(NSUInteger, LLDBThreadStopReason) {
 
 @interface LLDBThread : NSObject
 
+@property (class, readonly) NSString *broadcasterClassName;
+
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
 

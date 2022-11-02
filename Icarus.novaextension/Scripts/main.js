@@ -43,6 +43,7 @@ class SourceKitTaskProvider {
             debugArgs.args = config.get("launchArgs", "array");
             debugArgs.runInRosetta = config.get("runInRosetta", "boolean");
             debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
+            debugArgs.wait = request == "attach";
             
             action.debugArgs = debugArgs;
             

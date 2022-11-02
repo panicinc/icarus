@@ -129,7 +129,7 @@ class Adapter: DebugAdapterServerRequestHandler {
         }
         listener.startListening(in: debugger, eventClass: LLDBTarget.broadcasterClassName, mask: UInt32.max)
         listener.startListening(in: debugger, eventClass: LLDBProcess.broadcasterClassName, mask: UInt32.max)
-        // listener.startListening(in: debugger, eventClass: LLDBThread.broadcasterClassName, mask: UInt32.max)
+        listener.startListening(in: debugger, eventClass: LLDBThread.broadcasterClassName, mask: UInt32.max)
         self.listener = listener
         listener.resume()
         
@@ -251,20 +251,18 @@ class Adapter: DebugAdapterServerRequestHandler {
             
             let options = LLDBAttachOptions()
             options.waitForLaunch = try body.getIfPresent(Bool.self, for: "wait") ?? false
-            configuration = .attach(options)
             
             let target: LLDBTarget?
             if let pid = try body.getIfPresent(Int.self, for: "pid") {
                 // Process Identifier
-                let options = LLDBAttachOptions()
-                
-                options.waitForLaunch = try body.getIfPresent(Bool.self, for: "wait") ?? false
+                options.processIdentifier = pid_t(pid)
                 target = try debugger.findTarget(withProcessIdentifier: pid_t(pid))
             }
             else if let attachPath = try body.getIfPresent(String.self, for: "program") {
                 // Process Path
                 let attachURL = URL(fileURLWithPath: attachPath)
-                target = try debugger.findTarget(with: attachURL, architecture: nil)
+                options.executableURL = attachURL
+                target = try debugger.createTarget(with: attachURL, architecture: nil)
             }
             else {
                 replyHandler(.failure(AdapterError.invalidArguments(reason: "No pid or process name specified for `attach` request.")))
@@ -273,6 +271,7 @@ class Adapter: DebugAdapterServerRequestHandler {
             
             self.target = target
             
+            configuration = .attach(options)
             debugStartRequest = .attach(request, replyHandler)
             terminateOnDisconnect = false
             connection.send(DebugAdapter.InitializedEvent())
@@ -287,27 +286,37 @@ class Adapter: DebugAdapterServerRequestHandler {
         startSession()
     }
     
+    private var attachWaitProcess: LLDBProcess?
+    
     private func startSession() {
         do {
             guard let configuration = configuration, let target = target else {
                 throw AdapterError.invalidArguments(reason: "No `launch` or `attach` request was sent before `configurationDone`.")
             }
             
-            let startMethod: DebugAdapter.ProcessEvent.StartMethod
-            
-            let process: LLDBProcess
             switch configuration {
                 case .launch(let options):
-                    startMethod = .launch
-                    process = try target.launch(with: options)
+                    let process = try target.launch(with: options)
+                    
+                    sendProcessEvent(process, startMethod: .launch)
                     
                     if options.stopAtEntry {
                         notifyProcessStopped()
                     }
                     
                 case .attach(let options):
-                    startMethod = .attach
-                    process = try target.attach(with: options)
+                    let process = try target.attach(with: options)
+                    
+                    if options.waitForLaunch {
+                        attachWaitProcess = process
+                    }
+                    else {
+                        sendProcessEvent(process, startMethod: .attach)
+                        
+                        if options.stopAtEntry {
+                            notifyProcessStopped()
+                        }
+                    }
             }
             
             // Reply to launch or attach request
@@ -320,16 +329,6 @@ class Adapter: DebugAdapterServerRequestHandler {
                 }
                 debugStartRequest = nil
             }
-            
-            // Process event
-            let processIdentifier = process.processIdentifier
-            let name = process.name ?? "(unknown)"
-            
-            var event = DebugAdapter.ProcessEvent(name: name)
-            event.startMethod = startMethod
-            event.isLocalProcess = true
-            event.systemProcessId = Int(processIdentifier)
-            connection.send(event)
         }
         catch {
             // Reply to launch or attach request
@@ -343,6 +342,18 @@ class Adapter: DebugAdapterServerRequestHandler {
                 debugStartRequest = nil
             }
         }
+    }
+    
+    private func sendProcessEvent(_ process: LLDBProcess, startMethod: DebugAdapter.ProcessEvent.StartMethod) {
+        // Process event
+        let processIdentifier = process.processIdentifier
+        let name = process.name ?? "(unknown)"
+        
+        var event = DebugAdapter.ProcessEvent(name: name)
+        event.startMethod = startMethod
+        event.isLocalProcess = true
+        event.systemProcessId = Int(processIdentifier)
+        connection.send(event)
     }
     
     private func handleDebuggerEvent(_ event: LLDBEvent) {
@@ -572,6 +583,22 @@ class Adapter: DebugAdapterServerRequestHandler {
             case .running, .stepping:
                 notifyProcessRunning()
             case .stopped:
+                if let process = attachWaitProcess {
+                    // Attached
+                    sendProcessEvent(process, startMethod: .attach)
+                    
+                    switch configuration {
+                    case .attach(let options):
+                        if options.stopAtEntry {
+                            notifyProcessStopped()
+                        }
+                    default:
+                        break
+                    }
+                    
+                    attachWaitProcess = nil
+                }
+                
                 if !processEvent.isRestarted {
                     notifyProcessStopped()
                 }
@@ -703,7 +730,8 @@ class Adapter: DebugAdapterServerRequestHandler {
     
     func disconnect(_ request: DebugAdapter.DisconnectRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
         if let process = target?.process {
-            let shouldTerminate = request.terminateDebugee ?? terminateOnDisconnect
+            // Terminate debuggee if needed
+            let shouldTerminate = request.terminateDebuggee ?? terminateOnDisconnect
             do {
                 if shouldTerminate {
                     try process.kill()
@@ -718,6 +746,18 @@ class Adapter: DebugAdapterServerRequestHandler {
         }
         self.target = nil
         
+        // Stop any waiting for an attach
+        if let attachWaitProcess = attachWaitProcess {
+            do {
+                try attachWaitProcess.stop()
+            }
+            catch {
+                
+            }
+            self.attachWaitProcess = nil
+        }
+        
+        // Clear all breakpoint callbacks
         LLDBBreakpoint.clearAllCallbacks()
         
         configuration = nil

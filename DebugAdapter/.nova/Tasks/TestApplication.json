@@ -33,7 +33,8 @@
   "extensionTemplate" : "lldbDebug",
   "extensionValues" : {
     "launchPath" : ".build\/debug\/TestApplication",
+    "request" : "attach",
     "runInRosetta" : false,
-    "stopAtEntry" : false
+    "stopAtEntry" : true
   }
 }

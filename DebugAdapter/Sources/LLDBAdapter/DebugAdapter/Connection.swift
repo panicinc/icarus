@@ -1187,7 +1187,8 @@ public class DebugAdapterConnection {
         
         typealias Result = Void
         
-        var requestId: Int
+        var requestId: Int?
+        var progressId: Int?
     }
     
     private func cancel(requestID: Int) {

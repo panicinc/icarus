@@ -6,6 +6,10 @@
     lldb::SBThread _thread;
 }
 
++ (NSString *)broadcasterClassName {
+    return @(lldb::SBThread::GetBroadcasterClassName());
+}
+
 - (instancetype)initWithThread:(lldb::SBThread)thread {
     self = [super init];
     if (self) {
@@ -45,7 +49,7 @@
 }
 
 - (uint64_t)stopReasonDataAtIndex:(NSUInteger)idx {
-    return (uint64_t)_thread.GetStopReasonDataAtIndex(idx);
+    return (uint64_t)_thread.GetStopReasonDataAtIndex((uint32_t)idx);
 }
 
 - (NSUInteger)frameCount {

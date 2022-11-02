@@ -52,6 +52,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface LLDBAttachOptions : NSObject
 
+@property pid_t processIdentifier;
+@property (nullable, copy) NSURL *executableURL;
+
 @property BOOL waitForLaunch;
 @property BOOL stopAtEntry;
 
