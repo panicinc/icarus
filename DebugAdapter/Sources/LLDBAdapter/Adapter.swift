@@ -171,7 +171,7 @@ class Adapter: DebugAdapterServerRequestHandler {
     }
     private var debugStartRequest: DebugStartRequest?
     
-    enum Architecture: String {
+    private enum Architecture: String {
         case systemDefault = "systemArch"
         case systemDefault64 = "systemArch64"
         case systemDefault32 = "systemArch32"
@@ -180,11 +180,11 @@ class Adapter: DebugAdapterServerRequestHandler {
         case x86
     }
     
-    enum Configuration {
+    private enum Configuration {
         case launch(LLDBLaunchOptions)
         case attach(LLDBAttachOptions)
     }
-    private(set) var configuration: Configuration?
+    private var configuration: Configuration?
     
     private var terminateOnDisconnect = false
     

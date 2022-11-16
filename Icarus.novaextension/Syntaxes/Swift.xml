@@ -15,7 +15,7 @@
             <expression>(\{[^}"']*$)|(\[[^\]"']*$)|(\([^)"']*$)|(\:$)</expression>
         </increase>
         <decrease>
-            <expression>(^\s*[\}\]\)\\])|(^\s*(case)\b.*?(\w+|\))\:$)|(^\s*default\:$)</expression>
+            <expression>(^\s*[\}\]\)\\])|(^\s*(case)\b.*?(\w+|\))\:$)|(^\s*(@unknown\s+)?default\:$)</expression>
         </decrease>
     </indentation>
     

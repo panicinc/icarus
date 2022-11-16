@@ -50,7 +50,7 @@ public class DebugAdapterConnection {
     }
     
     private let queueSpecific = DispatchSpecificKey<DebugAdapterConnection>()
-    lazy private var queue: DispatchQueue = {
+    private lazy var queue: DispatchQueue = {
         let queue = DispatchQueue(label: "com.panic.debugadapter-connection")
         queue.setSpecific(key: queueSpecific, value: self)
         return queue
@@ -686,7 +686,7 @@ public class DebugAdapterConnection {
     
     private var inputDataBuffer = Data()
     private var inputDataOffset = 0
-    static private let inputDataMaxOffset = 102400 // 100 KB
+    private static let inputDataMaxOffset = 102400 // 100 KB
     
     private func readMessage() {
         let data = inputDataBuffer.subdata(in: inputDataOffset ..< inputDataBuffer.count)
@@ -1105,7 +1105,7 @@ public class DebugAdapterConnection {
         return message.body
     }
     
-    static private func errorString(forError error: Error) -> String {
+    private static func errorString(forError error: Error) -> String {
         if let error = error as? LocalizedError {
             var components: [String] = []
             
@@ -1128,19 +1128,19 @@ public class DebugAdapterConnection {
     }
     
     private var messageID = 0
-	
-	private func nextMessageID() -> Int {
+    
+    private func nextMessageID() -> Int {
         let nextID = messageID
-		if (nextID == .max) {
-			messageID = 0
-		}
+        if (nextID == .max) {
+            messageID = 0
+        }
         else {
             messageID += 1
         }
-		return nextID
-	}
-	
-	// MARK: - Sending Messages
+        return nextID
+    }
+    
+    // MARK: - Sending Messages
     
     /// If set to YES, then for any requests whose progress objects are cancelled
     /// the connection will automatically send a corresponding cancel request.
