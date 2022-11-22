@@ -10,34 +10,45 @@ public enum JSONCodable: Codable {
     indirect case array([JSONCodable])
     indirect case object([String: JSONCodable])
     
-    public enum JSONValueError: Error {
-        case invalidJSONValue
+    public enum JSONValueError: LocalizedError {
+        case invalidJSONValue(Any)
+        
+        public var errorDescription: String? {
+            switch self {
+            case .invalidJSONValue(let value):
+                return "Could not coerce value to JSON: \(value)"
+            }
+        }
     }
     
     public init(withJSONValue value: Any?) throws {
         if value == nil || value is NSNull {
             self = .null
         }
-        else if let value = value as? Bool {
-            self = .bool(value)
-        }
         else if let value = value as? String {
             self = .string(value)
+        }
+        else if value is NSNumber {
+            let num = value as! NSNumber
+            let cfTypeID = CFGetTypeID(num as CFTypeRef)
+            if cfTypeID == CFBooleanGetTypeID() {
+                self = .bool(num.boolValue)
+            }
+            else {
+                self = .number(Double(truncating: num))
+            }
+        }
+        else if let value = value as? Bool {
+            self = .bool(value)
         }
         else if let value = value as? Double {
             self = .number(value)
         }
-        else if let value = value as? Int {
+        else if let value = value as? any BinaryFloatingPoint {
             self = .number(Double(value))
         }
-        else if let value = value as? Float {
+        else if let value = value as? any BinaryInteger {
             self = .number(Double(value))
-        }
-        else if let value = value as? CGFloat {
-            self = .number(Double(value))
-        }
-        else if let value = value as? NSNumber {
-            self = .number(Double(truncating: value))
         }
         else if let value = value as? [Any] {
             let array = try value.map { i in
