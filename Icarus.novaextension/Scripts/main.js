@@ -57,25 +57,39 @@ class SourceKitTaskProvider {
 
 class SourceKitLanguageServer {
     constructor() {
+        this.languageClient = null;
+        this.restartToken = null;
+        
         nova.config.observe('sourcekit.language-server-path', function(path) {
             this.start(path);
         }, this);
+        
+        let langserver = this;
+        this.watcher = nova.fs.watch("compile_commands.json", (path) => {
+            langserver.fileDidChange(path);
+        });
     }
     
     deactivate() {
         this.stop();
+        
+        if (this.watcher) {
+            this.watcher.dispose()
+            this.watcher = null;
+        }
+        
+        if (this.restartToken) {
+            clearTimeout(this.restartToken);
+        }
     }
     
     start() {
         let path = nova.config.get('sourcekit.language-server-path');
-        this.start(path);
+        this.startWithPath(path);
     }
     
-    start(path) {
-        if (this.languageClient) {
-            this.languageClient.stop();
-            nova.subscriptions.remove(this.languageClient);
-        }
+    startWithPath(path) {
+        this.stop();
         
         var args = [];
         
@@ -117,11 +131,33 @@ class SourceKitLanguageServer {
     }
     
     stop() {
-        if (this.languageClient) {
-            this.languageClient.stop();
-            nova.subscriptions.remove(this.languageClient);
-            this.languageClient = null;
+        let langclient = this.languageClient;
+        this.languageClient = null;
+        
+        if (langclient) {
+            langclient.stop();
+            nova.subscriptions.remove(langclient);
         }
+    }
+    
+    fileDidChange(path) {
+        let lastPathComponent = nova.path.basename(path);
+        if (lastPathComponent == "compile_commands.json" || lastPathComponent == "compile_flags.txt") {
+            // Restart sourcekit-lsp
+            this.scheduleRestart()
+        }
+    }
+    
+    scheduleRestart() {
+        let token = this.restartToken;
+        if (token != null) {
+            clearTimeout(token);
+        }
+        
+        let langserver = this;
+        this.restartToken = setTimeout(() => {
+            langserver.start();
+        }, 1000);
     }
     
     showStoppedUnexpectedlyNotification(error) {
