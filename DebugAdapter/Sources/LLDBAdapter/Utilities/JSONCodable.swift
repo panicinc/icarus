@@ -63,7 +63,7 @@ public enum JSONCodable: Codable {
             self = .object(object)
         }
         else {
-            throw JSONValueError.invalidJSONValue
+            throw JSONValueError.invalidJSONValue(value!)
         }
     }
     
