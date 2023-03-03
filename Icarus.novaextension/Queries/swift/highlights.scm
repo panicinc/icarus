@@ -11,12 +11,13 @@
 (equality_constraint (identifier (simple_identifier) @identifier.type))
 
 ; Declarations
-; (function_declaration (simple_identifier) @identifier.function)
+(protocol_function_declaration ["init" @keyword])
 (function_declaration ["init" @keyword])
 (parameter name: (simple_identifier) @identifier.argument)
 (deinit_declaration "deinit" @keyword)
 
 [
+  "associatedtype"
   "typealias"
   "struct"
   "class"
@@ -54,6 +55,8 @@
   (else)
   (as_operator)
   "subscript"
+  "as"
+  "any"
 ] @keyword
 
 [

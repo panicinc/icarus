@@ -9,7 +9,7 @@ extension URL {
         var rootVolumeURL: URL?
         
         do {
-            let resourceKeys: [URLResourceKey] = [.volumeURLKey]
+            let resourceKeys: [URLResourceKey] = [.isSymbolicLinkKey, .volumeURLKey]
             let contents = try FileManager.default.contentsOfDirectory(at: volumesURL, includingPropertiesForKeys: resourceKeys, options: [])
             
             for itemURL in contents {

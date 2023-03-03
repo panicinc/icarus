@@ -6,11 +6,6 @@
           "name" : "Build",
           "script" : "swift build --product LLDBAdapter",
           "type" : "runScript"
-        },
-        {
-          "name" : "Copy to Extension",
-          "script" : "#rm -f ..\/Icarus.novaextension\/Executables\/LLDBAdapter\n#cp .build\/Debug\/LLDBAdapter ..\/Icarus.novaextension\/Executables\/LLDBAdapter",
-          "type" : "runScript"
         }
       ]
     },
@@ -31,7 +26,7 @@
   },
   "extensionTemplate" : "lldbDebug",
   "extensionValues" : {
-    "launchPath" : "..\/Icarus.novaextension\/Executables\/LLDBAdapter",
+    "launchPath" : ".build\/debug\/LLDBAdapter",
     "request" : "attach"
   }
 }

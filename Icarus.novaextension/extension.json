@@ -54,15 +54,6 @@
             "type": "path",
             "placeholder": "/usr/bin/xcrun sourcekit-lsp",
             "description": "By default, SourceKit-LSP will be launched using `xcrun` and your chosen Xcode developer tools directory."
-        },
-        {
-            "key": "sourcekit.developer-dir",
-            "title": "Developer Directory",
-            "type": "path",
-            "allowFiles": false,
-            "allowFolders": true,
-            "placeholder": "Default for xcode-select",
-            "description": "Set a custom developer tools directory to use a toolchain separate from that provided by `xcode-select`."
         }
     ],
     

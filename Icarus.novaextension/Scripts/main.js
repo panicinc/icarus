@@ -8,7 +8,7 @@ exports.activate = function() {
     
     nova.assistants.registerTaskAssistant(taskProvider, {
         'identifier': "sourcekit"
-    })
+    });
 }
 
 exports.deactivate = function() {
@@ -59,15 +59,18 @@ class SourceKitLanguageServer {
     constructor() {
         this.languageClient = null;
         this.restartToken = null;
+        this.watcher = null;
         
-        nova.config.observe('sourcekit.language-server-path', function(path) {
+        nova.config.observe('sourcekit.language-server-path', (path) => {
             this.start(path);
         }, this);
         
+        nova.workspace.onDidChangePath((path) => {
+            this.startWatcher();
+        }, this);
+        
         let langserver = this;
-        this.watcher = nova.fs.watch("compile_commands.json", (path) => {
-            langserver.fileDidChange(path);
-        });
+        this.startWatcher();
     }
     
     deactivate() {
@@ -80,6 +83,20 @@ class SourceKitLanguageServer {
         
         if (this.restartToken) {
             clearTimeout(this.restartToken);
+        }
+    }
+    
+    startWatcher() {
+        if (this.watcher) {
+            this.watcher.dispose()
+            this.watcher = null;
+        }
+        
+        let workspacePath = nova.workspace.path;
+        if (workspacePath) {
+            this.watcher = nova.fs.watch("compile_commands.json", (path) => {
+                langserver.fileDidChange(path);
+            });
         }
     }
     

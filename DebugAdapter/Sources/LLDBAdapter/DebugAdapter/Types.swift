@@ -772,6 +772,7 @@ public enum DebugAdapter {
         
         public var variablesReference: Int?
         public var name: String
+        public var frameId: Int?
         
         public struct Result: Codable {
             public var dataId: String?

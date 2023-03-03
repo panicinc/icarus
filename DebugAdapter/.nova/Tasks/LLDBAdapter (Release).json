@@ -3,8 +3,8 @@
     "build" : {
       "postActions" : [
         {
-          "name" : "Build TestApplication",
-          "script" : "swift build --product TestApplication",
+          "name" : "Build",
+          "script" : "swift build --product LLDBAdapter --configuration release",
           "type" : "runScript"
         }
       ]
@@ -26,9 +26,7 @@
   },
   "extensionTemplate" : "lldbDebug",
   "extensionValues" : {
-    "launchPath" : ".build\/debug\/TestApplication",
-    "request" : "launch",
-    "runInRosetta" : false,
-    "stopAtEntry" : false
+    "launchPath" : ".build\/release\/LLDBAdapter",
+    "request" : "attach"
   }
 }

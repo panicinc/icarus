@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// An arbitrary JSON-compatible value that is codable
 @dynamicMemberLookup
@@ -22,13 +23,13 @@ public enum JSONCodable: Codable {
     }
     
     public init(withJSONValue value: Any?) throws {
-        if value == nil || value is NSNull {
+        switch value {
+        case .none, is NSNull:
             self = .null
-        }
-        else if let value = value as? String {
+        case let value as String:
             self = .string(value)
-        }
-        else if value is NSNumber {
+        case is NSNumber:
+            // Accurately determining if an NSNumber is a boolean or number requires using CoreFoundation.
             let num = value as! NSNumber
             let cfTypeID = CFGetTypeID(num as CFTypeRef)
             if cfTypeID == CFBooleanGetTypeID() {
@@ -37,32 +38,25 @@ public enum JSONCodable: Codable {
             else {
                 self = .number(Double(truncating: num))
             }
-        }
-        else if let value = value as? Bool {
+        case let value as Bool:
             self = .bool(value)
-        }
-        else if let value = value as? Double {
+        case let value as Double:
             self = .number(value)
-        }
-        else if let value = value as? any BinaryFloatingPoint {
+        case let value as any BinaryFloatingPoint:
             self = .number(Double(value))
-        }
-        else if let value = value as? any BinaryInteger {
+        case let value as any BinaryInteger:
             self = .number(Double(value))
-        }
-        else if let value = value as? [Any] {
+        case let value as [Any]:
             let array = try value.map { i in
                 return try JSONCodable(withJSONValue: i)
             }
             self = .array(array)
-        }
-        else if let value = value as? [String: Any] {
+        case let value as [String: Any]:
             let object = try value.mapValues { i in
                 return try JSONCodable(withJSONValue: i)
             }
             self = .object(object)
-        }
-        else {
+        default:
             throw JSONValueError.invalidJSONValue(value!)
         }
     }
