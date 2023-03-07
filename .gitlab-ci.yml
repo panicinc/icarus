@@ -18,7 +18,7 @@ DebugAdapter:
     expire_in: 3 days
     expose_as: 'LLDBAdapter'
     name: "LLDBAdapter-${CI_PIPELINE_ID}"
-    paths: ['/DebugAdapter/.build/apple/Products/Release/LLDBAdapte']
+    paths: ['/DebugAdapter/.build/apple/Products/Release/LLDBAdapter']
     when: on_success
 
   tags:
