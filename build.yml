@@ -1,2 +1,3 @@
-build: false
-type: macos
+name: Icarus
+type: extension
+symroot_folder: ''
