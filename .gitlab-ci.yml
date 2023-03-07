@@ -1,0 +1,37 @@
+variables:
+  GIT_DEPTH: "1"
+  GIT_STRATEGY: fetch
+  MAGNUM: /Users/buildbot/Developer/magnum/magnum.sh
+
+before_script:
+  - env | sort
+
+stages:
+  - DebugAdapter
+  - build
+
+DebugAdapter:
+  stage: DebugAdapter
+  script:
+    - cd DebugAdapter && CONFIGURATION=Release $MAGNUM build.yml
+  artifacts:
+    expire_in: 3 days
+    expose_as: 'LLDBAdapter'
+    name: "LLDBAdapter-${CI_PIPELINE_ID}"
+    paths: ['/DebugAdapter/.build/apple/Products/Release/LLDBAdapte']
+    when: on_success
+
+  tags:
+    - xcode14
+
+# Icarus:
+#   stage: build
+#   needs:
+#     - job: DebugAdapter
+#       artifacts: true
+#   script:
+#     - cp DebugAdapter/.build/release/LLDBAdapter Icarus.novaextension/Executables/
+#     - CONFIGURATION=Release $MAGNUM
+#
+#   tags:
+#     - xcode14

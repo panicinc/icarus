@@ -1,2 +1,4 @@
 name: LLDBAdapter
 type: swift
+package: false
+sign_product: true
