@@ -17,6 +17,7 @@
 (deinit_declaration "deinit" @keyword)
 
 [
+  "actor"
   "associatedtype"
   "typealias"
   "struct"
