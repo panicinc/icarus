@@ -2,3 +2,4 @@
 build/
 .build/
 .swiftpm/
+Icarus.novaextension/Executables/LLDBAdapter

@@ -14,6 +14,16 @@
   name: (type_identifier) @name
   (#set! role class)
 ) @subtree
+(class_declaration
+  declaration_kind: "actor"
+  name: (type_identifier) @name
+  (#set! role class)
+) @subtree
+(class_declaration
+  declaration_kind: "extension"
+  name: (user_type) @name
+  (#set! role category)
+) @subtree
 
 ; Initializers
 (function_declaration
