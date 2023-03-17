@@ -171,6 +171,6 @@
  (bang)
 ] @operator
 
-(optional_type "?") @operator
+(optional_type "?" @operator)
 
 (ternary_expression ["?" ":"] @operator)
