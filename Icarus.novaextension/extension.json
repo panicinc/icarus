@@ -56,7 +56,7 @@
             "values": [
                 ["xcrun", "Xcode (xcrun)"],
                 ["swift", "Swift Trunk (xcrun --toolchain swift)"],
-                ["custom", "Custom"],
+                ["custom", "Custom"]
             ],
             "default": "xcrun"
         },
