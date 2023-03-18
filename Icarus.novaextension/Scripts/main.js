@@ -3,11 +3,11 @@ var langserver = null;
 var taskProvider = null;
 
 exports.activate = function() {
-    langserver = new SourceKitLanguageServer();
-    taskProvider = new SourceKitTaskProvider();
+    langserver = new IcarusLanguageServer();
+    taskProvider = new IcarusTaskProvider();
     
     nova.assistants.registerTaskAssistant(taskProvider, {
-        'identifier': "sourcekit"
+        'identifier': "icarus"
     });
 }
 
@@ -19,7 +19,7 @@ exports.deactivate = function() {
     taskProvider = null;
 }
 
-class SourceKitTaskProvider {
+class IcarusTaskProvider {
     resolveTaskAction(context) {
         let action = context.action;
         let data = context.data;
@@ -55,15 +55,23 @@ class SourceKitTaskProvider {
     }
 }
 
-class SourceKitLanguageServer {
+class IcarusLanguageServer {
     constructor() {
         this.languageClient = null;
         this.restartToken = null;
         this.watcher = null;
         
-        nova.config.observe('sourcekit.language-server-path', (path) => {
-            this.start(path);
+        nova.config.onDidChange('icarus.language-server-path', (path) => {
+            this.start();
         }, this);
+        nova.config.onDidChange('icarus.toolchain', (path) => {
+            this.start();
+        }, this);
+        nova.config.onDidChange('icarus.toolchain-path', (path) => {
+            this.start();
+        }, this);
+        
+        this.start();
         
         nova.workspace.onDidChangePath((path) => {
             this.startWatcher();
@@ -101,23 +109,41 @@ class SourceKitLanguageServer {
     }
     
     start() {
-        let path = nova.config.get('sourcekit.language-server-path');
-        this.startWithPath(path);
-    }
-    
-    startWithPath(path) {
         this.stop();
         
+        let toolchain = nova.config.get('icarus.toolchain');
+        let toolchainPath = nova.config.get('icarus.toolchain-path');
+        
+        var path = nova.config.get('icarus.language-server-path');
         var args = [];
+        var env = {};
         
         if (!path) {
-            path = '/usr/bin/xcrun';
-            args = ['sourcekit-lsp'];
+            if (toolchain == 'swift') {
+                path = '/usr/bin/xcrun';
+                args.push('--toolchain');
+                args.push('swift');
+                args.push('sourcekit-lsp');
+            }
+            else if (toolchain == 'custom' && toolchainPath) {
+                path = nova.path.join(toolchainPath, 'usr/bin/sourcekit-lsp');
+            }
+            else {
+                path = '/usr/bin/xcrun';
+                args.push('sourcekit-lsp');
+            }
         }
+        
+        if (toolchainPath) {
+            env['SOURCEKIT_TOOLCHAIN_PATH'] = toolchainPath;
+        }
+        
+        console.log("Starting sourcekit-lsp " + path + " " + args.join(" "));
         
         var serverOptions = {
             path: path,
-            args: args
+            args: args,
+            env: env
         };
         var clientOptions = {
             syntaxes: [
@@ -128,7 +154,7 @@ class SourceKitLanguageServer {
                 {'syntax': 'objcpp', 'languageId': 'objective-cpp'}
             ]
         };
-        var client = new LanguageClient('sourcekit-langserver', 'SourceKit Language Server', serverOptions, clientOptions);
+        var client = new LanguageClient('sourcekit-lsp', 'SourceKit-LSP', serverOptions, clientOptions);
         
         client.onDidStop((error) => {
             if (error) {

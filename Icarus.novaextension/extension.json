@@ -49,11 +49,31 @@
     
     "config": [
         {
-            "key": "sourcekit.language-server-path",
+            "key": "icarus.toolchain",
+            "title": "Toolchain",
+            "type": "enum",
+            "description": "The toolchain to use for development and debugging.",
+            "values": [
+                ["xcrun", "Xcode (xcrun)"],
+                ["swift", "Swift Trunk (xcrun --toolchain swift)"],
+                ["custom", "Custom"],
+            ],
+            "default": "xcrun"
+        },
+        {
+            "key": "icarus.toolchain-path",
+            "title": "Custom Toolchain Path",
+            "type": "path",
+            "description": "The custom path if your toolchain is set to \"Custom\", such as if you have built the toolchain from source.",
+            "allowsFiles": false,
+            "allowFolders": true
+        },
+        {
+            "key": "icarus.language-server-path",
             "title": "Language Server Path",
             "type": "path",
-            "placeholder": "/usr/bin/xcrun sourcekit-lsp",
-            "description": "By default, SourceKit-LSP will be launched using `xcrun` and your chosen Xcode developer tools directory."
+            "placeholder": "sourcekit-lsp",
+            "description": "By default, SourceKit-LSP will be located using `xcrun` and your chosen toolchain."
         }
     ],
     
@@ -64,7 +84,7 @@
             "image": "lldb",
             "tasks": {
                 "run": {
-                    "resolve": "sourcekit",
+                    "resolve": "icarus",
                     "data": {
                         "type": "lldbDebug"
                     }
