@@ -4,7 +4,17 @@ Icarus is a [Nova](https://nova.app) extension providing **Swift**, **C**, **C++
 
 ## Getting Started
 
-If you're just looking to use the Icarus extension, you can download it from the Extension Library directly from Nova.
+If you're just looking to use the Icarus extension, you can download it from the Extension Library [directly within Nova](nova://extension?id=panic.Icarus).
+
+Icarus adds:
+
+- 🖍️ **Syntax highlighting**, symbolication, and code folding using Tree-sitter grammars
+- 🧪 **Language intelligence**, completions, issues, and more via SourceKit-LSP
+- 🐛 **Debugging** via LLDB
+
+Intelligence is provided using [SourceKit-LSP](https://github.com/apple/sourcekit-lsp) from the Swift open-source project. This language server provides support for Swift natively and uses `clangd` behind the scenes for C-family languages.
+
+Debugging is supported using _LLDB.framework_, distributed with Apple's Xcode tools and the Swift compiler toolchain.
 
 The Icarus project consists of several parts:
 
@@ -58,7 +68,7 @@ If you have questions or concerns, do not hesistate to contact us via `github@pa
 
 ## Why The Name?
 
-The Swift logo and mascot is of a diving swallow. Icarus is the name of a character from an ancient Greek legend whose father fasioned wings of feather and wax so the two might escape a prison. When Icarus flew too close to the sun, the wax melted and he fell into the sea. Swallow, wings, sea (as in "C"), and dev tools that might fly too close to the sun. Too much?
+The Swift logo and mascot is of a diving swallow. Icarus is the name of a character from an ancient Greek legend whose father fashioned wings of feather and wax so the two might escape a prison. When Icarus flew too close to the sun, the wax melted and he fell into the sea. Swallow, wings, sea (as in "C"), and dev tools that might fly too close to the sun. Too much?
 
 Oh, and the logo is a reference to Hades from Supergiant Games.
 
