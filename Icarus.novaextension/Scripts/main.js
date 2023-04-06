@@ -26,9 +26,36 @@ class IcarusTaskProvider {
         let config = context.config;
         
         if (action == Task.Run && data.type == "lldbDebug") {
+            let toolchain = nova.config.get('icarus.toolchain');
+            let toolchainPath = nova.config.get('icarus.toolchain-path');
+            
             let action = new TaskDebugAdapterAction("lldb");
             
-            action.command = nova.path.normalize(nova.path.join(nova.extension.path, "Executables/LLDBAdapter"))
+            action.command = nova.path.normalize(nova.path.join(nova.extension.path, "Executables/LLDBAdapter"));
+            
+            // Environment
+            let env = {};
+            
+            // Set DYLD framework paths for finding LLDB.framework.
+            let frameworkPaths = [];
+            
+            if (toolchain == 'swift') {
+                // Swift "latest" toolchain
+                frameworkPaths.push("/Library/Developer/Toolchains/swift-latest.xctoolchain/System/Library/PrivateFrameworks/");
+            }
+            else if (toolchain == 'custom' && toolchainPath) {
+                // Custom toolchain
+                frameworkPaths.push(nova.path.join(toolchainPath, 'System/Library/PrivateFrameworks/'));
+            }
+            
+            // Fallback to Xcode and CLI tools
+            frameworkPaths.push("/Applications/Xcode-beta.app/Contents/SharedFrameworks/");
+            frameworkPaths.push("/Applications/Xcode.app/Contents/SharedFrameworks/");
+            frameworkPaths.push("/Library/Developer/CommandLineTools/Library/PrivateFrameworks/");
+            
+            env['DYLD_FRAMEWORK_PATH'] = frameworkPaths.join(":");
+            
+            action.env = env;
             
             // Debug Args
             let request = config.get("request", "string");
@@ -114,9 +141,9 @@ class IcarusLanguageServer {
         let toolchain = nova.config.get('icarus.toolchain');
         let toolchainPath = nova.config.get('icarus.toolchain-path');
         
-        var path = nova.config.get('icarus.language-server-path');
-        var args = [];
-        var env = {};
+        let path = nova.config.get('icarus.language-server-path');
+        let args = [];
+        let env = {};
         
         if (!path) {
             if (toolchain == 'swift') {
@@ -140,12 +167,12 @@ class IcarusLanguageServer {
         
         console.log("Starting sourcekit-lsp " + path + " " + args.join(" "));
         
-        var serverOptions = {
+        let serverOptions = {
             path: path,
             args: args,
             env: env
         };
-        var clientOptions = {
+        let clientOptions = {
             syntaxes: [
                 'swift',
                 'c',
@@ -154,7 +181,7 @@ class IcarusLanguageServer {
                 {'syntax': 'objcpp', 'languageId': 'objective-cpp'}
             ]
         };
-        var client = new LanguageClient('sourcekit-lsp', 'SourceKit-LSP', serverOptions, clientOptions);
+        let client = new LanguageClient('sourcekit-lsp', 'SourceKit-LSP', serverOptions, clientOptions);
         
         client.onDidStop((error) => {
             if (error) {

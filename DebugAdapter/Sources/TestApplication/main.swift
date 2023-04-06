@@ -11,7 +11,7 @@ class MyClass {
     var isFalse = false
     
     enum MyError: Error {
-        case foobar
+        case uhOh
     }
     
     func doThing() {
@@ -20,8 +20,12 @@ class MyClass {
         let bin = [12, 14, 18]
         
         print("Doing the thing!")
+        
+        let values: [Any] = [foo, bar, bin]
+        print(values)
+        
         do {
-            throw MyError.foobar
+            throw MyError.uhOh
         }
         catch {
             fputs("Failed to do the thing!\n", stderr);
