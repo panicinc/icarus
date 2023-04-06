@@ -26,7 +26,7 @@ Submitting feedback on Icarus is welcomed via GitHub issues in this project. Ple
 
 If you would like to contribute directly to the Icarus project, you are welcomed to clone this repository and submit pull requests with improvements and fixes.
 
-Code contributions should be formatted in accordance and consistency with the rest of the project, which (with occasional exception) takes its styling practices from the examples of the wider Swift open source community:
+Code contributions should be formatted in accordance and consistency with the rest of the project, which (with occasional exception) takes its styling practices from the examples of the wider Swift open-source community:
 
 - [Swift Contribution Guidelines](https://www.swift.org/contributing/)
 - [Swift API Design Guidelines](https://www.swift.org/documentation/api-design-guidelines/)
