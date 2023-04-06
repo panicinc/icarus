@@ -1,6 +1,6 @@
 # Icarus
 
-Icarus is a Nova extension providing **Swift**, **C**, **C++**, and **Objective-C** language support.
+Icarus is a [Nova](https://nova.app) extension providing **Swift**, **C**, **C++**, and **Objective-C** language support.
 
 ## Getting Started
 
@@ -11,6 +11,7 @@ The Icarus project consists of several parts:
 - A Nova extension bundle
 - A debug adapter written in Swift
 - Five [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) grammars precompiled as macOS dynamic libraries
+- Custom queries for those grammars to add syntax highlighting, symbolication, code folding, etc.
 - Some JavaScript code for interfacing with the Nova extension runtime
 
 ## Contributing
