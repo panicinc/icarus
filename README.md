@@ -66,7 +66,7 @@ Icarus is part of [Panic's](https://panic.com) open-source initiatives. We highl
 
 Panic is dedicated to providing a harassment-free experience for everyone, regardless of gender identity and expression, sexual orientation, disability, mental illness, neurotype, physical appearance, body, age, race, ethnicity, nationality, language, or religion. We do not tolerate harassment of participants in any form. We reserve the right to ban users from our initiatives at any time and for any reason.
 
-If you have questions or concerns, do not hesistate to contact us via `github@panic.com`.
+If you have questions or concerns, do not hesitate to contact us via `github@panic.com`.
 
 ## Why The Name?
 
