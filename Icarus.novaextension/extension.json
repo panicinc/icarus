@@ -6,6 +6,7 @@
     "version": "1.0",
     "categories": ["languages"],
     "keywords": ["swift", "c", "c++", "cpp", "objective-c", "objc", "objective-c++", "objc++", "objcpp", "llvm", "clang", "lldb", "xcode"],
+    "bugs": "https://github.com/panicinc/icarus/issues",
     "min_runtime": "10",
     
     "main": "main.js",
