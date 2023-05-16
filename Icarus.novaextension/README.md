@@ -12,7 +12,7 @@ Icarus adds:
 - 🧪 **Language intelligence**, completions, issues, and more via SourceKit-LSP
 - 🐛 **Debugging** via LLDB
 
-![Icarus screenshot](screenshot.png)
+![Icarus screenshot](https://github.com/panicinc/icarus/raw/main/screenshot.png)
 
 Intelligence is provided using [SourceKit-LSP](https://github.com/apple/sourcekit-lsp) from the Swift open-source project. This language server provides support for Swift natively and uses `clangd` behind the scenes for C-family languages.
 
