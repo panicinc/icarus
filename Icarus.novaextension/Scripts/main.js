@@ -31,7 +31,15 @@ class IcarusTaskProvider {
             
             let action = new TaskDebugAdapterAction("lldb");
             
-            action.command = nova.path.normalize(nova.path.join(nova.extension.path, "Executables/LLDBAdapter"));
+            let adapterPath = nova.path.normalize(nova.path.join(nova.extension.path, "Executables/LLDBAdapter"));
+            
+            // Check adapter executability.
+            if (!nova.fs.access(adapterPath, nova.fs.constants.X_OK)) {
+                // Set +x on the adapter to get around an issue with extensions being installed by Nova.
+                nova.fs.chmod(adapterPath, 0o755);
+            }
+            
+            action.command = adapterPath;
             
             // Environment
             let env = {};
