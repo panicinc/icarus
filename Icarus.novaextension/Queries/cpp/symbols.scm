@@ -1,7 +1,7 @@
 ; Namespaces
 
 (namespace_definition
-  name: (identifier) @name
+  name: (_) @name
   (#set! role type)
 ) @subtree
 

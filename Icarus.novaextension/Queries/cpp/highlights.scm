@@ -187,7 +187,7 @@
 ; Declarations
 
 (class_specifier name: (type_identifier) @identifier.type.declare)
-(namespace_definition name: (identifier) @identifier.type.declare)
+(namespace_definition name: (_) @identifier.type.declare)
 (struct_specifier name: (type_identifier) @identifier.type.declare)
 (union_specifier name: (type_identifier) @identifier.type.declare)
 (enum_specifier name: (type_identifier) @identifier.type.declare)
