@@ -4,7 +4,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBBreakpoint, LLDBAttachOptions, LLDBLaunchOptions, LLDBProcess, LLDBValue;
+@class LLDBBreakpoint, LLDBAttachOptions, LLDBLaunchOptions, LLDBPlatform, LLDBProcess, LLDBValue;
 
 @interface LLDBTarget : NSObject
 
@@ -23,10 +23,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable LLDBProcess *)attachWithOptions:(nullable LLDBAttachOptions *)options error:(NSError **)outError;
 
 @property (nullable, readonly) LLDBProcess *process;
+@property (nullable, readonly) LLDBPlatform *platform;
 
 // Breakpoints
-- (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line;
-- (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line column:(nullable NSNumber *)column offset:(nullable NSNumber *)offset moveToNearestCode:(BOOL)moveToNearestCode;
+- (LLDBBreakpoint *)createBreakpointForPath:(NSString *)path line:(NSNumber *)line;
+- (LLDBBreakpoint *)createBreakpointForPath:(NSString *)path line:(NSNumber *)line column:(nullable NSNumber *)column offset:(nullable NSNumber *)offset moveToNearestCode:(BOOL)moveToNearestCode;
 
 - (LLDBBreakpoint *)createBreakpointForName:(NSString *)name;
 
@@ -45,7 +46,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, copy) NSArray <NSString *> *arguments;
 @property (nullable, copy) NSDictionary <NSString *, NSString *> *environment;
-@property (nullable, copy) NSURL *currentDirectoryURL;
+@property (nullable, copy) NSString *currentDirectoryPath;
 @property BOOL stopAtEntry;
 
 @end
@@ -53,7 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface LLDBAttachOptions : NSObject
 
 @property pid_t processIdentifier;
-@property (nullable, copy) NSURL *executableURL;
+@property (nullable, copy) NSString *executablePath;
 
 @property BOOL waitForLaunch;
 @property BOOL stopAtEntry;

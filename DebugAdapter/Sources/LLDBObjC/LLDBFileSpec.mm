@@ -26,11 +26,11 @@
     return (filename != NULL ? @(filename) : NULL);
 }
 
-- (NSURL *)fileURL {
+- (NSString *)fullpath {
     const char * directory = _fileSpec.GetDirectory();
     const char * filename = _fileSpec.GetFilename();
     if (directory != NULL && filename != NULL) {
-        return [[NSURL fileURLWithPath:@(directory) isDirectory:YES] URLByAppendingPathComponent:@(filename) isDirectory:NO];
+        return [[NSURL fileURLWithPath:@(directory) isDirectory:YES] URLByAppendingPathComponent:@(filename) isDirectory:NO].path;
     }
     else {
         return nil;

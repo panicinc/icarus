@@ -3,7 +3,7 @@
     "build" : {
       "postActions" : [
         {
-          "name" : "Build TestApplication",
+          "name" : "TestApplication",
           "script" : "swift build --product TestApplication",
           "type" : "runScript"
         }
@@ -12,7 +12,7 @@
     "clean" : {
       "postActions" : [
         {
-          "name" : "Clean",
+          "name" : "TestApplication",
           "script" : "swift package clean",
           "type" : "runScript"
         }

@@ -3,7 +3,7 @@
     "build" : {
       "postActions" : [
         {
-          "name" : "Build",
+          "name" : "LLDBAdapter",
           "script" : "swift build --product LLDBAdapter",
           "type" : "runScript"
         }
@@ -12,7 +12,7 @@
     "clean" : {
       "postActions" : [
         {
-          "name" : "Clean",
+          "name" : "LLDBAdapter",
           "script" : "swift package clean",
           "type" : "runScript"
         }

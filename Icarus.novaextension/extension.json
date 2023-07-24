@@ -76,7 +76,7 @@
             "title": "Language Server Path",
             "type": "path",
             "placeholder": "sourcekit-lsp",
-            "description": "By default, SourceKit-LSP will be located using `xcrun` and your chosen toolchain."
+            "description": "By default, SourceKit-LSP will be located within your chosen toolchain."
         }
     ],
     
@@ -127,6 +127,86 @@
                     "title": "Run using Rosetta",
                     "type": "boolean",
                     "default": false
+                }
+            ]
+        },
+        "lldbRemoteDebug": {
+            "name": "LLDB Remote Debug",
+            "description": "Debug Swift, C, C++, and Objective-C applications and command line tools running on a remote system.",
+            "image": "lldb",
+            "tasks": {
+                "run": {
+                    "resolve": "icarus",
+                    "data": {
+                        "type": "lldbRemoteDebug"
+                    }
+                }
+            },
+            "config": [
+                {
+                    "key": "host",
+                    "title": "lldb-server Host",
+                    "type": "string",
+                    "description": "The hostname or IP address on which lldb-server is listening for connections.",
+                    "type": "string",
+                    "placeholder": "localhost"
+                },
+                {
+                    "key": "port",
+                    "title": "lldb-server Port",
+                    "description": "The port on which lldb-server is listening for connections.",
+                    "type": "number",
+                    "min": 1024,
+                    "max": 65535
+                },
+                {
+                    "key": "launchPath",
+                    "title": "Executable",
+                    "type": "string",
+                    "description": "The remote path of the executable to debug, relative to the lldb-server working directory."
+                },
+                {
+                    "key": "pathMappings",
+                    "title": "Path Mappings",
+                    "description": "Mappings of paths between the local and remote file systems.",
+                    "type": "objectArray",
+                    "children": [
+                        {
+                            "key": "localRoot",
+                            "title": "Local",
+                            "type": "path",
+                            "allowFiles": false,
+                            "allowFolders": true,
+                            "relative": true
+                        },
+                        {
+                            "key": "remoteRoot",
+                            "title": "Remote",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "key": "request",
+                    "title": "Launch",
+                    "type": "enum",
+                    "default": "launch",
+                    "values": [
+                        ["launch", "Automatically"],
+                        ["attach", "Wait for the executable to be launched"]
+                    ]
+                },
+                {
+                    "key": "launchArgs",
+                    "title": "Arguments Passed on Launch",
+                    "type": "stringArray"
+                },
+                {
+                    "key": "stopAtEntry",
+                    "title": "Stop at Entry",
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Stop at the program entry point when launching."
                 }
             ]
         }

@@ -9,8 +9,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nullable, copy, readonly) NSString *directory;
 @property (nullable, copy, readonly) NSString *filename;
-
-@property (nullable, copy, readonly) NSURL *fileURL;
+@property (nullable, copy, readonly) NSString *fullpath;
 
 @end
 

@@ -2,6 +2,7 @@
 #import "LLDBBreakpoint+Private.h"
 #import "LLDBDebugger+Private.h"
 #import "LLDBErrors+Private.h"
+#import "LLDBPlatform+Private.h"
 #import "LLDBProcess+Private.h"
 #import "LLDBValue+Private.h"
 
@@ -78,9 +79,9 @@
         launchInfo.SetEnvironment(env, true);
     }
     
-    NSURL *currentDirectoryURL = options.currentDirectoryURL;
-    if (currentDirectoryURL != nil) {
-        launchInfo.SetWorkingDirectory(currentDirectoryURL.fileSystemRepresentation);
+    NSString *currentDirectoryPath = options.currentDirectoryPath;
+    if (currentDirectoryPath != nil) {
+        launchInfo.SetWorkingDirectory(currentDirectoryPath.UTF8String);
     }
     
     uint32_t launchFlags = launchInfo.GetLaunchFlags();
@@ -111,9 +112,9 @@
         attachInfo.SetProcessID(processIdentifier);
     }
     else {
-        NSURL *executableURL = options.executableURL;
-        if (executableURL != nil) {
-            attachInfo.SetExecutable(executableURL.fileSystemRepresentation);
+        NSString *executablePath = options.executablePath;
+        if (executablePath != nil) {
+            attachInfo.SetExecutable(executablePath.UTF8String);
         }
     }
     
@@ -135,9 +136,19 @@
 }
 
 - (LLDBProcess *)process {
-    lldb:: SBProcess proc = _target.GetProcess();
+    lldb::SBProcess proc = _target.GetProcess();
     if (proc.IsValid()) {
         return [[LLDBProcess alloc] initWithProcess:proc];
+    }
+    else {
+        return nil;
+    }
+}
+
+- (LLDBPlatform *)platform {
+    lldb::SBPlatform platform = _target.GetPlatform();
+    if (platform.IsValid()) {
+        return [[LLDBPlatform alloc] initWithPlatform:platform];
     }
     else {
         return nil;
@@ -147,16 +158,14 @@
 #pragma mark - Breakpoints
 
 // Breakpoints
-- (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line {
-    const char * path = fileURL.fileSystemRepresentation;
-    lldb::SBBreakpoint bp = _target.BreakpointCreateByLocation(path, line.intValue);
+- (LLDBBreakpoint *)createBreakpointForPath:(NSString *)path line:(NSNumber *)line {
+    lldb::SBBreakpoint bp = _target.BreakpointCreateByLocation(path.UTF8String, line.intValue);
     
     return [[LLDBBreakpoint alloc] initWithBreakpoint:bp];
 }
 
-- (LLDBBreakpoint *)createBreakpointForURL:(NSURL *)fileURL line:(NSNumber *)line column:(nullable NSNumber *)column offset:(nullable NSNumber *)offset moveToNearestCode:(BOOL)moveToNearestCode {
-    const char * path = fileURL.fileSystemRepresentation;
-    lldb::SBFileSpec fileSpec(path);
+- (LLDBBreakpoint *)createBreakpointForPath:(NSString *)path line:(NSNumber *)line column:(nullable NSNumber *)column offset:(nullable NSNumber *)offset moveToNearestCode:(BOOL)moveToNearestCode {
+    lldb::SBFileSpec fileSpec(path.UTF8String);
     lldb::SBFileSpecList moduleList;
     int lineVal = line.intValue;
     int columnVal = column.intValue;

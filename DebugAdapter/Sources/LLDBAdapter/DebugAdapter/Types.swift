@@ -91,8 +91,7 @@ public enum DebugAdapter {
         public var supportsExceptionFilterOptions: Bool?
         public var supportsSingleThreadExecutionRequests: Bool?
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct Breakpoint: Codable {
@@ -107,8 +106,7 @@ public enum DebugAdapter {
         public var instructionReference: String?
         public var offset: Int?
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct BreakpointLocation: Codable {
@@ -293,8 +291,7 @@ public enum DebugAdapter {
         public var stackTrace: String?
         public var innerException: [ExceptionDetails]?
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct ExceptionFilterOptions: Codable {
@@ -464,8 +461,7 @@ public enum DebugAdapter {
         }
         public var presentationHint: PresentationHint?
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct SourceBreakpoint: Codable {
@@ -512,8 +508,7 @@ public enum DebugAdapter {
         public var module: Bool?
         public var includeAll: Bool?
         
-        public init() {
-        }
+        public init() {}
     }
     
     public enum SteppingGranularity: String, Codable {
@@ -545,8 +540,7 @@ public enum DebugAdapter {
     public struct ValueFormat: Codable {
         var hex: Bool?
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct Variable: Codable {
@@ -679,27 +673,28 @@ public enum DebugAdapter {
     }
     
     
-    public struct AttachRequest: DebugAdapterRequest {
-        public static let command: String = "attach"
+    public struct AttachRequest<Parameters>: DebugAdapterRequest where Parameters: Codable {
+        public static var command: String { "attach" }
         
-        public var body: JSONCodable?
+        public var parameters: Parameters
         
         public typealias Result = Void
         
-        public init() {
+        public init(parameters: Parameters) {
+            self.parameters = parameters
         }
         
         public init(from decoder: Decoder) throws {
-            body = try JSONCodable(from: decoder)
+            parameters = try Parameters(from: decoder)
         }
         
         public func encode(to encoder: Encoder) throws {
-            try body?.encode(to: encoder)
+            try parameters.encode(to: encoder)
         }
     }
     
     public struct BreakpointLocationsRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "breakpointLocations"
+        public static var command: String { "breakpointLocations" }
         
         public var source: Source
         public var line: Int
@@ -718,7 +713,7 @@ public enum DebugAdapter {
     }
     
     public struct CompletionsRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "completions"
+        public static var command: String { "completions" }
         
         public var frameId: Int
         public var text: String
@@ -741,16 +736,15 @@ public enum DebugAdapter {
     }
     
     public struct ConfigurationDoneRequest: DebugAdapterRequest {
-        public static let command: String = "configurationDone"
+        public static var command: String { "configurationDone" }
         
         public typealias Result = Void
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct ContinueRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "continue"
+        public static var command: String { "continue" }
         
         public var threadId: Int
         public var singleThread: Bool?
@@ -758,8 +752,7 @@ public enum DebugAdapter {
         public struct Result: Codable {
             public var allThreadsContinued: Bool?
             
-            public init() {
-            }
+            public init() {}
         }
         
         public init(threadId: Int) {
@@ -768,7 +761,7 @@ public enum DebugAdapter {
     }
     
     public struct DataBreakpointInfoRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "dataBreakpointInfo"
+        public static var command: String { "dataBreakpointInfo" }
         
         public var variablesReference: Int?
         public var name: String
@@ -787,7 +780,7 @@ public enum DebugAdapter {
     }
     
     public struct DisassembleRequest: DebugAdapterRequestWithOptionalResult {
-        public static let command: String = "disassemble"
+        public static var command: String { "disassemble" }
         
         public var memoryReference: String
         public var offset: Int?
@@ -810,7 +803,7 @@ public enum DebugAdapter {
     }
     
     public struct DisconnectRequest: DebugAdapterRequest {
-        public static let command: String = "disconnect"
+        public static var command: String { "disconnect" }
         
         public var restart: Bool?
         public var terminateDebuggee: Bool?
@@ -818,12 +811,11 @@ public enum DebugAdapter {
         
         public typealias Result = Void
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct EvaluateRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "evaluate"
+        public static var command: String { "evaluate" }
         
         public var expression: String
         public var frameId: Int?
@@ -881,7 +873,7 @@ public enum DebugAdapter {
     }
     
     public struct ExceptionInfoRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "exceptionInfo"
+        public static var command: String { "exceptionInfo" }
         
         public var threadId: Int
         
@@ -910,7 +902,7 @@ public enum DebugAdapter {
     }
     
     public struct GotoRequest: DebugAdapterRequest {
-        public static let command: String = "goto"
+        public static var command: String { "goto" }
         
         public var threadId: Int
         public var targetId: Int
@@ -924,7 +916,7 @@ public enum DebugAdapter {
     }
     
     public struct GotoTargetsRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "gotoTargets"
+        public static var command: String { "gotoTargets" }
         
         public var source: Source
         public var line: Int
@@ -945,7 +937,7 @@ public enum DebugAdapter {
     }
     
     public struct InitializeRequest: DebugAdapterRequestWithOptionalResult {
-        public static let command: String = "initialize"
+        public static var command: String { "initialize" }
         
         public var clientID: String?
         public var clientName: String?
@@ -998,27 +990,28 @@ public enum DebugAdapter {
         }
     }
     
-    public struct LaunchRequest: DebugAdapterRequest {
-        public static let command: String = "launch"
+    public struct LaunchRequest<Parameters>: DebugAdapterRequest where Parameters: Codable {
+        public static var command: String { "launch" }
         
-        public var body: JSONCodable?
+        public var parameters: Parameters
         
         public typealias Result = Void
         
-        public init() {
+        public init(parameters: Parameters) {
+            self.parameters = parameters
         }
         
         public init(from decoder: Decoder) throws {
-            body = try JSONCodable(from: decoder)
+            parameters = try Parameters(from: decoder)
         }
         
         public func encode(to encoder: Encoder) throws {
-            try body?.encode(to: encoder)
+            try parameters.encode(to: encoder)
         }
     }
     
     public struct LoadedSourcesRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "loadedSources"
+        public static var command: String { "loadedSources" }
         
         public struct Result: Codable {
             public var sources: [Source]
@@ -1028,12 +1021,11 @@ public enum DebugAdapter {
             }
         }
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct NextRequest: DebugAdapterRequest {
-        public static let command: String = "next"
+        public static var command: String { "next" }
         
         public var threadId: Int
         public var singleThread: Bool?
@@ -1047,7 +1039,7 @@ public enum DebugAdapter {
     }
     
     public struct PauseRequest: DebugAdapterRequest {
-        public static let command: String = "pause"
+        public static var command: String { "pause" }
         
         public var threadId: Int
         
@@ -1059,7 +1051,7 @@ public enum DebugAdapter {
     }
     
     public struct ReadMemoryRequest: DebugAdapterRequestWithOptionalResult {
-        public static let command: String = "readMemory"
+        public static var command: String { "readMemory" }
         
         public var memoryReference: String
         public var offset: Int?
@@ -1082,18 +1074,17 @@ public enum DebugAdapter {
     }
     
     public struct RestartRequest: DebugAdapterRequest {
-        public static let command: String = "restart"
+        public static var command: String { "restart" }
         
         public var arguments: JSONCodable?
         
         public typealias Result = Void
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct RestartFrameRequest: DebugAdapterRequest {
-        public static let command: String = "restartFrame"
+        public static var command: String { "restartFrame" }
         
         public var frameId: Int
         
@@ -1105,7 +1096,7 @@ public enum DebugAdapter {
     }
     
     public struct ReverseContinueRequest: DebugAdapterRequest {
-        public static let command: String = "reverseContinue"
+        public static var command: String { "reverseContinue" }
         
         public var threadId: Int
         public var singleThread: Bool?
@@ -1118,7 +1109,7 @@ public enum DebugAdapter {
     }
     
     public struct RunInTerminalRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "runInTerminal"
+        public static var command: String { "runInTerminal" }
         
         public var cmd: String
         public var args: [String]
@@ -1150,7 +1141,7 @@ public enum DebugAdapter {
     }
     
     public struct ScopesRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "scopes"
+        public static var command: String { "scopes" }
         
         public var frameId: Int
         
@@ -1168,7 +1159,7 @@ public enum DebugAdapter {
     }
     
     public struct SetBreakpointsRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "setBreakpoints"
+        public static var command: String { "setBreakpoints" }
         
         public var source: Source
         public var breakpoints: [SourceBreakpoint]?
@@ -1189,7 +1180,7 @@ public enum DebugAdapter {
     }
     
     public struct SetDataBreakpointsRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "setDataBreakpoints"
+        public static var command: String { "setDataBreakpoints" }
         
         public var breakpoints: [DataBreakpoint]
         
@@ -1207,7 +1198,7 @@ public enum DebugAdapter {
     }
     
     public struct SetExceptionBreakpointsRequest: DebugAdapterRequestWithOptionalResult {
-        public static let command: String = "setExceptionBreakpoints"
+        public static var command: String { "setExceptionBreakpoints" }
         
         public var filters: [String]?
         public var filterOptions: [ExceptionFilterOptions]?
@@ -1221,12 +1212,11 @@ public enum DebugAdapter {
             }
         }
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct SetExpressionRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "setExpression"
+        public static var command: String { "setExpression" }
         
         public var expression: String
         public var value: String
@@ -1251,7 +1241,7 @@ public enum DebugAdapter {
     }
     
     public struct SetFunctionBreakpointsRequest: DebugAdapterRequestWithOptionalResult {
-        public static let command: String = "setFunctionBreakpoints"
+        public static var command: String { "setFunctionBreakpoints" }
         
         public var breakpoints: [FunctionBreakpoint]
         
@@ -1269,7 +1259,7 @@ public enum DebugAdapter {
     }
     
     public struct SetInstructionBreakpointsRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "setInstructionBreakpoints"
+        public static var command: String { "setInstructionBreakpoints" }
         
         public var breakpoints: [InstructionBreakpoint]
         
@@ -1287,7 +1277,7 @@ public enum DebugAdapter {
     }
     
     public struct SetVariableRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "setVariable"
+        public static var command: String { "setVariable" }
         
         public var variablesReference: Int
         public var name: String
@@ -1313,7 +1303,7 @@ public enum DebugAdapter {
     }
     
     public struct SourceRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "source"
+        public static var command: String { "source" }
         
         public var source: Source?
         public var sourceReference: Int
@@ -1334,7 +1324,7 @@ public enum DebugAdapter {
     }
     
     public struct StackTraceRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "stackTrace"
+        public static var command: String { "stackTrace" }
         
         public var threadId: Int
         public var startFrame: Int?
@@ -1358,7 +1348,7 @@ public enum DebugAdapter {
     }
     
     public struct StepBackRequest: DebugAdapterRequest {
-        public static let command: String = "stepBack"
+        public static var command: String { "stepBack" }
         
         public var threadId: Int
         public var singleThread: Bool?
@@ -1372,7 +1362,7 @@ public enum DebugAdapter {
     }
     
     public struct StepInRequest: DebugAdapterRequest {
-        public static let command: String = "stepIn"
+        public static var command: String { "stepIn" }
         
         public var threadId: Int
         public var singleThread: Bool?
@@ -1387,7 +1377,7 @@ public enum DebugAdapter {
     }
     
     public struct StepInTargetsRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "stepInTargets"
+        public static var command: String { "stepInTargets" }
         
         public var frameId: Int
         
@@ -1405,7 +1395,7 @@ public enum DebugAdapter {
     }
     
     public struct StepOutRequest: DebugAdapterRequest {
-        public static let command: String = "stepOut"
+        public static var command: String { "stepOut" }
         
         public var threadId: Int
         public var singleThread: Bool?
@@ -1419,7 +1409,7 @@ public enum DebugAdapter {
     }
     
     public struct ThreadsRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "threads"
+        public static var command: String { "threads" }
         
         public struct Result: Codable {
             public var threads: [Thread]
@@ -1429,12 +1419,11 @@ public enum DebugAdapter {
             }
         }
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct TerminateRequest: DebugAdapterRequest {
-        public static let command: String = "terminate"
+        public static var command: String { "terminate" }
         
         public var restart: Bool?
         
@@ -1446,7 +1435,7 @@ public enum DebugAdapter {
     }
     
     public struct TerminateThreadsRequest: DebugAdapterRequest {
-        public static let command: String = "terminateThreads"
+        public static var command: String { "terminateThreads" }
         
         public var threadIds: [Int]?
         
@@ -1458,7 +1447,7 @@ public enum DebugAdapter {
     }
     
     public struct VariablesRequest: DebugAdapterRequestWithRequiredResult {
-        public static let command: String = "variables"
+        public static var command: String { "variables" }
         
         public var variablesReference: Int
         
@@ -1482,7 +1471,7 @@ public enum DebugAdapter {
     }
     
     public struct WriteMemoryRequest: DebugAdapterRequestWithOptionalResult {
-        public static let command: String = "writeMemory"
+        public static var command: String { "writeMemory" }
         
         public var memoryReference: String
         public var offset: Int?
@@ -1493,8 +1482,7 @@ public enum DebugAdapter {
             public var offset: Int?
             public var bytesWritten: Int?
             
-            public init() {
-            }
+            public init() {}
         }
         
         public init(memoryReference: String, data: String) {
@@ -1578,8 +1566,7 @@ public enum DebugAdapter {
     public struct InitializedEvent: DebugAdapterEvent {
         public static let event = "initialized"
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct InvalidatedEvent: DebugAdapterEvent {
@@ -1617,8 +1604,7 @@ public enum DebugAdapter {
         public var threadId: Int?
         public var stackFrameId: Int?
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct LoadedSourceEvent: DebugAdapterEvent {
@@ -1895,8 +1881,7 @@ public enum DebugAdapter {
         
         public var restart: JSONCodable?
         
-        public init() {
-        }
+        public init() {}
     }
     
     public struct ThreadEvent: DebugAdapterEvent {

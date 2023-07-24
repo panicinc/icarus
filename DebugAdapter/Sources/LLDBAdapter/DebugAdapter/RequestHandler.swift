@@ -8,7 +8,8 @@ public protocol DebugAdapterRequestHandler {
 
 /// Request handler for the standard set of Debug Adapter Protocol "server" (adapter-targeted) requests.
 public protocol DebugAdapterServerRequestHandler: DebugAdapterRequestHandler {
-    func attach(_ request: DebugAdapter.AttachRequest, replyHandler: @escaping (Result<(), Error>) -> ())
+    associatedtype AttachParameters: Codable
+    func attach(_ request: DebugAdapter.AttachRequest<AttachParameters>, replyHandler: @escaping (Result<(), Error>) -> ())
     func breakpointLocations(_ request: DebugAdapter.BreakpointLocationsRequest, replyHandler: @escaping (Result<DebugAdapter.BreakpointLocationsRequest.Result, Error>) -> ())
     func completions(_ request: DebugAdapter.CompletionsRequest, replyHandler: @escaping (Result<DebugAdapter.CompletionsRequest.Result, Error>) -> ())
     func configurationDone(_ request: DebugAdapter.ConfigurationDoneRequest, replyHandler: @escaping (Result<(), Error>) -> ())
@@ -17,11 +18,12 @@ public protocol DebugAdapterServerRequestHandler: DebugAdapterRequestHandler {
     func disassemble(_ request: DebugAdapter.DisassembleRequest, replyHandler: @escaping (Result<DebugAdapter.DisassembleRequest.Result?, Error>) -> ())
     func disconnect(_ request: DebugAdapter.DisconnectRequest, replyHandler: @escaping (Result<(), Error>) -> ())
     func evaluate(_ request: DebugAdapter.EvaluateRequest, replyHandler: @escaping (Result<DebugAdapter.EvaluateRequest.Result, Error>) -> ())
-    func exceptionInfo(_ request: DebugAdapter.ExceptionInfoRequest, replyHandler: @escaping (Result<DebugAdapter.ExceptionInfoRequest.Result, Error>) -> ())
     func goto(_ request: DebugAdapter.GotoRequest, replyHandler: @escaping (Result<(), Error>) -> ())
+    func exceptionInfo(_ request: DebugAdapter.ExceptionInfoRequest, replyHandler: @escaping (Result<DebugAdapter.ExceptionInfoRequest.Result, Error>) -> ())
     func gotoTargets(_ request: DebugAdapter.GotoTargetsRequest, replyHandler: @escaping (Result<DebugAdapter.GotoTargetsRequest.Result, Error>) -> ())
     func initialize(_ request: DebugAdapter.InitializeRequest, replyHandler: @escaping (Result<DebugAdapter.InitializeRequest.Result?, Error>) -> ())
-    func launch(_ request: DebugAdapter.LaunchRequest, replyHandler: @escaping (Result<(), Error>) -> ())
+    associatedtype LaunchParameters: Codable
+    func launch(_ request: DebugAdapter.LaunchRequest<LaunchParameters>, replyHandler: @escaping (Result<(), Error>) -> ())
     func loadedSources(_ request: DebugAdapter.LoadedSourcesRequest, replyHandler: @escaping (Result<DebugAdapter.LoadedSourcesRequest.Result, Error>) -> ())
     func next(_ request: DebugAdapter.NextRequest, replyHandler: @escaping (Result<(), Error>) -> ())
     func pause(_ request: DebugAdapter.PauseRequest, replyHandler: @escaping (Result<(), Error>) -> ())
@@ -66,8 +68,8 @@ public extension DebugAdapterServerRequestHandler {
     /// Request types that are not supported will return with DebugAdapterConnection.MessageError.unsupportedRequest(type(of: request).command).
     func performDefaultHandling(forCommand command: String, data: Data, connection: DebugAdapterConnection) throws {
         switch command {
-        case DebugAdapter.AttachRequest.command:
-            let (request, replyHandler) = try connection.decodeForReply(DebugAdapter.AttachRequest.self, from: data)
+        case DebugAdapter.AttachRequest<AttachParameters>.command:
+            let (request, replyHandler) = try connection.decodeForReply(DebugAdapter.AttachRequest<AttachParameters>.self, from: data)
             attach(request, replyHandler: replyHandler)
             
         case DebugAdapter.BreakpointLocationsRequest.command:
@@ -118,8 +120,8 @@ public extension DebugAdapterServerRequestHandler {
             let (request, replyHandler) = try connection.decodeForReply(DebugAdapter.InitializeRequest.self, from: data)
             initialize(request, replyHandler: replyHandler)
             
-        case DebugAdapter.LaunchRequest.command:
-            let (request, replyHandler) = try connection.decodeForReply(DebugAdapter.LaunchRequest.self, from: data)
+        case DebugAdapter.LaunchRequest<LaunchParameters>.command:
+            let (request, replyHandler) = try connection.decodeForReply(DebugAdapter.LaunchRequest<LaunchParameters>.self, from: data)
             launch(request, replyHandler: replyHandler)
             
         case DebugAdapter.LoadedSourcesRequest.command:
@@ -231,7 +233,7 @@ public extension DebugAdapterServerRequestHandler {
         }
     }
     
-    func attach(_ request: DebugAdapter.AttachRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
+    func attach(_ request: DebugAdapter.AttachRequest<AttachParameters>, replyHandler: @escaping (Result<(), Error>) -> ()) {
         replyHandler(.failure(DebugAdapterConnection.MessageError.unsupportedRequest(type(of: request).command)))
     }
     
@@ -283,7 +285,7 @@ public extension DebugAdapterServerRequestHandler {
         replyHandler(.failure(DebugAdapterConnection.MessageError.unsupportedRequest(type(of: request).command)))
     }
     
-    func launch(_ request: DebugAdapter.LaunchRequest, replyHandler: @escaping (Result<(), Error>) -> ()) {
+    func launch(_ request: DebugAdapter.LaunchRequest<LaunchParameters>, replyHandler: @escaping (Result<(), Error>) -> ()) {
         replyHandler(.failure(DebugAdapterConnection.MessageError.unsupportedRequest(type(of: request).command)))
     }
     

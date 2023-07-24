@@ -10,6 +10,7 @@
 #import "LLDBFrame.h"
 #import "LLDBLineEntry.h"
 #import "LLDBListener.h"
+#import "LLDBPlatform.h"
 #import "LLDBProcess.h"
 #import "LLDBSymbolContext.h"
 #import "LLDBTarget.h"

@@ -1,5 +1,6 @@
 #import "LLDBDebugger+Private.h"
 #import "LLDBCommandInterpreter+Private.h"
+#import "LLDBPlatform+Private.h"
 #import "LLDBTarget+Private.h"
 #import "LLDBErrors+Private.h"
 
@@ -57,15 +58,42 @@
     return targets;
 }
 
-- (LLDBTarget *)createTargetWithURL:(NSURL *)fileURL architecture:(NSString *)architecture error:(NSError *__autoreleasing *)outError {
-    const char * path = fileURL.path.UTF8String;
-    
+- (LLDBTarget *)selectedTarget {
+    lldb::SBTarget target = _debugger.GetSelectedTarget();
+    if (target.IsValid()) {
+        return [[LLDBTarget alloc] initWithTarget:target];
+    }
+    else {
+        return nil;
+    }
+}
+
+- (void)setSelectedTarget:(LLDBTarget *)selectedTarget {
+    lldb::SBTarget target = selectedTarget.target;
+    _debugger.SetSelectedTarget(target);
+}
+
+- (LLDBTarget *)createTargetWithPath:(NSString *)path triple:(NSString *)triple platformName:(NSString *)platformName error:(NSError *__autoreleasing *)outError {
+    lldb::SBError error;
+    lldb::SBTarget lldbTarget = _debugger.CreateTarget(path.UTF8String, triple.UTF8String, platformName.UTF8String, true, error);
+    if (lldbTarget.IsValid()) {
+        return [[LLDBTarget alloc] initWithTarget:lldbTarget];
+    }
+    else {
+        if (outError != NULL) {
+            *outError = [NSError lldb_errorWithLLDBError:error];
+        }
+        return nil;
+    }
+}
+
+- (LLDBTarget *)createTargetWithPath:(NSString *)path architecture:(NSString *)architecture error:(NSError *__autoreleasing *)outError {
     const char * arch = architecture.UTF8String;
     if (arch == NULL) {
         arch = LLDB_ARCH_DEFAULT;
     }
     
-    lldb::SBTarget lldbTarget = _debugger.CreateTargetWithFileAndArch(path, arch);
+    lldb::SBTarget lldbTarget = _debugger.CreateTargetWithFileAndArch(path.UTF8String, arch);
     if (lldbTarget.IsValid()) {
         return [[LLDBTarget alloc] initWithTarget:lldbTarget];
     }
@@ -77,15 +105,13 @@
     }
 }
 
-- (LLDBTarget *)findTargetWithURL:(NSURL *)fileURL architecture:(NSString *)architecture error:(NSError *__autoreleasing *)outError {
-    const char * path = fileURL.path.UTF8String;
-    
+- (LLDBTarget *)findTargetWithPath:(NSString *)path architecture:(NSString *)architecture error:(NSError *__autoreleasing *)outError {
     const char * arch = architecture.UTF8String;
     if (arch == NULL) {
         arch = LLDB_ARCH_DEFAULT;
     }
     
-    lldb::SBTarget lldbTarget = _debugger.FindTargetWithFileAndArch(path, arch);
+    lldb::SBTarget lldbTarget = _debugger.FindTargetWithFileAndArch(path.UTF8String, arch);
     if (lldbTarget.IsValid()) {
         return [[LLDBTarget alloc] initWithTarget:lldbTarget];
     }
@@ -114,5 +140,46 @@
     lldb::SBTarget lldbTarget = target.target;
     return _debugger.DeleteTarget(lldbTarget);
 }
+
+- (NSArray <LLDBPlatformDescription *> *)availablePlatforms {
+    uint32_t count = _debugger.GetNumAvailablePlatforms();
+    NSMutableArray <LLDBPlatformDescription *> *availablePlatforms = [NSMutableArray arrayWithCapacity:count];
+    for (uint32_t i = 0; i < count; i++) {
+        lldb::SBStructuredData info = _debugger.GetAvailablePlatformInfoAtIndex(i);
+        
+        char nameStr[255];
+        info.GetValueForKey("name").GetStringValue(nameStr, 255);
+        NSString *name = @(nameStr);
+        
+        char descStr[255];
+        info.GetValueForKey("description").GetStringValue(descStr, 255);
+        NSString *description = @(descStr);
+        
+        LLDBPlatformDescription *availablePlatform = [LLDBPlatformDescription new];
+        availablePlatform.name = name;
+        availablePlatform.descriptiveText = description;
+        [availablePlatforms addObject:availablePlatform];
+    }
+    return availablePlatforms;
+}
+
+- (LLDBPlatform *)selectedPlatform {
+    lldb::SBPlatform platform = _debugger.GetSelectedPlatform();
+    if (platform.IsValid()) {
+        return [[LLDBPlatform alloc] initWithPlatform:platform];
+    }
+    else {
+        return nil;
+    }
+}
+
+- (void)setSelectedPlatform:(LLDBPlatform *)selectedPlatform {
+    lldb::SBPlatform platform = selectedPlatform.platform;
+    _debugger.SetSelectedPlatform(platform);
+}
+
+@end
+
+@implementation LLDBPlatformDescription
 
 @end

@@ -189,8 +189,23 @@
 (null) @value.null
 (nil) @value.null
 (number_literal) @value.number
-(number_expression) @value.number
 (char_literal) @value.number
+(number_expression
+  "@" @value.number.prefix) @value.number
+(boolean_expression
+  "@" @value.boolean.prefix) @value.boolean
+(object_expression
+  "@" @value.number.prefix
+  "(" @value.number
+  ")" @value.number)
+(array_expression
+  "@" @value.number.prefix
+  "[" @value.number
+  "]" @value.number)
+(dictionary_expression
+  "@" @value.number.prefix
+  "{" @value.number
+  "}" @value.number)
 
 ((type_identifier) @identifier.type
   (#match? @identifier.type "^[A-Z]"))

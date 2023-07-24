@@ -25,7 +25,7 @@ class IcarusTaskProvider {
         let data = context.data;
         let config = context.config;
         
-        if (action == Task.Run && data.type == "lldbDebug") {
+        if (action == Task.Run) {
             let toolchain = nova.config.get('icarus.toolchain');
             let toolchainPath = nova.config.get('icarus.toolchain-path');
             
@@ -66,21 +66,57 @@ class IcarusTaskProvider {
             action.env = env;
             
             // Debug Args
-            let request = config.get("request", "string");
-            if (!request) {
-                request = "launch";
+            if (data.type == "lldbDebug") {
+                // LLDB Debug
+                let request = config.get("request", "string");
+                if (!request) {
+                    request = "launch";
+                }
+                action.debugRequest = request;
+                
+                let debugArgs = {};
+                
+                debugArgs.program = config.get("launchPath", "string");
+                debugArgs.args = config.get("launchArgs", "array");
+                debugArgs.runInRosetta = config.get("runInRosetta", "boolean");
+                debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
+                debugArgs.wait = request == "attach";
+                
+                action.debugArgs = debugArgs;
             }
-            action.debugRequest = request;
-            
-            let debugArgs = {};
-            
-            debugArgs.program = config.get("launchPath", "string");
-            debugArgs.args = config.get("launchArgs", "array");
-            debugArgs.runInRosetta = config.get("runInRosetta", "boolean");
-            debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
-            debugArgs.wait = request == "attach";
-            
-            action.debugArgs = debugArgs;
+            else  if (data.type == "lldbRemoteDebug") {
+                // LLDB Remote Debug
+                let request = config.get("request", "string");
+                if (!request) {
+                    request = "launch";
+                }
+                action.debugRequest = request;
+                
+                let debugArgs = {};
+                
+                debugArgs.host = config.get("host", "string");
+                debugArgs.port = config.get("port", "integer");
+                debugArgs.program = config.get("launchPath", "string");
+                debugArgs.args = config.get("launchArgs", "array");
+                debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
+                debugArgs.wait = request == "attach";
+                
+                let pathMappings = config.get("pathMappings");
+                if (pathMappings) {
+                    // Ensure the local part of path mappings are absolute
+                    let basePath = nova.workspace.path;
+                    debugArgs.pathMappings = pathMappings.map(mapping => {
+                        let local = mapping.localRoot;
+                        let remote = mapping.remoteRoot;
+                        if (!nova.path.isAbsolute(local)) {
+                            local = nova.path.normalize(nova.path.join(basePath, local));
+                        }
+                        return {"localRoot": local, "remoteRoot": remote};
+                    });
+                }
+                
+                action.debugArgs = debugArgs;
+            }
             
             return action;
         }
@@ -181,6 +217,7 @@ class IcarusLanguageServer {
             env: env
         };
         let clientOptions = {
+            // debug: true,
             syntaxes: [
                 'swift',
                 'c',

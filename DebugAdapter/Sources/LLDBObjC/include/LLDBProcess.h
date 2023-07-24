@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class LLDBTarget, LLDBThread;
+@class LLDBProcessInfo, LLDBTarget, LLDBThread;
 
 typedef NS_ENUM(NSUInteger, LLDBProcessState) {
     LLDBProcessStateInvalid = 0,
@@ -31,7 +31,7 @@ typedef NS_ENUM(NSUInteger, LLDBProcessState) {
 @property (readonly) pid_t processIdentifier;
 @property (readonly) uint32_t uniqueIdentifier;
 
-@property (nullable, copy, readonly) NSString *name;
+@property (nullable, readonly) LLDBProcessInfo *info;
 
 @property (readonly) CFByteOrder byteOrder;
 @property (readonly) uint32_t addressByteSize;
@@ -68,6 +68,23 @@ typedef NS_ENUM(NSUInteger, LLDBProcessState) {
 
 - (nullable NSData *)readMemoryAtAddress:(uint64_t)address size:(size_t)size error:(NSError **)outError;
 - (size_t)writeMemoryAtAddress:(uint64_t)address data:(NSData *)data error:(NSError **)outError;
+
+@end
+
+@interface LLDBProcessInfo : NSObject
+
++ (instancetype)new NS_UNAVAILABLE;
+- (instancetype)init NS_UNAVAILABLE;
+
+@property (nullable, copy, readonly) NSString *name;
+@property (nullable, copy, readonly) NSString *triple;
+
+@property (readonly) uint32_t userID;
+@property (readonly, getter=isUserIDValid) BOOL userIDValid;
+@property (readonly) uint32_t groupID;
+@property (readonly, getter=isGroupIDValid) BOOL groupIDValid;
+@property (readonly) uint32_t effectiveUserID;
+@property (readonly) uint32_t effectiveGroupID;
 
 @end
 

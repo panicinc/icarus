@@ -1,0 +1,7 @@
+{
+  "index.ignored_file_patterns" : [
+    "DebugAdapter\/ExternalHeaders\/",
+    "DebugAdapter\/.build\/",
+    "DebugAdapter\/.swiftpm\/"
+  ]
+}

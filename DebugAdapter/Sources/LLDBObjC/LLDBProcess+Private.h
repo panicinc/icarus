@@ -12,4 +12,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+@interface LLDBProcessInfo ()
+
+- (instancetype)initWithProcessInfo:(lldb::SBProcessInfo)processInfo NS_DESIGNATED_INITIALIZER;
+
+@property (readonly) lldb::SBProcessInfo processInfo;
+
+@end
+
 NS_ASSUME_NONNULL_END

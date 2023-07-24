@@ -2,8 +2,6 @@
 #import "LLDBThread+Private.h"
 #import "LLDBErrors+Private.h"
 
-#import <libproc.h>
-
 @import lldb_API;
 
 @implementation LLDBProcess {
@@ -64,18 +62,9 @@
     return _process.GetUniqueID();
 }
 
-#define MAX_PROC_NAME_LENGTH 50
-
-- (NSString *)name {
-    pid_t pid = (pid_t)_process.GetProcessID();
-    char * buffer = (char *)malloc(sizeof(char) * MAX_PROC_NAME_LENGTH);
-    int len = proc_name(pid, buffer, MAX_PROC_NAME_LENGTH);
-    NSString *string = nil;
-    if (len > 0) {
-        string = [NSString stringWithCString:buffer encoding:NSUTF8StringEncoding];
-    }
-    free(buffer);
-    return string;
+- (LLDBProcessInfo *)info {
+    lldb::SBProcessInfo processInfo = _process.GetProcessInfo();
+    return [[LLDBProcessInfo alloc] initWithProcessInfo:processInfo];
 }
 
 - (CFByteOrder)byteOrder {
@@ -295,6 +284,58 @@
 - (size_t)writeMemoryAtAddress:(uint64_t)address data:(NSData *)data error:(NSError *__autoreleasing *)outError {
     lldb::SBError error;
     return _process.WriteMemory(address, data.bytes, (size_t)data.length, error);
+}
+
+@end
+
+@implementation LLDBProcessInfo {
+    lldb::SBProcessInfo _processInfo;
+}
+
+- (instancetype)initWithProcessInfo:(lldb::SBProcessInfo)processInfo {
+    self = [super init];
+    if (self) {
+        _processInfo = processInfo;
+    }
+    return self;
+}
+
+- (lldb::SBProcessInfo)processInfo {
+    return _processInfo;
+}
+
+- (NSString *)name {
+    const char * str = _processInfo.GetName();
+    return (str != NULL ? @(str) : nil);
+}
+
+- (NSString *)triple {
+    const char * str = _processInfo.GetTriple();
+    return (str != NULL ? @(str) : nil);
+}
+
+- (uint32_t)userID {
+    return _processInfo.GetUserID();
+}
+
+- (BOOL)isUserIDValid {
+    return _processInfo.UserIDIsValid();
+}
+
+- (uint32_t)groupID {
+    return _processInfo.GetGroupID();
+}
+
+- (BOOL)isGroupIDValid {
+    return _processInfo.GroupIDIsValid();
+}
+
+- (uint32_t)effectiveUserID {
+    return _processInfo.GetEffectiveUserID();
+}
+
+- (uint32_t)effectiveGroupID {
+    return _processInfo.GetEffectiveGroupID();
 }
 
 @end
