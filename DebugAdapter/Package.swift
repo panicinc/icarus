@@ -12,9 +12,13 @@ let package = Package(
         .executable(name: "TestApplication", targets: ["TestApplication"])
     ],
     dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
     ],
     targets: [
-        .executableTarget(name: "LLDBAdapter", dependencies: ["LLDBObjC"]),
+        .executableTarget(name: "LLDBAdapter", dependencies: [
+            "LLDBObjC",
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ]),
         .target(name: "LLDBObjC",
                 cSettings: [
                     .headerSearchPath("../../ExternalHeaders/"),

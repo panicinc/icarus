@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import Dispatch
 import LLDBObjC
 
@@ -13,6 +14,13 @@ class Adapter: DebugAdapterServerRequestHandler {
     func resume() {
         guard !isRunning else {
             return
+        }
+        
+        signal(SIGINT) { sig in
+            Adapter.shared.cancel(error: nil)
+        }
+        signal(SIGTERM) { sig in
+            Adapter.shared.cancel(error: nil)
         }
         
         isRunning = true
@@ -231,6 +239,7 @@ class Adapter: DebugAdapterServerRequestHandler {
         
         var port: Int?
         var host: String?
+        var platform: String?
         var pathMappings: [PathMapping]?
     }
     
@@ -271,8 +280,9 @@ class Adapter: DebugAdapterServerRequestHandler {
             if let port = parameters.port {
                 // Remote Debugging Port
                 let host = parameters.host ?? "localhost"
+                let platformName = parameters.platform ?? "remote-linux"
                 
-                let platform = LLDBPlatform(name: "remote-linux")
+                let platform = LLDBPlatform(name: platformName)
                 
                 logOutput("Connecting to LLDB remote host \"\(host):\(port)\".", category: .console)
                 
@@ -328,6 +338,7 @@ class Adapter: DebugAdapterServerRequestHandler {
         
         var port: Int?
         var host: String?
+        var platform: String?
         var pathMappings: [PathMapping]?
     }
     
@@ -348,8 +359,9 @@ class Adapter: DebugAdapterServerRequestHandler {
             if let port = parameters.port, let attachPath = parameters.program {
                 // Remote Debugging Port
                 let host = parameters.host ?? "localhost"
+                let platformName = parameters.platform ?? "remote-linux"
                 
-                let platform = LLDBPlatform(name: "remote-linux")
+                let platform = LLDBPlatform(name: platformName)
                 
                 logOutput("Connecting to LLDB remote host \"\(host):\(port)\".", category: .console)
                 

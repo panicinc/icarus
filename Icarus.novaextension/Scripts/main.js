@@ -26,41 +26,15 @@ class IcarusTaskProvider {
         let config = context.config;
         
         if (action == Task.Run) {
-            let toolchain = nova.config.get('icarus.toolchain');
-            let toolchainPath = nova.config.get('icarus.toolchain-path');
-            
             let action = new TaskDebugAdapterAction("lldb");
             
-            let adapterPath = nova.path.normalize(nova.path.join(nova.extension.path, "Executables/LLDBAdapter"));
-            
-            // Check adapter executability.
-            if (!nova.fs.access(adapterPath, nova.fs.constants.X_OK)) {
-                // Set +x on the adapter to get around an issue with extensions being installed by Nova.
-                nova.fs.chmod(adapterPath, 0o755);
-            }
-            
-            action.command = adapterPath;
+            action.command = debugAdapterPath();
             
             // Environment
             let env = {};
             
             // Set DYLD framework paths for finding LLDB.framework.
-            let frameworkPaths = [];
-            
-            if (toolchain == 'swift') {
-                // Swift "latest" toolchain
-                frameworkPaths.push("/Library/Developer/Toolchains/swift-latest.xctoolchain/System/Library/PrivateFrameworks/");
-            }
-            else if (toolchain == 'custom' && toolchainPath) {
-                // Custom toolchain
-                frameworkPaths.push(nova.path.join(toolchainPath, 'System/Library/PrivateFrameworks/'));
-            }
-            
-            // Fallback to Xcode and CLI tools
-            frameworkPaths.push("/Applications/Xcode-beta.app/Contents/SharedFrameworks/");
-            frameworkPaths.push("/Applications/Xcode.app/Contents/SharedFrameworks/");
-            frameworkPaths.push("/Library/Developer/CommandLineTools/Library/PrivateFrameworks/");
-            
+            let frameworkPaths = lldbFrameworkPaths();
             env['DYLD_FRAMEWORK_PATH'] = frameworkPaths.join(":");
             
             action.env = env;
@@ -96,6 +70,7 @@ class IcarusTaskProvider {
                 
                 debugArgs.host = config.get("host", "string");
                 debugArgs.port = config.get("port", "integer");
+                debugArgs.platform = config.get("platform", "string");
                 debugArgs.program = config.get("launchPath", "string");
                 debugArgs.args = config.get("launchArgs", "array");
                 debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
@@ -125,6 +100,84 @@ class IcarusTaskProvider {
         }
     }
 }
+
+function debugAdapterPath() {
+    let adapterPath = nova.path.normalize(nova.path.join(nova.extension.path, "Executables/LLDBAdapter"));
+    
+    // Check adapter executability.
+    if (!nova.fs.access(adapterPath, nova.fs.constants.X_OK)) {
+        // Set +x on the adapter to get around an issue with extensions being installed by Nova.
+        nova.fs.chmod(adapterPath, 0o755);
+    }
+    
+    return adapterPath;
+}
+
+function lldbFrameworkPaths() {
+    let toolchain = nova.config.get('icarus.toolchain');
+    let toolchainPath = nova.config.get('icarus.toolchain-path');
+    
+    // Set DYLD framework paths for finding LLDB.framework.
+    let frameworkPaths = [];
+    
+    if (toolchain == 'swift') {
+        // Swift "latest" toolchain
+        frameworkPaths.push("/Library/Developer/Toolchains/swift-latest.xctoolchain/System/Library/PrivateFrameworks/");
+    }
+    else if (toolchain == 'custom' && toolchainPath) {
+        // Custom toolchain
+        frameworkPaths.push(nova.path.join(toolchainPath, 'System/Library/PrivateFrameworks/'));
+    }
+    
+    // Fallback to Xcode and CLI tools
+    frameworkPaths.push("/Applications/Xcode-beta.app/Contents/SharedFrameworks/");
+    frameworkPaths.push("/Applications/Xcode.app/Contents/SharedFrameworks/");
+    frameworkPaths.push("/Library/Developer/CommandLineTools/Library/PrivateFrameworks/");
+    
+    return frameworkPaths;
+}
+
+nova.commands.register("icarus.resolveLLDBPlatforms", (workspace) => {
+    return new Promise((resolve, reject) => {
+        let adapterPath = debugAdapterPath();
+        
+        let env = {};
+        
+        let frameworkPaths = lldbFrameworkPaths();
+        env['DYLD_FRAMEWORK_PATH'] = frameworkPaths.join(":");
+        
+        let process = new Process(adapterPath, {
+            args: ["platforms"],
+            env: env,
+        });
+        
+        var platforms = [];
+        
+        process.onStdout((line) => {
+            let components = line.trim().split(": ", 2);
+            if (components.length < 2) {
+                return;
+            }
+            let identifier = components[0]
+            if (identifier == "host") {
+                return;
+            }
+            let description = components[1];
+            platforms.push([identifier, `${identifier}: ${description}`]);
+        });
+        
+        process.onDidExit(() => {
+            resolve(platforms);
+        });
+        
+        try {
+            process.start();
+        }
+        catch (err) {
+            reject(err);
+        }
+    });
+});
 
 class IcarusLanguageServer {
     constructor() {
