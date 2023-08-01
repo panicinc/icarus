@@ -139,6 +139,7 @@
  "explicit"
  "final"
  "friend"
+ "goto"
  "mutable"
  "namespace"
  "noexcept"

@@ -50,6 +50,7 @@
   "~"
   "!"
   "."
+  ":"
 ] @operator
 
 (conditional_expression "?" @operator ":" @operator)
