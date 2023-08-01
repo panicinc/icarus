@@ -1,3 +1,7 @@
+## Version 1.1
+
+- Added support for remote debugging with a new "LLDB Remote Debug" task template.
+
 ## Version 1.0.2
 
 - Fixed an issue with C++ namespace highlight queries which could cause all C++ to fail to work properly.
