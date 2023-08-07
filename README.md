@@ -54,8 +54,9 @@ Out of the box, a copy of this repository requires only that the debug adapter (
 To build the debug adapter, you can either use the built-in Nova tasks for the DebugAdapter subproject directory or invoke SwiftPM directly:
 
 ```shell
+cd DebugAdaptor
 swift build --product LLDBAdapter --configuration release
-cp .build/release/LLDBAdapter ../Executables/LLDBAdapter
+cp .build/release/LLDBAdapter ../Icarus.novaextension/Executables/LLDBAdaptor
 ```
 
 Once this is done, the extension bundle can be loaded into Nova as a development extension for testing.
