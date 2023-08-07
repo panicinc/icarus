@@ -56,7 +56,7 @@ To build the debug adapter, you can either use the built-in Nova tasks for the D
 ```shell
 cd DebugAdaptor
 swift build --product LLDBAdapter --configuration release
-cp .build/release/LLDBAdapter ../Icarus.novaextension/Executables/LLDBAdaptor
+cp .build/release/LLDBAdapter ../Icarus.novaextension/Executables/LLDBAdapter
 ```
 
 Once this is done, the extension bundle can be loaded into Nova as a development extension for testing.
