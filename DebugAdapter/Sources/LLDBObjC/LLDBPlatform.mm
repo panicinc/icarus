@@ -106,10 +106,6 @@
     _platform.DisconnectRemote();
 }
 
-- (void)setSDKRoot:(NSString *)sdkRoot {
-    _platform.SetSDKRoot(sdkRoot.UTF8String);
-}
-
 - (mode_t)filePermissionsForPath:(NSString *)path {
     return _platform.GetFilePermissions(path.UTF8String);
 }

@@ -31,8 +31,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)connectRemote:(LLDBPlatformConnectOptions *)options error:(NSError **)outError;
 - (void)disconnectRemote;
 
-- (void)setSDKRoot:(NSString *)sdkRoot;
-
 - (mode_t)filePermissionsForPath:(NSString *)path;
 - (BOOL)setFilePermissions:(mode_t)mode forPath:(NSString *)path error:(NSError **)outError;
 
