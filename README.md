@@ -84,6 +84,8 @@ The following components are or were utilized in some way or another for the Ica
 - [tree-sitter-swift](https://github.com/alex-pinkus/tree-sitter-swift), for Swift parsing support
 - [tree-sitter-objc](https://github.com/jiyee/tree-sitter-objc), for Objective-C parsing support
 - [tree-sitter-objcpp](https://github.com/panicinc/tree-sitter-objcpp), for Objective-C++ parsing support, itself a derivative of the tree-sitter-cpp and tree-sitter-objc projects
+- [tree-sitter-make](https://github.com/alemuller/tree-sitter-make), for Makefile parsing support
+- [tree-sitter-cmake](https://github.com/uyha/tree-sitter-cmake), for CMake parsing support
 - [SourceKit-LSP](https://github.com/apple/sourcekit-lsp), for language intelligence
 - [codelldb](https://github.com/vadimcn/codelldb), for conceptual reference on interfacing with LLDB in a debug adapter
 
