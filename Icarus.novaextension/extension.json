@@ -117,6 +117,16 @@
                     "type": "stringArray"
                 },
                 {
+                    "key": "cwd",
+                    "title": "Working Directory",
+                    "type": "path",
+                    "description": "The current working directory to set when launching the executable.",
+                    "placeholder": "Parent Directory",
+                    "allowFiles": false,
+                    "allowFolders": true,
+                    "relative": true
+                },
+                {
                     "key": "stopAtEntry",
                     "title": "Stop at Entry",
                     "type": "boolean",
@@ -210,6 +220,16 @@
                     "key": "launchArgs",
                     "title": "Arguments Passed on Launch",
                     "type": "stringArray"
+                },
+                {
+                    "key": "cwd",
+                    "title": "Working Directory",
+                    "type": "path",
+                    "description": "The current working directory to set when launching the executable.",
+                    "placeholder": "Parent Directory",
+                    "allowFiles": false,
+                    "allowFolders": true,
+                    "relative": true
                 },
                 {
                     "key": "stopAtEntry",
