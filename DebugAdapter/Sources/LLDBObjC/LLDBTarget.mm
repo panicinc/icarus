@@ -58,9 +58,10 @@
     if (arguments != nil) {
         __block const char ** args = (const char **)malloc(sizeof(const char *) * (arguments.count + 1));
         
-        [arguments enumerateObjectsUsingBlock:^(NSString *argument, NSUInteger idx, BOOL * stop) {
-            args[idx] = argument.UTF8String;
-        }];
+        for (NSUInteger i = 0; i < arguments.count; i++) {
+            NSString *argument = arguments[i];
+            args[i] = argument.UTF8String;
+        }
         args[arguments.count] = NULL;
         
         launchInfo.SetArguments(args, true);

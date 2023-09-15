@@ -4,17 +4,24 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Equivalent to lldb::LanguageType
 typedef NS_ENUM(NSUInteger, LLDBLanguageType) {
+    LLDBLanguageTypeUnknown = 0x0000,
     LLDBLanguageTypeC89 = 0x0001,
     LLDBLanguageTypeC = 0x0002,
     LLDBLanguageTypeCPlusPlus = 0x0004,
     LLDBLanguageTypeC99 = 0x000c,
     LLDBLanguageTypeObjectiveC = 0x0010,
     LLDBLanguageTypeObjectiveCPlusPlus = 0x0011,
+    LLDBLanguageTypeOpenCL = 0x0015,
     LLDBLanguageTypeCPlusPlus03 = 0x0019,
     LLDBLanguageTypeCPlusPlus11 = 0x001a,
+    LLDBLanguageTypeRust = 0x001c,
     LLDBLanguageTypeC11 = 0x001d,
     LLDBLanguageTypeSwift = 0x001e,
     LLDBLanguageTypeCPlusPlus14 = 0x0021,
+    LLDBLanguageTypeCPlusPlus17 = 0x002a,
+    LLDBLanguageTypeCPlusPlus20 = 0x002b,
+    LLDBLanguageTypeC17 = 0x002c,
+    LLDBLanguageTypeCSharp = 0x0032,
 };
 
 // Equivalent to lldb::InstrumentationRuntimeType
