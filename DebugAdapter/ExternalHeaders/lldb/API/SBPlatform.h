@@ -137,8 +137,6 @@ public:
 
   uint32_t GetOSUpdateVersion();
 
-  void SetSDKRoot(const char *sysroot);
-
   SBError Put(SBFileSpec &src, SBFileSpec &dst);
 
   SBError Get(SBFileSpec &src, SBFileSpec &dst);
