@@ -7,7 +7,7 @@
     </meta>
     
     <detectors>
-        <extension priority="1.0">cc,cpp,cxx,c++,hh,hpp,h++,ino,ipp,tcc,tpp</extension>
+        <extension priority="1.0">cc,cpp,cxx,c++,hh,hpp,h++,ino,ipp,metal,tcc,tpp</extension>
         <combo priority="1.0">
             <extension priority="1.0">h</extension>
             <match-content lines="0">^\s*(namespace|class|template)\s+</match-content>
@@ -42,9 +42,12 @@
     </injection>
     
     <tree-sitter>
-        <highlights path="cpp/highlights.scm" />
+        <highlights path="c/highlights.scm" />
         <highlights path="c/highlights-preproc.scm" />
+        <highlights path="cpp/highlights.scm" />
+        <folds path="c/folds.scm" />
         <folds path="cpp/folds.scm" />
+        <symbols path="c/symbols.scm" />
         <symbols path="cpp/symbols.scm" />
     </tree-sitter>
 </syntax>

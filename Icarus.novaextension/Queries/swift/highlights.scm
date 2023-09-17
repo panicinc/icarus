@@ -97,7 +97,7 @@
 ((navigation_expression
   (navigation_suffix
       suffix: (simple_identifier) @identifier.property)))
-(value_argument name: (simple_identifier) @identifier.argument)
+(value_argument name: (value_argument_label) @identifier.argument)
 (value_argument value: (prefix_expression (simple_identifier) @identifier.property))
 
 (directive) @identifier.function.macro

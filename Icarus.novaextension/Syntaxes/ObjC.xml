@@ -45,9 +45,12 @@
     </injection>
     
     <tree-sitter>
-        <highlights path="objc/highlights.scm" />
+        <highlights path="c/highlights.scm" />
         <highlights path="c/highlights-preproc.scm" />
+        <highlights path="objc/highlights.scm" />
+        <folds path="c/folds.scm" />
         <folds path="objc/folds.scm" />
+        <symbols path="c/symbols.scm" />
         <symbols path="objc/symbols.scm" />
     </tree-sitter>
 </syntax>

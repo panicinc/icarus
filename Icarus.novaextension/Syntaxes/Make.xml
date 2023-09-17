@@ -6,7 +6,7 @@
     </meta>
     
     <detectors>
-        <filename priority="1.0">Makefile</filename>
+        <filename priority="1.0">Makefile,makefile,GNUmakefile,NMakefile</filename>
         <extension priority="0.5">mk</extension>
     </detectors>
     
