@@ -44,7 +44,7 @@ public class DebugAdapterConnection {
     
     public init(transport: DebugAdapterTransport, configuration: Configuration? = nil) {
         self.transport = transport
-        if let configuration = configuration {
+        if let configuration {
             self.configuration = configuration
         }
     }
@@ -90,7 +90,7 @@ public class DebugAdapterConnection {
     /// Starts the connection, which also sets up the transport
     public func start(_ handler: ((Error?) -> ())? = nil) {
         perform { [weak self] in
-            guard let self = self, !self.isRunning else {
+            guard let self, !self.isRunning else {
                 handler?(nil)
                 return
             }
@@ -101,7 +101,7 @@ public class DebugAdapterConnection {
             transportHandler.connection = self
             self.transportHandler = transportHandler
             
-            if let handler = handler {
+            if let handler {
                 self.startHandlers.append(handler)
             }
             
@@ -114,7 +114,7 @@ public class DebugAdapterConnection {
     /// If the connection is not running, this method does nothing.
     public func stop(error: Error? = nil) {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -167,7 +167,7 @@ public class DebugAdapterConnection {
     
     private func transportDidConnect() {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -183,7 +183,7 @@ public class DebugAdapterConnection {
     
     private func transportDidRead(data: Data) {
         perform { [weak self] in
-            guard let self = self else {
+            guard let self else {
                 return
             }
             self.inputDataBuffer.append(data)
@@ -725,7 +725,7 @@ public class DebugAdapterConnection {
         var searchRange = contentStartIdx ..< data.count
         repeat {
             CRLFRange = data.range(of: CRLF, options: [], in: searchRange)
-            if let CRLFRange = CRLFRange {
+            if let CRLFRange {
                 let headerDataRange = searchRange.lowerBound ..< CRLFRange.lowerBound
                 if headerDataRange.count == 0 {
                     // End of headers
@@ -780,7 +780,7 @@ public class DebugAdapterConnection {
             case .request(let seq, let command):
                 if let handler = configuration.requestHandler {
                     self.performOnMessageQueue { [weak self] in
-                        guard let self = self, self.isRunning else {
+                        guard let self, self.isRunning else {
                             return
                         }
                         
@@ -893,7 +893,7 @@ public class DebugAdapterConnection {
     /// which should be invoked when handling of the request completes.
     public func decodeForReply<Request: DebugAdapterRequestWithRequiredResult>(_ requestType: Request.Type, from data: Data, userInfo: [CodingUserInfoKey: Any]? = nil) throws -> (Request, (Result<Request.Result, Error>) -> ()) {
         let decoder = JSONDecoder()
-        if let userInfo = userInfo {
+        if let userInfo {
             decoder.userInfo = userInfo
         }
         
@@ -901,7 +901,7 @@ public class DebugAdapterConnection {
         let request = try message.arguments ?? Request.init()
         
         let responseHandler: (Result<Request.Result, Error>) -> () = { [weak self] result in
-            guard let self = self else {
+            guard let self else {
                 return
             }
             
@@ -919,7 +919,7 @@ public class DebugAdapterConnection {
     /// which should be invoked when handling of the request completes.
     public func decodeForReply<Request: DebugAdapterRequestWithOptionalResult>(_ requestType: Request.Type, from data: Data, userInfo: [CodingUserInfoKey: Any]? = nil) throws -> (Request, (Result<Request.Result?, Error>) -> ()) {
         let decoder = JSONDecoder()
-        if let userInfo = userInfo {
+        if let userInfo {
             decoder.userInfo = userInfo
         }
         
@@ -927,7 +927,7 @@ public class DebugAdapterConnection {
         let request = try message.arguments ?? Request.init()
         
         let responseHandler: (Result<Request.Result?, Error>) -> () = { [weak self] result in
-            guard let self = self else {
+            guard let self else {
                 return
             }
             
@@ -943,7 +943,7 @@ public class DebugAdapterConnection {
     
     private func send<Request: DebugAdapterRequestWithRequiredResult>(responseTo request: Request, requestID: Int, result: Request.Result) {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -962,7 +962,7 @@ public class DebugAdapterConnection {
     
     private func send<Request: DebugAdapterRequestWithOptionalResult>(responseTo request: Request, requestID: Int, result: Request.Result?) {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -983,7 +983,7 @@ public class DebugAdapterConnection {
     /// which should be invoked when handling of the request completes.
     public func decodeForReply<Request: DebugAdapterRequest>(_ requestType: Request.Type, from data: Data, userInfo: [CodingUserInfoKey: Any]? = nil) throws -> (Request, (Result<(), Error>) -> ()) where Request.Result == Void {
         let decoder = JSONDecoder()
-        if let userInfo = userInfo {
+        if let userInfo {
             decoder.userInfo = userInfo
         }
         
@@ -991,7 +991,7 @@ public class DebugAdapterConnection {
         let request = try message.arguments ?? Request.init()
         
         let responseHandler: (Result<(), Error>) -> () = { [weak self] result in
-            guard let self = self else {
+            guard let self else {
                 return
             }
             
@@ -1007,7 +1007,7 @@ public class DebugAdapterConnection {
     
     private func send<Request: DebugAdapterRequest>(responseTo request: Request, requestID: Int) where Request.Result == Void {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1031,7 +1031,7 @@ public class DebugAdapterConnection {
         let request = message.arguments
         
         let responseHandler: (Result<JSONCodable?, Error>) -> () = { [weak self] result in
-            guard let self = self else {
+            guard let self else {
                 return
             }
             
@@ -1047,7 +1047,7 @@ public class DebugAdapterConnection {
     
     private func send(responseToRequestID requestID: Int, command: String, result: JSONCodable?) {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1066,7 +1066,7 @@ public class DebugAdapterConnection {
     
     private func send(responseToRequestID requestID: Int, command: String, error: Error) {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1091,7 +1091,7 @@ public class DebugAdapterConnection {
     /// Decodes an event of the specified type from the provided data.
     public func decode<Event: DebugAdapterEvent>(_ eventType: Event.Type, from data: Data, userInfo: [CodingUserInfoKey: Any]? = nil) throws -> Event {
         let decoder = JSONDecoder()
-        if let userInfo = userInfo {
+        if let userInfo {
             decoder.userInfo = userInfo
         }
         
@@ -1106,25 +1106,26 @@ public class DebugAdapterConnection {
     }
     
     private static func errorString(forError error: Error) -> String {
-        if let error = error as? LocalizedError {
-            var components: [String] = []
-            
-            if let errorDescription = error.errorDescription {
-                components.append(errorDescription)
-            }
-            if let recoverySuggestion = error.recoverySuggestion {
-                components.append(recoverySuggestion)
-            }
-            
-            if components.count == 0 {
-                components.append(error.localizedDescription)
-            }
-            
-            return components.joined(separator: "\n\n")
+        // NSError's APIs provide a far richer way to get error components, especially for Codable errors,
+        // which place the coding path and debug description in userInfo keys not exposed by Error or LocalizedError.
+        let nsError = error as NSError
+        var components: [String] = []
+        
+        let errorDescription = nsError.description
+        components.append(errorDescription)
+        
+        if let recoverySuggestion = nsError.localizedRecoverySuggestion {
+            components.append(recoverySuggestion)
         }
-        else {
-            return "\(error.localizedDescription)"
+        if let debugDescription = nsError.userInfo[NSDebugDescriptionErrorKey] as? String {
+            components.append(debugDescription)
         }
+        
+        if components.count == 0 {
+            components.append(error.localizedDescription)
+        }
+        
+        return components.joined(separator: "\n\n")
     }
     
     private var messageID = 0
@@ -1167,7 +1168,7 @@ public class DebugAdapterConnection {
         
         public func cancel() {
             connection?.perform { [weak self] in
-                guard let self = self, !self.isCancelled else {
+                guard let self, !self.isCancelled else {
                     return
                 }
                 
@@ -1193,7 +1194,7 @@ public class DebugAdapterConnection {
     
     private func cancel(requestID: Int) {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1220,7 +1221,7 @@ public class DebugAdapterConnection {
         let token = CancellationToken(connection: self)
         
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1302,7 +1303,7 @@ public class DebugAdapterConnection {
         let token = CancellationToken(connection: self)
         
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1384,7 +1385,7 @@ public class DebugAdapterConnection {
         let token = CancellationToken(connection: self)
         
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1468,7 +1469,7 @@ public class DebugAdapterConnection {
         let token = CancellationToken(connection: self)
         
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1554,7 +1555,7 @@ public class DebugAdapterConnection {
     /// Sends an event and continues once the message is fully encoded and written to the transport stream.
     public func send<Event: DebugAdapterEvent>(_ event: Event) {
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             
@@ -1587,7 +1588,7 @@ public class DebugAdapterConnection {
         let bodyJSON = try JSONCodable(withJSONValue: body)
         
         perform { [weak self] in
-            guard let self = self, self.isRunning else {
+            guard let self, self.isRunning else {
                 return
             }
             

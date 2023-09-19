@@ -22,7 +22,7 @@ The Icarus project consists of several parts:
 
 - A Nova extension bundle
 - A debug adapter written in Swift
-- Five [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) grammars precompiled as macOS dynamic libraries
+- Several [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) grammars precompiled as macOS dynamic libraries
 - Custom queries for those grammars to add syntax highlighting, symbolication, code folding, etc.
 - Some JavaScript code for interfacing with the Nova extension runtime
 

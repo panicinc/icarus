@@ -152,6 +152,9 @@
   "id"
 ] @identifier.type
 
+((identifier) @value.null
+  (#eq? @value.null "nil" "Nil"))
+
 ((identifier) @value.boolean
   (#eq? @value.boolean "YES" "NO"))
 
