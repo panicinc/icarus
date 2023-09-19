@@ -6,12 +6,22 @@
 (class_interface
   "@interface" .
   (identifier) @name
-  (#set! role class)) @subtree
+  "("? @categoryOpen @name
+  category: (identifier)? @name
+  ")"? @categoryClose @name
+  (#set-by-case-match! @categoryOpen role
+    "\\(" category
+    class)) @subtree
 
 (class_implementation
   "@implementation" .
   (identifier) @name
-  (#set! role class)) @subtree
+  "("? @categoryOpen @name
+  category: (identifier)? @name
+  ")"? @categoryClose @name
+  (#set-by-case-match! @categoryOpen role
+    "\\(" category
+    class)) @subtree
 
 (property_declaration
   (struct_declaration
