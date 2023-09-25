@@ -130,6 +130,8 @@
     "__weak"
   ]) @keyword.modifier
 
+(nullability_region_specifier) @processing.directive
+
 ; Types
 
 (class_declaration (identifier) @identifier.type)
