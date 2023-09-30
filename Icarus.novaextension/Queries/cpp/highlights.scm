@@ -62,11 +62,11 @@
 
 ; Types
 
-(qualified_identifier 
+(qualified_identifier
   scope: (namespace_identifier) @identifier.type)
 
 (type_descriptor
-  (qualified_identifier 
+  (qualified_identifier
     name: (type_identifier) @identifier.type))
 
 ((namespace_identifier) @identifier.type
@@ -184,6 +184,7 @@
 (string_literal) @string
 (raw_string_literal) @string
 (char_literal) @value.number
+(escape_sequence) @value.number
 
 ; Declarations
 
