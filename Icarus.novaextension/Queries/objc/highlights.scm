@@ -184,7 +184,7 @@
   (module_string)
 ] @string
 
-(escape_sequence) @string.escape
+(escape_sequence) @value.number
 
 (null) @value.null
 (nil) @value.null
@@ -290,7 +290,7 @@
   function: (identifier) @identifier.function)
 (function_declarator
   declarator: (identifier) @identifier.function)
-(selector_expression 
+(selector_expression
   name: (identifier) @identifier.function)
 ; (method_declaration
 ;   selector: (identifier) @identifier.function)
@@ -349,17 +349,17 @@
 ;; Parameters
 ; (parameter_declaration
 ;   declarator: (identifier) @identifier.variable.parameter)
-; 
+;
 ; (parameter_declaration
 ;   declarator: (pointer_declarator) @identifier.variable.parameter)
-; 
+;
 ; (parameter_declaration
 ;   declarator: (pointer_declarator
 ;     declarator: (identifier) @identifier.variable.parameter))
 
 ; (for_in_statement
 ;   loop: (identifier) @identifier.variable)
-; 
+;
 ; (dictionary_expression
 ;   key: (_expression) @identifier.variable)
 ; (dictionary_expression

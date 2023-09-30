@@ -114,7 +114,7 @@
 
 ; String literals
 (line_str_text) @string
-(str_escaped_char) @string
+(str_escaped_char) @value.number
 (multi_line_str_text) @string
 (raw_str_part) @string
 (raw_str_end_part) @string
@@ -167,7 +167,7 @@
 
  "..<"
  "..."
- 
+
  (bang)
 ] @operator
 

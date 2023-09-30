@@ -65,6 +65,7 @@
 (null) @value.null
 (number_literal) @value.number
 (char_literal) @value.number
+(escape_sequence) @value.number
 [
   (true)
   (false)
