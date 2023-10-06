@@ -33,6 +33,14 @@
 (if_statement
   "{" @start
   "}" @end)
+
+(while_statement
+  "{" @start
+  "}" @end)
+
+(repeat_while_statement
+  "{" @start
+  "}" @end)
   
 (switch_statement
   "{" @start

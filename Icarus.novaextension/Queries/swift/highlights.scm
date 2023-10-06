@@ -58,6 +58,7 @@
   "subscript"
   "as"
   "any"
+  "is"
 ] @keyword
 
 [
