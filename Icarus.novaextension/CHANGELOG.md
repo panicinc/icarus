@@ -1,6 +1,6 @@
 ## Version 1.1
 
-- Added remote debugging support with LLDB for setups such as a remote computer, Docker container, etc. ([https://github.com/panicinc/icarus/issues/4](#4))
+- Added remote debugging support with LLDB for setups such as another computer, a Docker container, etc. ([https://github.com/panicinc/icarus/issues/4](#4))
 - Added syntax highlighting support for Make and CMake files.
 - Resolved an issue preventing LLDB launch arguments from working properly.
 - Migrated to a more robust Objective-C grammar, and rebased our Objective-C++ support on it as well.
