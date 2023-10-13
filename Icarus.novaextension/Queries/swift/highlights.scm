@@ -48,9 +48,10 @@
   "try"
   "try?"
   "try!"
-  (throws) @keyword
-  "async" @keyword
-  (where_keyword) @keyword
+  (throws)
+  "async"
+  "await"
+  (where_keyword)
   "return"
   "if"
   (else)
