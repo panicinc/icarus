@@ -1284,7 +1284,6 @@ public class DebugAdapterConnection {
     }
     
     /// Sends a request and returns when either a response is returned or the request is cancelled.
-    @available(macOS 10.15, *)
     public func send<Request: DebugAdapterRequestWithRequiredResult>(_ request: Request) async throws -> Request.Result {
         return try await withUnsafeThrowingContinuation { continuation in
             send(request) { result in
@@ -1366,7 +1365,6 @@ public class DebugAdapterConnection {
     }
     
     /// Sends a request and returns when either a response is returned or the request is cancelled.
-    @available(macOS 10.15, *)
     public func send<Request: DebugAdapterRequestWithOptionalResult>(_ request: Request) async throws -> Request.Result? {
         return try await withUnsafeThrowingContinuation { continuation in
             send(request) { result in
@@ -1448,7 +1446,6 @@ public class DebugAdapterConnection {
     }
     
     /// Sends a request and returns when either a response is returned or the request is cancelled.
-    @available(macOS 10.15, *)
     public func send<Request: DebugAdapterRequest>(_ request: Request) async throws where Request.Result == Void {
         return try await withUnsafeThrowingContinuation { continuation in
             send(request) { result in
@@ -1533,7 +1530,6 @@ public class DebugAdapterConnection {
     
     /// Sends a raw request and returns when either a response is returned or the request is cancelled.
     /// This method will throw an error if the provided arguments are not JSON-serializable.
-    @available(macOS 10.15, *)
     public func send(request command: String, arguments: Any?) async throws -> Any? {
         return try await withUnsafeThrowingContinuation { continuation in
             do {
