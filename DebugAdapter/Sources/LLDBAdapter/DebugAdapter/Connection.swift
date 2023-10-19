@@ -1,17 +1,8 @@
 import Foundation
 
 /*
- *  An implementation of the Debug Adapter Protocol
+ *  An implementation of the Debug Adapter Protocol.
  *  https://microsoft.github.io/debug-adapter-protocol/
- *
- *  How to use this:
- *  1. Add this file to your project.
- *  2. Create an instance of DebugAdapterConnection using the desired transport type.
- *  3. Set the connection's configuration to handle messages.
- *  3. Send messages using the `.send<X>(…)` methods.
- *
- *  This implementation includes transport classes for performing I/O over file handles and sockets,
- *  but other transports can be utilized by implementing the DebugAdapterTransport protocol.
  */
 
 public class DebugAdapterConnection {
@@ -37,8 +28,7 @@ public class DebugAdapterConnection {
         /// Invoked to handle events.
         public var eventHandler: DebugAdapterEventHandler?
         
-        public init() {
-        }
+        public init() {}
     }
     public private(set) var configuration = Configuration()
     
@@ -681,7 +671,7 @@ public class DebugAdapterConnection {
     }
     
     private func readNextMessage() {
-        transport.readData(to: Self.CRLF, timeout: -1)
+        transport.readData(minimumIncompleteLength: 0)
     }
     
     private var inputDataBuffer = Data()
@@ -704,13 +694,11 @@ public class DebugAdapterConnection {
             // Attempt to read the next message (if any)
             readMessage()
         }
+        else if additionalRequiredLength > 0 {
+            transport.readData(minimumIncompleteLength: additionalRequiredLength)
+        }
         else {
-            if additionalRequiredLength > 0 {
-                transport.readData(toLength: additionalRequiredLength, timeout: -1)
-            }
-            else {
-                readNextMessage()
-            }
+            readNextMessage()
         }
     }
     
@@ -1623,14 +1611,9 @@ public protocol DebugAdapterTransport {
     func tearDown()
     
     /// Invoked to perform read requests for building messages off the transport.
-    /// If the receiver's transport requires explicit reading of data, this method can be used to request data when it's needed
-    /// Otherwise, if the receiver simply reads data as it becomes available, it can ignore implementation of this method.
-    func readData(toLength length: Int, timeout: TimeInterval)
-    
-    /// Invoked to perform read requests for building messages off the transport.
-    /// If the receiver's transport requires explicit reading of data, this method can be used to request data when it's needed
-    /// Otherwise, if the receiver simply reads data as it becomes available, it can ignore implementation of this method.
-    func readData(to data: Data, timeout: TimeInterval)
+    /// If the receiver's transport requires explicit reading of data, this method can be used to request data when it's needed.
+    /// Otherwise, if the receiver simply reads data as it becomes available, it can provide an empty implementation of this method.
+    func readData(minimumIncompleteLength: Int)
     
     /// Invoked to write data to the transport.
     func write(data: Data) throws
@@ -1651,10 +1634,10 @@ public protocol DebugAdapterTransportHandler {
 
 // MARK: - File Handles
 
-/// A transport subclass that uses file handles
+/// A transport that uses file handles.
 public final class DebugAdapterFileHandleTransport: DebugAdapterTransport {
-    public private(set) var inputHandle: FileHandle
-    public private(set) var outputHandle: FileHandle
+    public let inputHandle: FileHandle
+    public let outputHandle: FileHandle
     
     /// Creates a transport using specified file handles.
     public init(inputHandle: FileHandle, outputHandle: FileHandle) {
@@ -1681,15 +1664,11 @@ public final class DebugAdapterFileHandleTransport: DebugAdapterTransport {
         handler.didConnect()
     }
     
-    public func readData(to data: Data, timeout: TimeInterval) {
-    }
-    
-    public func readData(toLength length: Int, timeout: TimeInterval) {
-    }
-    
     public func tearDown() {
         inputHandle.readabilityHandler = nil
     }
+    
+    public func readData(minimumIncompleteLength: Int) {}
     
     public func write(data: Data) throws {
         try outputHandle.write(contentsOf: data)
