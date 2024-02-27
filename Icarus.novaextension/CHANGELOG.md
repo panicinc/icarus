@@ -4,6 +4,7 @@
 - Added syntax highlighting support for Make and CMake files.
 - Resolved an issue preventing LLDB launch arguments from working properly.
 - Migrated to a more robust Objective-C grammar, and rebased our Objective-C++ support on it as well.
+- Fixed an issue preventing Swift protocol declarations from showing up as symbols and foldable regions.
 - Additional improvements to syntax highlighting and symbolication for Swift and C++.
 
 ## Version 1.0.2

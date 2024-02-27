@@ -6,6 +6,11 @@
   "{" @start
   "}" @end)
 
+(protocol_declaration
+  body: (protocol_body
+    "{" @start
+    "}" @end))
+
 (function_body
   "{" @start
   "}" @end)
