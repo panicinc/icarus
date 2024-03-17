@@ -83,31 +83,49 @@
 (class_declaration name: (type_identifier) @identifier.type.declare)
 
 ; Function calls
+; foo()
 (call_expression (simple_identifier) @identifier.function
-  (#not-match? @identifier.function "^[A-Z]")) ; foo()
+  (#not-match? @identifier.function "^[A-Z]")
+)
+; SomeType()
 (call_expression (simple_identifier) @identifier.type
-  (#match? @identifier.type "^[A-Z]")) ; SomeType()
-(call_expression ; foo.bar.baz(): highlight the baz()
+  (#match? @identifier.type "^[A-Z]")
+)
+; foo.bar.baz(): highlight the baz()
+(call_expression
   (navigation_expression
-    (navigation_suffix (simple_identifier) @identifier.method)))
-(call_expression ; .baz(): highlight the baz()
+    suffix: (navigation_suffix
+      suffix: (simple_identifier) @identifier.method)))
+; .baz(): highlight the baz()
+(call_expression
   (prefix_expression
     target: (simple_identifier) @identifier.method))
+; SomeType.method(): highlight SomeType as a type
 ((navigation_expression
-  (simple_identifier) @identifier.type) ; SomeType.method(): highlight SomeType as a type
-  (#match? @identifier.type "^[A-Z]"))
+  (simple_identifier) @identifier.type)
+  (#match? @identifier.type "^[A-Z]")
+)
+
+; Properties
+; foo.bar.baz: highlight the baz
 ((navigation_expression
   (navigation_suffix
-      suffix: (simple_identifier) @identifier.property)))
-(value_argument name: (value_argument_label) @identifier.argument)
-(value_argument value: (prefix_expression (simple_identifier) @identifier.property))
+    suffix: (simple_identifier) @identifier.property)) @_nav
+  (#not-has-parent? @_nav "call_expression")
+)
+; .baz: highlight the baz
+((prefix_expression
+  target: (simple_identifier) @identifier.property) @_prefix
+  (#not-has-parent? @_prefix "call_expression"))
 
-(directive) @identifier.function.macro
-(diagnostic) @identifier.function.macro
+; Arguments
+(value_argument name: (value_argument_label) @identifier.argument)
+
+; Directives
+(directive) @processing.directive
+(diagnostic) @processing.directive
 
 ; Statements
-(for_statement item: (simple_identifier) @identifier.variable)
-
 (statement_label) @label
 
 ; Comments
@@ -116,12 +134,12 @@
 
 ; String literals
 (line_str_text) @string
-(str_escaped_char) @string
+(str_escaped_char) @string.escape
 (multi_line_str_text) @string
 (raw_str_part) @string
 (raw_str_end_part) @string
-(raw_str_interpolation_start) @punctuation.special
-["\"" "\"\"\""] @string
+(raw_str_interpolation_start) @bracket
+["\"" "\"\"\""] @string.delimiter
 
 ; Basic literals
 [
