@@ -115,6 +115,7 @@
 )
 ; .baz: highlight the baz
 ((prefix_expression
+  operation: "."
   target: (simple_identifier) @identifier.property) @_prefix
   (#not-has-parent? @_prefix "call_expression"))
 
@@ -131,6 +132,8 @@
 ; Comments
 (comment) @comment
 (multiline_comment) @comment
+
+(shebang_line) @processing
 
 ; String literals
 (line_str_text) @string
