@@ -15,6 +15,10 @@
   "{" @start
   "}" @end)
 
+(computed_property
+  "{" @start
+  "}" @end)
+
 (lambda_literal
   "{" @start
   "}" @end)
