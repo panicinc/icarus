@@ -2,7 +2,7 @@
 #import "LLDBTarget+Private.h"
 #import "LLDBErrors+Private.h"
 
-@import lldb_API;
+@import CLLDB;
 
 @implementation LLDBPlatform {
     lldb::SBPlatform _platform;

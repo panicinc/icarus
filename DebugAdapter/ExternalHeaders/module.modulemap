@@ -1,4 +1,4 @@
-module lldb_API {
+module CLLDB {
   requires cplusplus
   umbrella "lldb/API"
   export *

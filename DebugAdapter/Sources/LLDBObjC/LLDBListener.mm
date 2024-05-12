@@ -2,7 +2,7 @@
 #import "LLDBDebugger+Private.h"
 #import "LLDBEvent+Private.h"
 
-@import lldb_API;
+@import CLLDB;
 
 @implementation LLDBListener {
     lldb::SBListener _listener;

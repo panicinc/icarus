@@ -1,6 +1,6 @@
 #import "LLDBBreakpointLocation.h"
 
-@import lldb_API;
+@import CLLDB;
 
 NS_ASSUME_NONNULL_BEGIN
 

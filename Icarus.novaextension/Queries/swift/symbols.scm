@@ -95,3 +95,8 @@
     (#set! role property)
   ) @subtree
 )
+
+; Macros
+((macro_declaration (simple_identifier) @name) @subtree
+  (#set! role type)
+)

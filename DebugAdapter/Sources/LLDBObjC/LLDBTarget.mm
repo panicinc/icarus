@@ -6,7 +6,7 @@
 #import "LLDBProcess+Private.h"
 #import "LLDBValue+Private.h"
 
-@import lldb_API;
+@import CLLDB;
 
 @implementation LLDBTarget {
     lldb::SBTarget _target;
