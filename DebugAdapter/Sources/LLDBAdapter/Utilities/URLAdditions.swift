@@ -2,7 +2,7 @@ import Foundation
 
 extension URL {
     /// The URL of symbolic link representing the primary (boot) volume within /Volumes
-    static public let primaryVolumeURL: URL = {
+    public static let primaryVolumeURL: URL = {
         let rootURL = URL(fileURLWithPath: "/", isDirectory: true)
         let volumesURL = URL(fileURLWithPath: "/Volumes", isDirectory: true)
         
@@ -29,18 +29,6 @@ extension URL {
         }
         
         return rootVolumeURL ?? rootURL
-    }()
-    
-    /// Whether the primary volume is case sensitive
-    static let isPrimaryVolumeCaseSensitive: Bool = {
-        do {
-            let rootURL = URL(fileURLWithPath: "/")
-            let resourceValues = try rootURL.resourceValues(forKeys: [.volumeSupportsCaseSensitiveNamesKey])
-            return resourceValues.volumeSupportsCaseSensitiveNames == true
-        }
-        catch {
-            return false
-        }
     }()
     
     /// Whether the volume containing the receiver is case sensitive

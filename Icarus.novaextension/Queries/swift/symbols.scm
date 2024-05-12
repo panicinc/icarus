@@ -1,4 +1,4 @@
-; Structs, enums, and classes
+; Structs, enums, classes, and protocols
 (class_declaration
   declaration_kind: "struct"
   name: (type_identifier) @name
@@ -23,6 +23,10 @@
   declaration_kind: "extension"
   name: (user_type) @name
   (#set! role category)
+) @subtree
+(protocol_declaration
+  name: (type_identifier) @name
+  (#set! role interface)
 ) @subtree
 
 ; Initializers
@@ -90,4 +94,9 @@
    ; )
     (#set! role property)
   ) @subtree
+)
+
+; Macros
+((macro_declaration (simple_identifier) @name) @subtree
+  (#set! role type)
 )

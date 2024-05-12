@@ -2,7 +2,7 @@
 #import "LLDBThread+Private.h"
 #import "LLDBErrors+Private.h"
 
-@import lldb_API;
+@import CLLDB;
 
 @implementation LLDBProcess {
     lldb::SBProcess _process;

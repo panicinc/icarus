@@ -1,11 +1,3 @@
-//
-//  DebugAdapterEventHandler.swift
-//  DebugAdapter
-//
-//  Created by Logan Collins on 12/27/21.
-//  Copyright © 2021 Panic Inc. All rights reserved.
-//
-
 import Foundation
 
 public protocol DebugAdapterEventHandler {

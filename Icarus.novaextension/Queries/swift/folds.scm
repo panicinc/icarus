@@ -6,7 +6,16 @@
   "{" @start
   "}" @end)
 
+(protocol_declaration
+  body: (protocol_body
+    "{" @start
+    "}" @end))
+
 (function_body
+  "{" @start
+  "}" @end)
+
+(computed_property
   "{" @start
   "}" @end)
 
@@ -31,6 +40,14 @@
   "}" @end)
   
 (if_statement
+  "{" @start
+  "}" @end)
+
+(while_statement
+  "{" @start
+  "}" @end)
+
+(repeat_while_statement
   "{" @start
   "}" @end)
   

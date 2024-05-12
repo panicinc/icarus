@@ -4,7 +4,7 @@
 #import "LLDBTarget+Private.h"
 #import "LLDBErrors+Private.h"
 
-@import lldb_API;
+@import CLLDB;
 
 @implementation LLDBDebugger {
     lldb::SBDebugger _debugger;

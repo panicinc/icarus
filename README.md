@@ -22,7 +22,7 @@ The Icarus project consists of several parts:
 
 - A Nova extension bundle
 - A debug adapter written in Swift
-- Five [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) grammars precompiled as macOS dynamic libraries
+- Several [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) grammars precompiled as macOS dynamic libraries
 - Custom queries for those grammars to add syntax highlighting, symbolication, code folding, etc.
 - Some JavaScript code for interfacing with the Nova extension runtime
 
@@ -54,8 +54,9 @@ Out of the box, a copy of this repository requires only that the debug adapter (
 To build the debug adapter, you can either use the built-in Nova tasks for the DebugAdapter subproject directory or invoke SwiftPM directly:
 
 ```shell
+cd DebugAdaptor
 swift build --product LLDBAdapter --configuration release
-cp .build/release/LLDBAdapter ../Executables/LLDBAdapter
+cp .build/release/LLDBAdapter ../Icarus.novaextension/Executables/LLDBAdapter
 ```
 
 Once this is done, the extension bundle can be loaded into Nova as a development extension for testing.
@@ -81,8 +82,10 @@ The following components are or were utilized in some way or another for the Ica
 - [tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c), for C parsing support
 - [tree-sitter-cpp](https://github.com/tree-sitter/tree-sitter-cpp), for C++ parsing support
 - [tree-sitter-swift](https://github.com/alex-pinkus/tree-sitter-swift), for Swift parsing support
-- [tree-sitter-objc](https://github.com/jiyee/tree-sitter-objc), for Objective-C parsing support
+- [tree-sitter-objc](https://github.com/amaanq/tree-sitter-objc), for Objective-C parsing support
 - [tree-sitter-objcpp](https://github.com/panicinc/tree-sitter-objcpp), for Objective-C++ parsing support, itself a derivative of the tree-sitter-cpp and tree-sitter-objc projects
+- [tree-sitter-make](https://github.com/alemuller/tree-sitter-make), for Makefile parsing support
+- [tree-sitter-cmake](https://github.com/uyha/tree-sitter-cmake), for CMake parsing support
 - [SourceKit-LSP](https://github.com/apple/sourcekit-lsp), for language intelligence
 - [codelldb](https://github.com/vadimcn/codelldb), for conceptual reference on interfacing with LLDB in a debug adapter
 

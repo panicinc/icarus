@@ -24,7 +24,7 @@ DebugAdapter:
     when: on_success
 
   tags:
-    - xcode14
+    - xcode15
 
 Icarus:
   stage: build
@@ -36,4 +36,4 @@ Icarus:
     - CONFIGURATION=Release $MAGNUM
 
   tags:
-    - xcode14
+    - xcode15

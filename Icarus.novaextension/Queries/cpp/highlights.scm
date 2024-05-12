@@ -91,7 +91,6 @@
 ] @value.boolean
 (this) @keyword.self
 (null) @value.null
-(nullptr) @value.null
 
 ; Operators
 

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<syntax name="make">
+    <meta>
+        <name>Make</name>
+        <type>data</type>
+    </meta>
+    
+    <detectors>
+        <filename priority="1.0">Makefile,makefile,GNUmakefile,NMakefile</filename>
+        <extension priority="0.5">mk</extension>
+    </detectors>
+    
+    <indentation>
+        <increase>
+            <expression>(\{[^}"']*$)|(\[[^\]"']*$)|(\([^)"']*$)|(\:$)</expression>
+        </increase>
+        <decrease>
+            <expression>(^\s*[\}\]\)\\])</expression>
+        </decrease>
+    </indentation>
+    
+    <comments>
+        <single>
+            <expression>#</expression>
+        </single>
+    </comments>
+    
+    <tree-sitter>
+        <highlights path="make/highlights.scm" />
+        <folds path="make/folds.scm" />
+        <injections path="make/injections.scm" />
+        <symbols path="make/symbols.scm" />
+    </tree-sitter>
+</syntax>

@@ -42,6 +42,7 @@
   "<"
   "=="
   ">"
+  "|"
   "||"
   "<="
   ">="
@@ -76,8 +77,6 @@
 (call_expression
   function: (field_expression
     field: (field_identifier) @identifier.function))
-(function_declarator
-  declarator: (identifier) @identifier.function)
 
 (statement_identifier) @identifier.label
 (type_identifier) @identifier.type

@@ -52,6 +52,7 @@ class IcarusTaskProvider {
                 
                 debugArgs.program = config.get("launchPath", "string");
                 debugArgs.args = config.get("launchArgs", "array");
+                debugArgs.cwd = config.get("cwd", "string");
                 debugArgs.runInRosetta = config.get("runInRosetta", "boolean");
                 debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
                 debugArgs.wait = request == "attach";
@@ -73,6 +74,7 @@ class IcarusTaskProvider {
                 debugArgs.platform = config.get("platform", "string");
                 debugArgs.program = config.get("launchPath", "string");
                 debugArgs.args = config.get("launchArgs", "array");
+                debugArgs.cwd = config.get("cwd", "string");
                 debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
                 debugArgs.wait = request == "attach";
                 

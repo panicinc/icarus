@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<syntax name="cmake">
+    <meta>
+        <name>CMake</name>
+        <type>data</type>
+    </meta>
+    
+    <detectors>
+        <filename priority="0.8">CMakeLists.txt</filename>
+        <extension priority="0.8">cmake</extension>
+    </detectors>
+    
+    <indentation>
+        <increase>
+            <expression>(\{[^}"']*$)|(\[[^\]"']*$)|(\([^)"']*$)|(\:$)</expression>
+        </increase>
+        <decrease>
+            <expression>(^\s*[\}\]\)\\])</expression>
+        </decrease>
+    </indentation>
+    
+    <comments>
+        <single>
+            <expression>#</expression>
+        </single>
+    </comments>
+    
+    <tree-sitter>
+        <highlights path="cmake/highlights.scm" />
+        <folds path="cmake/folds.scm" />
+    </tree-sitter>
+</syntax>

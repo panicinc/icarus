@@ -8,7 +8,7 @@
       "trigger" : "objc++header"
     },
     {
-      "content" : "#import \"LLDB${1:TypeName}.h\"\n\n@import lldb_API;\n\nNS_ASSUME_NONNULL_BEGIN\n\n@interface LLDB${1:TypeName} ()\n\n- (instancetype)initWith${1:TypeName}:(lldb::SB${1:TypeName})${2:varName} NS_DESIGNATED_INITIALIZER;\n\n@property (readonly) lldb::SB${1:TypeName} ${2:varName};\n\n@end\n\nNS_ASSUME_NONNULL_END\n",
+      "content" : "#import \"LLDB${1:TypeName}.h\"\n\n@import CLLDB;\n\nNS_ASSUME_NONNULL_BEGIN\n\n@interface LLDB${1:TypeName} ()\n\n- (instancetype)initWith${1:TypeName}:(lldb::SB${1:TypeName})${2:varName} NS_DESIGNATED_INITIALIZER;\n\n@property (readonly) lldb::SB${1:TypeName} ${2:varName};\n\n@end\n\nNS_ASSUME_NONNULL_END\n",
       "name" : "Objective-C++ Private Header Template",
       "scope" : "editor",
       "syntax" : "objcpp",

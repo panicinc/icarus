@@ -2,7 +2,7 @@
 #import "LLDBTarget+Private.h"
 #import "LLDBErrors+Private.h"
 
-@import lldb_API;
+@import CLLDB;
 
 @implementation LLDBPlatform {
     lldb::SBPlatform _platform;
@@ -104,10 +104,6 @@
 
 - (void)disconnectRemote {
     _platform.DisconnectRemote();
-}
-
-- (void)setSDKRoot:(NSString *)sdkRoot {
-    _platform.SetSDKRoot(sdkRoot.UTF8String);
 }
 
 - (mode_t)filePermissionsForPath:(NSString *)path {

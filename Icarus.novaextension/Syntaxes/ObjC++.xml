@@ -45,11 +45,13 @@
     </injection>
     
     <tree-sitter>
-        <highlights path="objc/highlights.scm" />
-        <highlights path="cpp/highlights.scm" />
+        <highlights path="c/highlights.scm" />
         <highlights path="c/highlights-preproc.scm" />
+        <highlights path="cpp/highlights.scm" />
+        <highlights path="objc/highlights.scm" />
+        <folds path="c/folds.scm" />
         <folds path="objc/folds.scm" />
-        <folds path="cpp/folds.scm" />
+        <folds path="objcpp/folds.scm" />
         <symbols path="objc/symbols.scm" />
         <symbols path="cpp/symbols.scm" />
     </tree-sitter>

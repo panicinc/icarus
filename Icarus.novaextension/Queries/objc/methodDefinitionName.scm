@@ -1,12 +1,11 @@
 (method_definition
-  scope: [
-    (class_scope)
-    (instance_scope)
-  ] @result)
+  . [
+    "+"
+    "-"
+  ] @result .
+  (method_type)? .
+  (identifier) @result . (method_parameter ":" @result)?)
 (method_definition
-  selector: (identifier) @result)
-(method_definition
-  selector: (keyword_selector
-      (keyword_declarator
-        keyword: (identifier) @result))
-  (#append! @result ":"))
+  (method_type)? .
+  (identifier) (method_parameter ":")
+  (identifier) @result . (method_parameter ":" @result))
