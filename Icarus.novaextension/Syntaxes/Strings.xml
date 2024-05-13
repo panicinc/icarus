@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<syntax name="strings">
+    <meta>
+        <name>Strings</name>
+        <type>data</type>
+        <preferred-file-extension>strings</preferred-file-extension>
+    </meta>
+    
+    <detectors>
+        <extension>strings</extension>
+    </detectors>
+    
+    <comments>
+        <single>
+            <expression>//</expression>
+        </single>
+        <multiline>
+            <starts-with>
+                <expression>/*</expression>
+            </starts-with>
+            <ends-with>
+                <expression>*/</expression>
+            </ends-with>
+        </multiline>
+    </comments>
+    
+    <tree-sitter>
+        <highlights path="strings/highlights.scm" />
+    </tree-sitter>
+</syntax>

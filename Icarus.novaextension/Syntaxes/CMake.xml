@@ -6,8 +6,8 @@
     </meta>
     
     <detectors>
-        <filename priority="0.8">CMakeLists.txt</filename>
-        <extension priority="0.8">cmake</extension>
+        <filename>CMakeLists.txt</filename>
+        <extension>cmake</extension>
     </detectors>
     
     <indentation>

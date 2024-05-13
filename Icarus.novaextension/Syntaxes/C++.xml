@@ -7,9 +7,9 @@
     </meta>
     
     <detectors>
-        <extension priority="1.0">cc,cpp,cxx,c++,hh,hpp,h++,ino,ipp,metal,tcc,tpp</extension>
-        <combo priority="1.0">
-            <extension priority="1.0">h</extension>
+        <extension>cc,cpp,cxx,c++,hh,hpp,h++,ino,ipp,metal,tcc,tpp</extension>
+        <combo>
+            <extension>h</extension>
             <match-content lines="0">^\s*(namespace|class|template)\s+</match-content>
         </combo>
     </detectors>

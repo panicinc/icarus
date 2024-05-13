@@ -7,11 +7,7 @@
     </meta>
     
     <detectors>
-        <extension priority="1.0">mm,M</extension>
-        <combo priority="1.0">
-            <extension priority="1.0">hh</extension>
-            <match-content lines="0">(@interface|@class|@protocol|#import)\b</match-content>
-        </combo>
+        <extension>mm,M</extension>
     </detectors>
     
     <indentation>

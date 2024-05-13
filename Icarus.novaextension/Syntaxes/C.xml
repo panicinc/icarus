@@ -7,8 +7,8 @@
     </meta>
     
     <detectors>
-        <extension priority="1.0">c,h.in</extension>
-        <extension priority="0.5">h</extension>
+        <extension>c,h.in</extension>
+        <extension priority="low">h</extension>
     </detectors>
     
     <indentation>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<syntax name="modulemap">
+    <meta>
+        <name>Module Map</name>
+        <type>data</type>
+        <preferred-file-extension>modulemap</preferred-file-extension>
+    </meta>
+    
+    <detectors>
+        <extension>modulemap</extension>
+    </detectors>
+    
+    <comments>
+        <single>
+            <expression>//</expression>
+        </single>
+        <multiline>
+            <starts-with>
+                <expression>/*</expression>
+            </starts-with>
+            <ends-with>
+                <expression>*/</expression>
+            </ends-with>
+        </multiline>
+    </comments>
+    
+    <tree-sitter>
+        <highlights path="modulemap/highlights.scm" />
+        <folds path="modulemap/folds.scm" />
+        <symbols path="modulemap/symbols.scm" />
+    </tree-sitter>
+</syntax>

@@ -7,7 +7,7 @@
     </meta>
     
     <detectors>
-        <extension priority="1.0">swift</extension>
+        <extension>swift</extension>
     </detectors>
     
     <indentation>

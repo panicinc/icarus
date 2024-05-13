@@ -7,9 +7,9 @@
     </meta>
     
     <detectors>
-        <extension priority="1.0">m,pch</extension>
-        <combo priority="1.0">
-            <extension priority="1.0">h</extension>
+        <extension>m,pch</extension>
+        <combo>
+            <extension>h</extension>
             <match-content lines="0">(@interface|@class|@protocol|#import)\b</match-content>
         </combo>
     </detectors>
