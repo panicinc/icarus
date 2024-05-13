@@ -3,8 +3,8 @@
     "build" : {
       "postActions" : [
         {
-          "name" : "TestApplication",
-          "script" : "swift build --product TestApplication",
+          "name" : "LLDBAdapter",
+          "script" : "pushd DebugAdapter\nswift build --product LLDBAdapter\npopd\n",
           "type" : "runScript"
         }
       ]
@@ -12,8 +12,8 @@
     "clean" : {
       "postActions" : [
         {
-          "name" : "TestApplication",
-          "script" : "swift package clean",
+          "name" : "LLDBAdapter",
+          "script" : "pushd DebugAdapter\nswift package clean\npopd\n",
           "type" : "runScript"
         }
       ]
@@ -26,9 +26,7 @@
   },
   "extensionTemplate" : "lldbDebug",
   "extensionValues" : {
-    "launchPath" : ".build\/debug\/TestApplication",
-    "request" : "launch",
-    "runInRosetta" : false,
-    "stopAtEntry" : false
+    "launchPath" : "DebugAdapter\/.build\/debug\/LLDBAdapter",
+    "request" : "attach"
   }
 }

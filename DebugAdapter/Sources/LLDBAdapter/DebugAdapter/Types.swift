@@ -1,5 +1,8 @@
 import Foundation
 
+// These types are up-to-date as of Debug Adapter Protocol v1.64.
+// https://microsoft.github.io/debug-adapter-protocol/changelog
+
 public protocol DebugAdapterRequest: Codable {
     associatedtype Result
     static var command: String { get }
@@ -105,6 +108,34 @@ public enum DebugAdapter {
         public var endColumn: Int?
         public var instructionReference: String?
         public var offset: Int?
+        
+        public struct Reason: RawRepresentable, Equatable, ExpressibleByStringLiteral, Codable {
+            public typealias RawValue = String
+            
+            public static let pending: Reason = "pending"
+            public static let failed: Reason = "failed"
+            
+            public var rawValue: String
+            
+            public init(rawValue: String) {
+                self.rawValue = rawValue
+            }
+            
+            public init(stringLiteral value: StringLiteralType) {
+                self.rawValue = value
+            }
+            
+            public init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                rawValue = try container.decode(String.self)
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(rawValue)
+            }
+        }
+        public var reason: Reason?
         
         public init() {}
     }
@@ -246,6 +277,34 @@ public enum DebugAdapter {
         public var column: Int?
         public var endLine: Int?
         public var endColumn: Int?
+        
+        public struct PresentationHint: RawRepresentable, Equatable, ExpressibleByStringLiteral, Codable {
+            public typealias RawValue = String
+            
+            public static let normal: PresentationHint = "normal"
+            public static let invalid: PresentationHint = "invalid"
+            
+            public var rawValue: String
+            
+            public init(rawValue: String) {
+                self.rawValue = rawValue
+            }
+            
+            public init(stringLiteral value: StringLiteralType) {
+                self.rawValue = value
+            }
+            
+            public init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                rawValue = try container.decode(String.self)
+            }
+            
+            public func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(rawValue)
+            }
+        }
+        public var presentationHint: PresentationHint?
         
         public init(address: String, instruction: String) {
             self.address = address
@@ -665,6 +724,10 @@ public enum DebugAdapter {
         
         public var variablesReference: Int?
         public var evaluateName: String?
+        
+        public var namedVariables: Int?
+        public var indexedVariables: Int?
+        public var memoryReference: String?
         
         public init(name: String, value: String) {
             self.name = name
@@ -1228,6 +1291,9 @@ public enum DebugAdapter {
             public var type: String?
             public var presentationHint: Variable.PresentationHint?
             public var variablesReference: Int?
+            public var namedVariables: Int?
+            public var indexedVariables: Int?
+            public var memoryReference: String?
             
             public init(value: String) {
                 self.value = value
@@ -1287,8 +1353,10 @@ public enum DebugAdapter {
         public struct Result: Codable {
             public var value: String
             public var type: String?
-            public var presentationHint: Variable.PresentationHint?
             public var variablesReference: Int?
+            public var namedVariables: Int?
+            public var indexedVariables: Int?
+            public var memoryReference: String?
             
             public init(value: String) {
                 self.value = value

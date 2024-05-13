@@ -6,7 +6,7 @@ public protocol DebugAdapterRequestHandler {
     func handleRequest(forCommand command: String, data: Data, connection: DebugAdapterConnection) throws
 }
 
-/// Request handler for the standard set of Debug Adapter Protocol "server" (adapter-targeted) requests.
+/// Request handler for the standard set of Debug Adapter Protocol server/adapter-targeted requests.
 public protocol DebugAdapterServerRequestHandler: DebugAdapterRequestHandler {
     associatedtype AttachParameters: Codable
     func attach(_ request: DebugAdapter.AttachRequest<AttachParameters>, replyHandler: @escaping (Result<(), Error>) -> ())
@@ -52,14 +52,12 @@ public protocol DebugAdapterServerRequestHandler: DebugAdapterRequestHandler {
     func writeMemory(_ request: DebugAdapter.WriteMemoryRequest, replyHandler: @escaping (Result<DebugAdapter.WriteMemoryRequest.Result?, Error>) -> ())
 }
 
-/// Request handler for the standard set of Debug Adapter Protocol "reverse" (client-targeted) requests.
+/// Request handler for the standard set of Debug Adapter Protocol client-targeted requests.
 public protocol DebugAdapterClientRequestHandler: DebugAdapterRequestHandler {
     func runInTerminal(_ request: DebugAdapter.RunInTerminalRequest, replyHandler: @escaping (Result<DebugAdapter.RunInTerminalRequest.Result, Error>) -> ())
 }
 
 public extension DebugAdapterServerRequestHandler {
-    /// Handlers may override this method to perform special handling of standard or custom requests, and may invoke
-    /// `performDefaultHanding(forCommand:data:token:reply:)` to delegate to the default implementation for requests not handled.
     func handleRequest(forCommand command: String, data: Data, connection: DebugAdapterConnection) throws {
         try performDefaultHandling(forCommand: command, data: data, connection: connection)
     }
@@ -395,8 +393,6 @@ public extension DebugAdapterServerRequestHandler {
 }
 
 public extension DebugAdapterClientRequestHandler {
-    /// Handlers may override this method to perform special handling of standard or custom requests, and may invoke
-    /// `performDefaultHanding(forCommand:data:token:reply:)` to delegate to the default implementation for requests not handled.
     func handleRequest(forCommand command: String, data: Data, connection: DebugAdapterConnection) throws {
         try performDefaultHandling(forCommand: command, data: data, connection: connection)
     }

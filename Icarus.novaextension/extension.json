@@ -99,7 +99,8 @@
                     "key": "launchPath",
                     "title": "Executable",
                     "type": "path",
-                    "description": "The application bundle or command line tool to debug."
+                    "description": "The application bundle or command line tool to debug.",
+                    "relative": true
                 },
                 {
                     "key": "request",

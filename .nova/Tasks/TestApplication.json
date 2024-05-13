@@ -7,6 +7,14 @@
           "type" : "runScript"
         }
       ]
+    },
+    "clean" : {
+      "postActions" : [
+        {
+          "script" : "pushd DebugAdapter\nswift package clean\npopd\n",
+          "type" : "runScript"
+        }
+      ]
     }
   },
   "buildBeforeRunning" : true,
@@ -16,6 +24,6 @@
   },
   "extensionTemplate" : "lldbDebug",
   "extensionValues" : {
-    "launchPath" : "LLDBAdapter\/.build\/debug\/TestApplication"
+    "launchPath" : "DebugAdapter\/.build\/debug\/TestApplication"
   }
 }

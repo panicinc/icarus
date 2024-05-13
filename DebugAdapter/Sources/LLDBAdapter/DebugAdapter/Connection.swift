@@ -1,10 +1,7 @@
 import Foundation
 
-/*
- *  An implementation of the Debug Adapter Protocol.
- *  https://microsoft.github.io/debug-adapter-protocol/
- */
-
+/// A connection implementing the messaging layer of the Debug Adapter Protocol.
+/// https://microsoft.github.io/debug-adapter-protocol/
 public class DebugAdapterConnection {
     /// The transport on which the connection will send and receive messages.
     public let transport: DebugAdapterTransport
@@ -32,24 +29,23 @@ public class DebugAdapterConnection {
     }
     public private(set) var configuration = Configuration()
     
+    private static let queueSpecific = DispatchSpecificKey<DebugAdapterConnection>()
+    private let queue: DispatchQueue
+    
     public init(transport: DebugAdapterTransport, configuration: Configuration? = nil) {
         self.transport = transport
         if let configuration {
             self.configuration = configuration
         }
+        
+        queue = DispatchQueue(label: "com.panic.debugadapter-connection")
+        queue.setSpecific(key: Self.queueSpecific, value: self)
     }
-    
-    private let queueSpecific = DispatchSpecificKey<DebugAdapterConnection>()
-    private lazy var queue: DispatchQueue = {
-        let queue = DispatchQueue(label: "com.panic.debugadapter-connection")
-        queue.setSpecific(key: queueSpecific, value: self)
-        return queue
-    }()
     
     /// Enqueues a block on the receiver's internal serial dispatch queue.
     /// If the current queue is that serial queue the block will be executed immediately.
     public func perform(_ block: @escaping () -> ()) {
-        if DispatchQueue.getSpecific(key: queueSpecific) === self {
+        if DispatchQueue.getSpecific(key: Self.queueSpecific) === self {
             block()
         }
         else {
@@ -257,11 +253,11 @@ public class DebugAdapterConnection {
         public var errorDescription: String? {
             switch self {
             case .requestFailed(let message, _):
-                return "Request failed: \(message ?? "")"
+                return "Request failed: \(message ?? "")."
             case .unsupportedRequest(let request):
-                return "An unsupported request was sent: \(request)"
+                return "An unsupported request was sent: \(request)."
             case .requestCancelled:
-                return "The request was cancelled"
+                return "The request was cancelled."
             }
         }
     }
@@ -851,7 +847,16 @@ public class DebugAdapterConnection {
                             }
                         }())
                         
-                        handler.handleEvent(eventName, data: contentData, connection: self)
+                        do {
+                            try handler.handleEvent(eventName, data: contentData, connection: self)
+                        }
+                        catch {
+                            if let loggingHandler = configuration.loggingHandler {
+                                self.performOnMessageQueue {
+                                    loggingHandler("Error caught while handling DebugAdapter event: \(eventName), \(error)")
+                                }
+                            }
+                        }
                     }
                 }
                 else {
@@ -1099,18 +1104,16 @@ public class DebugAdapterConnection {
         let nsError = error as NSError
         var components: [String] = []
         
-        let errorDescription = nsError.description
-        components.append(errorDescription)
+        components.append(nsError.localizedDescription)
         
         if let recoverySuggestion = nsError.localizedRecoverySuggestion {
             components.append(recoverySuggestion)
         }
+        if let failureReason = nsError.localizedFailureReason {
+            components.append(failureReason)
+        }
         if let debugDescription = nsError.userInfo[NSDebugDescriptionErrorKey] as? String {
             components.append(debugDescription)
-        }
-        
-        if components.count == 0 {
-            components.append(error.localizedDescription)
         }
         
         return components.joined(separator: "\n\n")
@@ -1448,9 +1451,7 @@ public class DebugAdapterConnection {
     }
     
     /// Sends a raw request and returns when either a response is returned or the request is cancelled.
-    /// This method will throw an error if the provided arguments are not JSON-serializable.
-    @discardableResult public func send(command: String, arguments: Any?, replyOn queue: DispatchQueue? = nil, replyHandler: @escaping (Result<Any?, Error>) -> ()) throws -> CancellationToken {
-        let args = try JSONCodable(withJSONValue: arguments)
+    @discardableResult public func send(command: String, arguments: JSONCodable?, replyOn queue: DispatchQueue? = nil, replyHandler: @escaping (Result<Any?, Error>) -> ()) -> CancellationToken {
         let token = CancellationToken(connection: self)
         
         perform { [weak self] in
@@ -1477,7 +1478,7 @@ public class DebugAdapterConnection {
                         
                         switch response {
                         case .success(_, _, _, result: let result):
-                            replyHandler(.success(result?.JSONValue))
+                            replyHandler(.success(result?.jsonValue))
                         case .failure(_, _, _, message: let message, body: let body):
                             replyHandler(.failure(MessageError.requestFailed(message, body)))
                         }
@@ -1492,7 +1493,7 @@ public class DebugAdapterConnection {
             }
             self.pendingRequests[messageID] = (command, queue, dataHandler)
             
-            let message = RawRequestMessage(seq: messageID, command: command, arguments: args)
+            let message = RawRequestMessage(seq: messageID, command: command, arguments: arguments)
             do {
                 let data = try Self.data(forMessage: message)
                 
@@ -1518,20 +1519,15 @@ public class DebugAdapterConnection {
     
     /// Sends a raw request and returns when either a response is returned or the request is cancelled.
     /// This method will throw an error if the provided arguments are not JSON-serializable.
-    public func send(request command: String, arguments: Any?) async throws -> Any? {
+    public func send(request command: String, arguments: JSONCodable?) async throws -> Any? {
         return try await withUnsafeThrowingContinuation { continuation in
-            do {
-                try send(command: command, arguments: arguments) { result in
-                    switch result {
-                    case .success(let result):
-                        continuation.resume(returning: result)
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
-                    }
+            send(command: command, arguments: arguments) { result in
+                switch result {
+                case .success(let result):
+                    continuation.resume(returning: result)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
                 }
-            }
-            catch {
-                continuation.resume(throwing: error)
             }
         }
     }
@@ -1567,17 +1563,14 @@ public class DebugAdapterConnection {
     }
     
     /// Sends a raw event and continues once the message is fully encoded and written to the transport stream.
-    /// This method will throw an error if the provided parameters are not JSON-serializable.
-    public func send(event: String, body: Any?) throws {
-        let bodyJSON = try JSONCodable(withJSONValue: body)
-        
+    public func send(event: String, body: JSONCodable?) {
         perform { [weak self] in
             guard let self, self.isRunning else {
                 return
             }
             
             let eventID = self.nextMessageID()
-            let message = RawEventMessage(seq: eventID, event: event, body: bodyJSON)
+            let message = RawEventMessage(seq: eventID, event: event, body: body)
             
             do {
                 let data = try Self.data(forMessage: message)
