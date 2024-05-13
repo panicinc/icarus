@@ -1,0 +1,25 @@
+{
+  "clips" : [
+    {
+      "content" : "@import Foundation;\n\nNS_ASSUME_NONNULL_BEGIN\n\n@interface LLDB${:ClassName} : NSObject\n\n+ (instancetype)new NS_UNAVAILABLE;\n- (instancetype)init NS_UNAVAILABLE;\n\n@end\n\nNS_ASSUME_NONNULL_END\n",
+      "name" : "Objective-C++ Header Template",
+      "scope" : "editor",
+      "syntax" : "objcpp",
+      "trigger" : "objc++header"
+    },
+    {
+      "content" : "#import \"LLDB${1:TypeName}.h\"\n\n@import CLLDB;\n\nNS_ASSUME_NONNULL_BEGIN\n\n@interface LLDB${1:TypeName} ()\n\n- (instancetype)initWith${1:TypeName}:(lldb::SB${1:TypeName})${2:varName} NS_DESIGNATED_INITIALIZER;\n\n@property (readonly) lldb::SB${1:TypeName} ${2:varName};\n\n@end\n\nNS_ASSUME_NONNULL_END\n",
+      "name" : "Objective-C++ Private Header Template",
+      "scope" : "editor",
+      "syntax" : "objcpp",
+      "trigger" : "objc++privheader"
+    },
+    {
+      "content" : "#import \"LLDB${1:TypeName}+Private.h\"\n\n@implementation LLDB${1:TypeName} {\n\tlldb::SB${1:TypeName} _${2:varName};\n}\n\n- (instancetype)initWith${1:TypeName}:(lldb::SB${1:TypeName})${2:varName} {\n\tself = [super init];\n\tif (self) {\n\t\t_${2:varName} = ${2:varName};\n\t}\n\treturn self;\n}\n\n- (lldb::SB${1:TypeName})${2:varName} {\n\treturn _${2:varName};\n}\n\n@end\n",
+      "name" : "Objective-C++ Implementation",
+      "scope" : "editor",
+      "syntax" : "objcpp",
+      "trigger" : "objc++imp"
+    }
+  ]
+}
