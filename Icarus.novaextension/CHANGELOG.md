@@ -1,11 +1,16 @@
-## Version 1.1
+## Version 2.0
 
-- Added remote debugging support with LLDB for setups such as another computer, a Docker container, etc. ([https://github.com/panicinc/icarus/issues/4](#4))
-- Added syntax highlighting support for Make and CMake files.
+- Added remote debugging support with LLDB, for debugging targets running on another computer, in a Docker container, etc. ([https://github.com/panicinc/icarus/issues/4](#4))
+- Added language support for Make, CMake, Strings, and Clang Module Map files.
 - Resolved an issue preventing LLDB launch arguments from working properly.
-- Migrated to a more robust Objective-C grammar, and rebased our Objective-C++ support on it as well.
-- Fixed an issue preventing Swift protocol declarations from showing up as symbols and foldable regions.
-- Additional improvements to syntax highlighting and symbolication for Swift and C++.
+- Added a configuration option for choosing the working directory of launched debugging targets.
+- Improved highlighting for Swift language features introduced in 5.9 / 5.10, such as actors, async/await, and macros.
+- Added highlighting for hashbang lines in Swift files.
+- Improved highlighting of the Swift core metatypes: Any, AnyClass, AnyObject, Type, and Protocol.
+- Fixed an issue preventing Swift protocol declarations from showing up as symbols and foldable.
+- Fixed an issue preventing Swift computed properties from showing up as foldable.
+- Migrated to a more robust Objective-C grammar, and rebased the Objective-C++ support on it.
+- Additional improvements to highlighting and symbolication for Swift and C++.
 
 ## Version 1.0.2
 
