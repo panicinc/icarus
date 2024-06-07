@@ -95,6 +95,7 @@
   (#eq? @keyword "Any" "AnyActor" "AnyClass" "AnyObject" "Type" "Protocol"))
 
 ; Declarations
+(init_declaration "init" @keyword)
 (protocol_function_declaration "init" @keyword)
 (function_declaration "init" @keyword)
 (parameter

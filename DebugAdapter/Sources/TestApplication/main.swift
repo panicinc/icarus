@@ -1,5 +1,4 @@
 import Foundation
-import Dispatch
 
 class MyClass {
     var names = ["John", "Jane", "Joan"]

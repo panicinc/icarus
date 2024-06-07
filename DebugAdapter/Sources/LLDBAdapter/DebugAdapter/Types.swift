@@ -1,5 +1,3 @@
-import Foundation
-
 // These types are up-to-date as of Debug Adapter Protocol v1.64.
 // https://microsoft.github.io/debug-adapter-protocol/changelog
 
@@ -434,7 +432,7 @@ public enum DebugAdapter {
     
     public struct Module: Codable {
         // string or number
-        public var id: JSONCodable
+        public var id: JSONValue
         public var name: String
         public var path: String?
         public var isOptimized: Bool?
@@ -445,7 +443,7 @@ public enum DebugAdapter {
         public var dateTimeStamp: String?
         public var addressRange: String?
         
-        public init(id: JSONCodable, name: String) {
+        public init(id: JSONValue, name: String) {
             self.id = id
             self.name = name
         }
@@ -509,7 +507,7 @@ public enum DebugAdapter {
         public var sourceReference: Int?
         public var origin: String?
         public var sources: [Source]?
-        public var adapterData: JSONCodable?
+        public var adapterData: JSONValue?
         
         public var checksums: [Checksum]?
         
@@ -1139,7 +1137,7 @@ public enum DebugAdapter {
     public struct RestartRequest: DebugAdapterRequest {
         public static var command: String { "restart" }
         
-        public var arguments: JSONCodable?
+        public var arguments: JSONValue?
         
         public typealias Result = Void
         
@@ -1176,7 +1174,7 @@ public enum DebugAdapter {
         
         public var cmd: String
         public var args: [String]
-        public var env: [String: JSONCodable]?
+        public var env: [String: JSONValue]?
         public var argsCanBeInterpretedByShell: Bool?
         
         public enum Kind: Codable {
@@ -1947,7 +1945,7 @@ public enum DebugAdapter {
     public struct TerminatedEvent: DebugAdapterEvent {
         public static let event = "terminated"
         
-        public var restart: JSONCodable?
+        public var restart: JSONValue?
         
         public init() {}
     }

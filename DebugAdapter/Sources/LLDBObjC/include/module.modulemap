@@ -1,4 +1,0 @@
-module LLDBObjC {
-  umbrella header "LLDB.h"
-  export *
-}

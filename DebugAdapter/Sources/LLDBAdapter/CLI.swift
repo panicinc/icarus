@@ -1,5 +1,5 @@
 import ArgumentParser
-import LLDBObjC
+import SwiftLLDB
 
 @main
 struct DebugAdapterCommand: ParsableCommand {
@@ -21,13 +21,13 @@ struct PlatformsCommand: ParsableCommand {
     static var configuration = CommandConfiguration(commandName: "platforms")
     
     func run() throws {
-        try LLDBDebugger.initializeWithError()
+        try Debugger.initialize()
         
-        let debugger = LLDBDebugger()
+        let debugger = Debugger()
         for platform in debugger.availablePlatforms {
-            print("\(platform.name ?? "unknown"): \(platform.descriptiveText ?? "")")
+            print("\(platform.name): \(platform.descriptiveText ?? "")")
         }
         
-        LLDBDebugger.terminate()
+        Debugger.terminate()
     }
 }

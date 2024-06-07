@@ -2,7 +2,7 @@ import Foundation
 
 /// A connection implementing the messaging layer of the Debug Adapter Protocol.
 /// https://microsoft.github.io/debug-adapter-protocol/
-public class DebugAdapterConnection {
+public final class DebugAdapterConnection {
     /// The transport on which the connection will send and receive messages.
     public let transport: DebugAdapterTransport
     
@@ -224,12 +224,12 @@ public class DebugAdapterConnection {
             var container = encoder.container(keyedBy: CodingKeys.self)
             
             switch self {
-            case .request(let seq, let command):
+            case let .request(seq, command):
                 try container.encode(seq, forKey: .seq)
                 try container.encode("request", forKey: .type)
                 try container.encode(command, forKey: .command)
                 
-            case .response(let seq, let requestSeq, let command, let success, let message):
+            case let .response(seq, requestSeq, command, success, message):
                 try container.encode(seq, forKey: .seq)
                 try container.encode("response", forKey: .type)
                 try container.encode(requestSeq, forKey: .requestSeq)
@@ -237,7 +237,7 @@ public class DebugAdapterConnection {
                 try container.encode(success, forKey: .success)
                 try container.encode(message, forKey: .message)
                 
-            case .event(let seq, let event):
+            case let .event(seq, event):
                 try container.encode(seq, forKey: .seq)
                 try container.encode("event", forKey: .type)
                 try container.encode(event, forKey: .event)
@@ -252,9 +252,9 @@ public class DebugAdapterConnection {
         
         public var errorDescription: String? {
             switch self {
-            case .requestFailed(let message, _):
+            case let .requestFailed(message, _):
                 return "Request failed: \(message ?? "")."
-            case .unsupportedRequest(let request):
+            case let .unsupportedRequest(request):
                 return "An unsupported request was sent: \(request)."
             case .requestCancelled:
                 return "The request was cancelled."
@@ -300,7 +300,7 @@ public class DebugAdapterConnection {
     }
     
     private static func prettyPrintedString(forJSONData data: Data) -> String? {
-        guard let object = try? JSONDecoder().decode(JSONCodable.self, from: data) else {
+        guard let object = try? JSONDecoder().decode(JSONValue.self, from: data) else {
             return nil
         }
         let encoder = JSONEncoder()
@@ -545,9 +545,9 @@ public class DebugAdapterConnection {
     private struct RawRequestMessage: Codable {
         let seq: Int
         let command: String
-        let arguments: JSONCodable?
+        let arguments: JSONValue?
         
-        init(seq: Int, command: String, arguments: JSONCodable?) {
+        init(seq: Int, command: String, arguments: JSONValue?) {
             self.seq = seq
             self.command = command
             self.arguments = arguments
@@ -564,7 +564,7 @@ public class DebugAdapterConnection {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             seq = try container.decode(Int.self, forKey: .seq)
             command = try container.decode(String.self, forKey: .command)
-            arguments = try container.decodeIfPresent(JSONCodable.self, forKey: .arguments)
+            arguments = try container.decodeIfPresent(JSONValue.self, forKey: .arguments)
         }
         
         func encode(to encoder: Encoder) throws {
@@ -577,7 +577,7 @@ public class DebugAdapterConnection {
     }
     
     private enum RawResponseMessage: Codable {
-        case success(seq: Int, requestSeq: Int, command: String, result: JSONCodable?)
+        case success(seq: Int, requestSeq: Int, command: String, result: JSONValue?)
         case failure(seq: Int, requestSeq: Int, command: String, message: String?, body: DebugAdapter.Message?)
         
         enum CodingKeys: String, CodingKey {
@@ -599,7 +599,7 @@ public class DebugAdapterConnection {
             
             let success = try container.decode(Bool.self, forKey: .success)
             if success {
-                let result = try container.decodeIfPresent(JSONCodable.self, forKey: .body)
+                let result = try container.decodeIfPresent(JSONValue.self, forKey: .body)
                 self = .success(seq: seq, requestSeq: requestSeq, command: command, result: result)
             }
             else {
@@ -635,9 +635,9 @@ public class DebugAdapterConnection {
     private struct RawEventMessage: Codable {
         let seq: Int
         let event: String
-        let body: JSONCodable?
+        let body: JSONValue?
         
-        init(seq: Int, event: String, body: JSONCodable?) {
+        init(seq: Int, event: String, body: JSONValue?) {
             self.seq = seq
             self.event = event
             self.body = body
@@ -654,7 +654,7 @@ public class DebugAdapterConnection {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             seq = try container.decode(Int.self, forKey: .seq)
             event = try container.decode(String.self, forKey: .event)
-            body = try container.decodeIfPresent(JSONCodable.self, forKey: .body)
+            body = try container.decodeIfPresent(JSONValue.self, forKey: .body)
         }
         
         func encode(to encoder: Encoder) throws {
@@ -761,7 +761,7 @@ public class DebugAdapterConnection {
             let configuration = configuration
             
             switch msg {
-            case .request(let seq, let command):
+            case let .request(seq, command):
                 if let handler = configuration.requestHandler {
                     self.performOnMessageQueue { [weak self] in
                         guard let self, self.isRunning else {
@@ -803,7 +803,7 @@ public class DebugAdapterConnection {
                     }
                 }
                 
-            case .response(_, let requestSeq, let command, _, _):
+            case let .response(_, requestSeq, command, _, _):
                 if let (_, queue, handler) = pendingRequests[requestSeq] {
                     pendingRequests[requestSeq] = nil
                     
@@ -835,7 +835,7 @@ public class DebugAdapterConnection {
                     }
                 }
                 
-            case .event(_, let eventName):
+            case let .event(_, eventName):
                 if let handler = configuration.eventHandler {
                     self.performOnMessageQueue {
                         configuration.loggingHandler?({
@@ -899,9 +899,9 @@ public class DebugAdapterConnection {
             }
             
             switch result {
-            case .success(let result):
+            case let .success(result):
                 self.send(responseTo: request, requestID: message.seq, result: result)
-            case .failure(let error):
+            case let .failure(error):
                 self.send(responseToRequestID: message.seq, command: Request.command, error: error)
             }
         }
@@ -925,9 +925,9 @@ public class DebugAdapterConnection {
             }
             
             switch result {
-            case .success(let result):
+            case let .success(result):
                 self.send(responseTo: request, requestID: message.seq, result: result)
-            case .failure(let error):
+            case let .failure(error):
                 self.send(responseToRequestID: message.seq, command: Request.command, error: error)
             }
         }
@@ -991,7 +991,7 @@ public class DebugAdapterConnection {
             switch result {
             case .success:
                 self.send(responseTo: request, requestID: message.seq)
-            case .failure(let error):
+            case let .failure(error):
                 self.send(responseToRequestID: message.seq, command: Request.command, error: error)
             }
         }
@@ -1019,26 +1019,26 @@ public class DebugAdapterConnection {
     
     /// Decodes a raw request from the provided data, returning the request and a reply handler
     /// which should be invoked when handling of the request completes.
-    public func decodeForReply(command: String, from data: Data) throws -> (JSONCodable?, (Result<JSONCodable?, Error>) -> ()) {
+    public func decodeForReply(command: String, from data: Data) throws -> (JSONValue?, (Result<JSONValue?, Error>) -> ()) {
         let message = try JSONDecoder().decode(RawRequestMessage.self, from: data)
         let request = message.arguments
         
-        let responseHandler: (Result<JSONCodable?, Error>) -> () = { [weak self] result in
+        let responseHandler: (Result<JSONValue?, Error>) -> () = { [weak self] result in
             guard let self else {
                 return
             }
             
             switch result {
-            case .success(let result):
+            case let .success(result):
                 self.send(responseToRequestID: message.seq, command: command, result: result)
-            case .failure(let error):
+            case let .failure(error):
                 self.send(responseToRequestID: message.seq, command: command, error: error)
             }
         }
         return (request, responseHandler)
     }
     
-    private func send(responseToRequestID requestID: Int, command: String, result: JSONCodable?) {
+    private func send(responseToRequestID requestID: Int, command: String, result: JSONValue?) {
         perform { [weak self] in
             guard let self, self.isRunning else {
                 return
@@ -1093,7 +1093,7 @@ public class DebugAdapterConnection {
     }
     
     /// Decodes a raw event from the provided data.
-    public func decode(event: String, from data: Data) throws -> JSONCodable? {
+    public func decode(event: String, from data: Data) throws -> JSONValue? {
         let message = try JSONDecoder().decode(RawEventMessage.self, from: data)
         return message.body
     }
@@ -1142,7 +1142,7 @@ public class DebugAdapterConnection {
         supportsCancelRequest = flag
     }
     
-    public class CancellationToken {
+    public final class CancellationToken {
         fileprivate private(set) var isCancelled = false
         private weak var connection: DebugAdapterConnection?
         private var cancelHandlers: [() -> ()] = []
@@ -1228,7 +1228,7 @@ public class DebugAdapterConnection {
             
             let dataHandler: (Result<Data, Error>) -> () = { result in
                 switch result {
-                case .success(let data):
+                case let .success(data):
                     do {
                         let decoder = JSONDecoder()
                         let response = try decoder.decode(ResponseRequiredResultMessage<Request.Result>.self, from: data)
@@ -1279,9 +1279,9 @@ public class DebugAdapterConnection {
         return try await withUnsafeThrowingContinuation { continuation in
             send(request) { result in
                 switch result {
-                case .success(let result):
+                case let .success(result):
                     continuation.resume(returning: result)
-                case .failure(let error):
+                case let .failure(error):
                     continuation.resume(throwing: error)
                 }
             }
@@ -1309,7 +1309,7 @@ public class DebugAdapterConnection {
             
             let dataHandler: (Result<Data, Error>) -> () = { result in
                 switch result {
-                case .success(let data):
+                case let .success(data):
                     do {
                         let decoder = JSONDecoder()
                         let response = try decoder.decode(ResponseOptionalResultMessage<Request.Result>.self, from: data)
@@ -1360,9 +1360,9 @@ public class DebugAdapterConnection {
         return try await withUnsafeThrowingContinuation { continuation in
             send(request) { result in
                 switch result {
-                case .success(let result):
+                case let .success(result):
                     continuation.resume(returning: result)
-                case .failure(let error):
+                case let .failure(error):
                     continuation.resume(throwing: error)
                 }
             }
@@ -1390,7 +1390,7 @@ public class DebugAdapterConnection {
             
             let dataHandler: (Result<Data, Error>) -> () = { result in
                 switch result {
-                case .success(let data):
+                case let .success(data):
                     do {
                         let decoder = JSONDecoder()
                         let response = try decoder.decode(ResponseVoidMessage.self, from: data)
@@ -1443,7 +1443,7 @@ public class DebugAdapterConnection {
                 switch result {
                 case .success(_):
                     continuation.resume()
-                case .failure(let error):
+                case let .failure(error):
                     continuation.resume(throwing: error)
                 }
             }
@@ -1451,7 +1451,7 @@ public class DebugAdapterConnection {
     }
     
     /// Sends a raw request and returns when either a response is returned or the request is cancelled.
-    @discardableResult public func send(command: String, arguments: JSONCodable?, replyOn queue: DispatchQueue? = nil, replyHandler: @escaping (Result<Any?, Error>) -> ()) -> CancellationToken {
+    @discardableResult public func send(command: String, arguments: JSONValue?, replyOn queue: DispatchQueue? = nil, replyHandler: @escaping (Result<Any?, Error>) -> ()) -> CancellationToken {
         let token = CancellationToken(connection: self)
         
         perform { [weak self] in
@@ -1471,7 +1471,7 @@ public class DebugAdapterConnection {
             
             let dataHandler: (Result<Data, Error>) -> () = { result in
                 switch result {
-                case .success(let data):
+                case let .success(data):
                     do {
                         let decoder = JSONDecoder()
                         let response = try decoder.decode(RawResponseMessage.self, from: data)
@@ -1519,13 +1519,13 @@ public class DebugAdapterConnection {
     
     /// Sends a raw request and returns when either a response is returned or the request is cancelled.
     /// This method will throw an error if the provided arguments are not JSON-serializable.
-    public func send(request command: String, arguments: JSONCodable?) async throws -> Any? {
+    public func send(request command: String, arguments: JSONValue?) async throws -> Any? {
         return try await withUnsafeThrowingContinuation { continuation in
             send(command: command, arguments: arguments) { result in
                 switch result {
-                case .success(let result):
+                case let .success(result):
                     continuation.resume(returning: result)
-                case .failure(let error):
+                case let .failure(error):
                     continuation.resume(throwing: error)
                 }
             }
@@ -1563,7 +1563,7 @@ public class DebugAdapterConnection {
     }
     
     /// Sends a raw event and continues once the message is fully encoded and written to the transport stream.
-    public func send(event: String, body: JSONCodable?) {
+    public func send(event: String, body: JSONValue?) {
         perform { [weak self] in
             guard let self, self.isRunning else {
                 return
