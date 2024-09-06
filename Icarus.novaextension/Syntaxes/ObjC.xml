@@ -8,7 +8,7 @@
     
     <detectors>
         <extension>m,pch</extension>
-        <combo>
+        <combo priority="0.8">
             <extension>h</extension>
             <match-content lines="0">(@interface|@class|@protocol|#import)\b</match-content>
         </combo>

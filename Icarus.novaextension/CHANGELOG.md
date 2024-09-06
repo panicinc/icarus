@@ -1,3 +1,7 @@
+## Version 2.0.1
+
+- Fixed an issue preventing some header files from opening with the C syntax.
+
 ## Version 2.0
 
 - Added remote debugging support with LLDB, for debugging targets running on another computer, in a Docker container, etc. ([https://github.com/panicinc/icarus/issues/4](#4))
