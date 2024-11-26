@@ -7,7 +7,7 @@
     
     <detectors>
         <filename>Makefile,makefile,GNUmakefile,NMakefile</filename>
-        <extension>mk</extension>
+        <extension>mk,mak,make</extension>
     </detectors>
     
     <indentation>
