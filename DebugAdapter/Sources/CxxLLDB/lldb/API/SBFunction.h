@@ -12,6 +12,7 @@
 #include <swift/bridging>
 
 #include "lldb/API/SBAddress.h"
+#include "lldb/API/SBAddressRangeList.h"
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBInstructionList.h"
 
@@ -45,6 +46,8 @@ public:
   lldb::SBAddress GetStartAddress();
 
   lldb::SBAddress GetEndAddress();
+
+  lldb::SBAddressRangeList GetRanges();
 
   const char *GetArgumentName(uint32_t arg_idx) SWIFT_RETURNS_INDEPENDENT_VALUE;
 

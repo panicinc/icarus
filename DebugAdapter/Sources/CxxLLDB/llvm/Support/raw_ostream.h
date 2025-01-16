@@ -15,16 +15,14 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/DataTypes.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
-#if __cplusplus > 201402L
 #include <string_view>
-#endif
 #include <system_error>
 #include <type_traits>
 
@@ -36,7 +34,7 @@ class format_object_base;
 class FormattedString;
 class FormattedNumber;
 class FormattedBytes;
-template <class T> class LLVM_NODISCARD Expected;
+template <class T> class [[nodiscard]] Expected;
 
 namespace sys {
 namespace fs {
@@ -57,6 +55,7 @@ public:
   enum class OStreamKind {
     OK_OStream,
     OK_FDStream,
+    OK_SVecStream,
   };
 
 private:
@@ -83,10 +82,6 @@ private:
   char *OutBufStart, *OutBufEnd, *OutBufCur;
   bool ColorEnabled = false;
 
-  /// Optional stream this stream is tied to. If this stream is written to, the
-  /// tied-to stream will be flushed first.
-  raw_ostream *TiedStream = nullptr;
-
   enum class BufferKind {
     Unbuffered = 0,
     InternalBuffer,
@@ -104,6 +99,14 @@ public:
     MAGENTA,
     CYAN,
     WHITE,
+    BRIGHT_BLACK,
+    BRIGHT_RED,
+    BRIGHT_GREEN,
+    BRIGHT_YELLOW,
+    BRIGHT_BLUE,
+    BRIGHT_MAGENTA,
+    BRIGHT_CYAN,
+    BRIGHT_WHITE,
     SAVEDCOLOR,
     RESET,
   };
@@ -116,6 +119,14 @@ public:
   static constexpr Colors MAGENTA = Colors::MAGENTA;
   static constexpr Colors CYAN = Colors::CYAN;
   static constexpr Colors WHITE = Colors::WHITE;
+  static constexpr Colors BRIGHT_BLACK = Colors::BRIGHT_BLACK;
+  static constexpr Colors BRIGHT_RED = Colors::BRIGHT_RED;
+  static constexpr Colors BRIGHT_GREEN = Colors::BRIGHT_GREEN;
+  static constexpr Colors BRIGHT_YELLOW = Colors::BRIGHT_YELLOW;
+  static constexpr Colors BRIGHT_BLUE = Colors::BRIGHT_BLUE;
+  static constexpr Colors BRIGHT_MAGENTA = Colors::BRIGHT_MAGENTA;
+  static constexpr Colors BRIGHT_CYAN = Colors::BRIGHT_CYAN;
+  static constexpr Colors BRIGHT_WHITE = Colors::BRIGHT_WHITE;
   static constexpr Colors SAVEDCOLOR = Colors::SAVEDCOLOR;
   static constexpr Colors RESET = Colors::RESET;
 
@@ -225,6 +236,20 @@ public:
     return *this;
   }
 
+#if defined(__cpp_char8_t)
+  // When using `char8_t *` integers or pointers are written to the ostream
+  // instead of UTF-8 code as one might expect. This might lead to unexpected
+  // behavior, especially as `u8""` literals are of type `char8_t*` instead of
+  // type `char_t*` from C++20 onwards. Thus we disallow using them with
+  // raw_ostreams.
+  // If you have u8"" literals to stream, you can rewrite them as ordinary
+  // literals with escape sequences
+  // e.g.  replace `u8"\u00a0"` by `"\xc2\xa0"`
+  // or use `reinterpret_cast`:
+  // e.g. replace `u8"\u00a0"` by `reinterpret_cast<const char *>(u8"\u00a0")`
+  raw_ostream &operator<<(const char8_t *Str) = delete;
+#endif
+
   raw_ostream &operator<<(const char *Str) {
     // Inline fast path, particularly for constant strings where a sufficiently
     // smart compiler will simplify strlen.
@@ -237,11 +262,9 @@ public:
     return write(Str.data(), Str.length());
   }
 
-#if __cplusplus > 201402L
   raw_ostream &operator<<(const std::string_view &Str) {
     return write(Str.data(), Str.length());
   }
-#endif
 
   raw_ostream &operator<<(const SmallVectorImpl<char> &Str) {
     return write(Str.data(), Str.size());
@@ -333,10 +356,6 @@ public:
 
   bool colors_enabled() const { return ColorEnabled; }
 
-  /// Tie this stream to the specified stream. Replaces any existing tied-to
-  /// stream. Specifying a nullptr unties the stream.
-  void tie(raw_ostream *TieTo) { TiedStream = TieTo; }
-
   //===--------------------------------------------------------------------===//
   // Subclass Interface
   //===--------------------------------------------------------------------===//
@@ -395,17 +414,14 @@ private:
   /// flushing. The result is affected by calls to enable_color().
   bool prepare_colors();
 
-  /// Flush the tied-to stream (if present) and then write the required data.
-  void flush_tied_then_write(const char *Ptr, size_t Size);
-
   virtual void anchor();
 };
 
 /// Call the appropriate insertion operator, given an rvalue reference to a
 /// raw_ostream object and return a stream of the same type as the argument.
 template <typename OStream, typename T>
-std::enable_if_t<!std::is_reference<OStream>::value &&
-                     std::is_base_of<raw_ostream, OStream>::value,
+std::enable_if_t<!std::is_reference_v<OStream> &&
+                     std::is_base_of_v<raw_ostream, OStream>,
                  OStream &&>
 operator<<(OStream &&OS, const T &Value) {
   OS << Value;
@@ -446,7 +462,11 @@ class raw_fd_ostream : public raw_pwrite_stream {
   bool ShouldClose;
   bool SupportsSeeking = false;
   bool IsRegularFile = false;
-  mutable Optional<bool> HasColors;
+  mutable std::optional<bool> HasColors;
+
+  /// Optional stream this stream is tied to. If this stream is written to, the
+  /// tied-to stream will be flushed first.
+  raw_ostream *TiedStream = nullptr;
 
 #ifdef _WIN32
   /// True if this fd refers to a Windows console device. Mintty and other
@@ -526,6 +546,13 @@ public:
 
   bool has_colors() const override;
 
+  /// Tie this stream to the specified stream. Replaces any existing tied-to
+  /// stream. Specifying a nullptr unties the stream. This is intended for to
+  /// tie errs() to outs(), so that outs() is flushed whenever something is
+  /// written to errs(), preventing weird and hard-to-test output when stderr
+  /// is redirected to stdout.
+  void tie(raw_ostream *TieTo) { TiedStream = TieTo; }
+
   std::error_code error() const { return EC; }
 
   /// Return the value of the flag in this raw_fd_ostream indicating whether an
@@ -565,7 +592,7 @@ public:
   ///     });
   ///   }
   ///   @endcode
-  LLVM_NODISCARD Expected<sys::fs::FileLocker> lock();
+  [[nodiscard]] Expected<sys::fs::FileLocker> lock();
 
   /// Tries to lock the underlying file within the specified period.
   ///
@@ -574,8 +601,8 @@ public:
   ///          error code.
   ///
   /// It is used as @ref lock.
-  LLVM_NODISCARD
-  Expected<sys::fs::FileLocker> tryLockFor(Duration const& Timeout);
+  [[nodiscard]] Expected<sys::fs::FileLocker>
+  tryLockFor(Duration const &Timeout);
 };
 
 /// This returns a reference to a raw_fd_ostream for standard output. Use it
@@ -604,6 +631,8 @@ public:
   /// information about the error is put into EC, and the stream should be
   /// immediately destroyed.
   raw_fd_stream(StringRef Filename, std::error_code &EC);
+
+  raw_fd_stream(int fd, bool shouldClose);
 
   /// This reads the \p Size bytes into a buffer pointed by \p Ptr.
   ///
@@ -675,7 +704,11 @@ public:
   ///
   /// \param O The vector to write to; this should generally have at least 128
   /// bytes free to avoid any extraneous memory overhead.
-  explicit raw_svector_ostream(SmallVectorImpl<char> &O) : OS(O) {
+  explicit raw_svector_ostream(SmallVectorImpl<char> &O)
+      : raw_pwrite_stream(false, raw_ostream::OStreamKind::OK_SVecStream),
+        OS(O) {
+    // FIXME: here and in a few other places, set directly to unbuffered in the
+    // ctor.
     SetUnbuffered();
   }
 
@@ -685,10 +718,13 @@ public:
 
   /// Return a StringRef for the vector contents.
   StringRef str() const { return StringRef(OS.data(), OS.size()); }
+  SmallVectorImpl<char> &buffer() { return OS; }
 
   void reserveExtraSpace(uint64_t ExtraSize) override {
     OS.reserve(tell() + ExtraSize);
   }
+
+  static bool classof(const raw_ostream *OS);
 };
 
 /// A raw_ostream that discards all output.
@@ -743,6 +779,18 @@ class Error;
 /// temporary file after the \p Write function is finished.
 Error writeToOutput(StringRef OutputFileName,
                     std::function<Error(raw_ostream &)> Write);
+
+raw_ostream &operator<<(raw_ostream &OS, std::nullopt_t);
+
+template <typename T, typename = decltype(std::declval<raw_ostream &>()
+                                          << std::declval<const T &>())>
+raw_ostream &operator<<(raw_ostream &OS, const std::optional<T> &O) {
+  if (O)
+    OS << *O;
+  else
+    OS << std::nullopt;
+  return OS;
+}
 
 } // end namespace llvm
 

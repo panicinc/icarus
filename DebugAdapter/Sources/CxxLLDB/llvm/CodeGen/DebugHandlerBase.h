@@ -14,12 +14,12 @@
 #ifndef LLVM_CODEGEN_DEBUGHANDLERBASE_H
 #define LLVM_CODEGEN_DEBUGHANDLERBASE_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/AsmPrinterHandler.h"
 #include "llvm/CodeGen/DbgEntityHistoryCalculator.h"
 #include "llvm/CodeGen/LexicalScopes.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
+#include <optional>
 
 namespace llvm {
 
@@ -37,28 +37,32 @@ struct DbgVariableLocation {
   SmallVector<int64_t, 1> LoadChain;
 
   /// Present if the location is part of a larger variable.
-  llvm::Optional<llvm::DIExpression::FragmentInfo> FragmentInfo;
+  std::optional<llvm::DIExpression::FragmentInfo> FragmentInfo;
 
   /// Extract a VariableLocation from a MachineInstr.
   /// This will only work if Instruction is a debug value instruction
   /// and the associated DIExpression is in one of the supported forms.
   /// If these requirements are not met, the returned Optional will not
   /// have a value.
-  static Optional<DbgVariableLocation>
+  static std::optional<DbgVariableLocation>
   extractFromMachineInstruction(const MachineInstr &Instruction);
 };
 
 /// Base class for debug information backends. Common functionality related to
 /// tracking which variables and scopes are alive at a given PC live here.
-class DebugHandlerBase : public AsmPrinterHandler {
+class DebugHandlerBase {
 protected:
   DebugHandlerBase(AsmPrinter *A);
 
+public:
+  virtual ~DebugHandlerBase();
+
+protected:
   /// Target of debug info emission.
-  AsmPrinter *Asm;
+  AsmPrinter *Asm = nullptr;
 
   /// Collected machine module information.
-  MachineModuleInfo *MMI;
+  MachineModuleInfo *MMI = nullptr;
 
   /// Previous instruction's location information. This is used to
   /// determine label location to indicate scope boundaries in debug info.
@@ -71,6 +75,9 @@ protected:
   /// This location indicates end of function prologue and beginning of
   /// function body.
   DebugLoc PrologEndLoc;
+
+  /// This block includes epilogue instructions.
+  const MachineBasicBlock *EpilogBeginBlock = nullptr;
 
   /// If nonnull, stores the current machine instruction we're processing.
   const MachineInstr *CurMI = nullptr;
@@ -113,18 +120,22 @@ protected:
 private:
   InstructionOrdering InstOrdering;
 
-  // AsmPrinterHandler overrides.
 public:
-  void beginModule(Module *M) override;
+  /// For symbols that have a size designated (e.g. common symbols),
+  /// this tracks that size. Only used by DWARF.
+  virtual void setSymbolSize(const MCSymbol *Sym, uint64_t Size) {}
 
-  void beginInstruction(const MachineInstr *MI) override;
-  void endInstruction() override;
+  virtual void beginModule(Module *M);
+  virtual void endModule() = 0;
 
-  void beginFunction(const MachineFunction *MF) override;
-  void endFunction(const MachineFunction *MF) override;
+  virtual void beginInstruction(const MachineInstr *MI);
+  virtual void endInstruction();
 
-  void beginBasicBlock(const MachineBasicBlock &MBB) override;
-  void endBasicBlock(const MachineBasicBlock &MBB) override;
+  void beginFunction(const MachineFunction *MF);
+  void endFunction(const MachineFunction *MF);
+
+  void beginBasicBlockSection(const MachineBasicBlock &MBB);
+  void endBasicBlockSection(const MachineBasicBlock &MBB);
 
   /// Return Label preceding the instruction.
   MCSymbol *getLabelBeforeInsn(const MachineInstr *MI);

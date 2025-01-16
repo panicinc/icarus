@@ -25,7 +25,7 @@ struct PlatformsCommand: ParsableCommand {
         
         let debugger = Debugger()
         for platform in debugger.availablePlatforms {
-            print("\(platform.name): \(platform.descriptiveText ?? "")")
+            print("\(platform.name): \(platform.caption ?? "")")
         }
         
         Debugger.terminate()

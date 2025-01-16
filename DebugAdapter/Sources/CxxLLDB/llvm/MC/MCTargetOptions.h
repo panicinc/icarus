@@ -10,6 +10,7 @@
 #define LLVM_MC_MCTARGETOPTIONS_H
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/Compression.h"
 #include <string>
 #include <vector>
 
@@ -23,11 +24,8 @@ enum class ExceptionHandling {
   WinEH,    ///< Windows Exception Handling
   Wasm,     ///< WebAssembly Exception Handling
   AIX,      ///< AIX Exception Handling
-};
-
-enum class DebugCompressionType {
-  None, ///< No compression
-  Z,    ///< zlib style complession
+  ZOS,      ///< z/OS MVS Exception Handling. Very similar to DwarfCFI, but the PPA1
+            ///< is used instead of an .eh_frame section.
 };
 
 enum class EmitDwarfUnwindType {
@@ -53,6 +51,7 @@ public:
   bool MCNoTypeCheck : 1;
   bool MCSaveTempLabels : 1;
   bool MCIncrementalLinkerCompatible : 1;
+  bool FDPIC : 1;
   bool ShowMCEncoding : 1;
   bool ShowMCInst : 1;
   bool AsmVerbose : 1;
@@ -61,6 +60,15 @@ public:
   bool PreserveAsmComments : 1;
 
   bool Dwarf64 : 1;
+
+  // Use CREL relocation format for ELF.
+  bool Crel = false;
+
+  // If true, prefer R_X86_64_[REX_]GOTPCRELX to R_X86_64_GOTPCREL on x86-64
+  // ELF.
+  bool X86RelaxRelocations = true;
+
+  bool X86Sse2Avx = false;
 
   EmitDwarfUnwindType EmitDwarfUnwind;
 
@@ -77,9 +85,13 @@ public:
   };
   DwarfDirectory MCUseDwarfDirectory;
 
+  // Whether to compress DWARF debug sections.
+  DebugCompressionType CompressDebugSections = DebugCompressionType::None;
+
   std::string ABIName;
   std::string AssemblyLanguage;
   std::string SplitDwarfFile;
+  std::string AsSecureLogFile;
 
   const char *Argv0 = nullptr;
   ArrayRef<std::string> CommandLineArgs;
@@ -87,6 +99,13 @@ public:
   /// Additional paths to search for `.include` directives when using the
   /// integrated assembler.
   std::vector<std::string> IASSearchPaths;
+
+  // Whether to emit compact-unwind for non-canonical personality
+  // functions on Darwins.
+  bool EmitCompactUnwindNonCanonical : 1;
+
+  // Whether or not to use full register names on PowerPC.
+  bool PPCUseFullRegisterNames : 1;
 
   MCTargetOptions();
 

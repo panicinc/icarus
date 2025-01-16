@@ -10,6 +10,8 @@
 #define LLDB_INTERPRETER_COMMANDOBJECT_H
 
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -64,7 +66,7 @@ size_t FindLongestCommandWord(std::map<std::string, ValueType> &dict) {
   return max_len;
 }
 
-class CommandObject {
+class CommandObject : public std::enable_shared_from_this<CommandObject> {
 public:
   typedef llvm::StringRef(ArgumentHelpCallbackFunction)();
 
@@ -81,7 +83,7 @@ public:
   struct ArgumentTableEntry {
     lldb::CommandArgumentType arg_type;
     const char *arg_name;
-    CommandCompletions::CommonCompletionTypes completion_type;
+    lldb::CompletionType completion_type;
     OptionEnumValues enum_values;
     ArgumentHelpCallback help_function;
     const char *help_text;
@@ -205,6 +207,20 @@ public:
   static const ArgumentTableEntry *
   FindArgumentDataByType(lldb::CommandArgumentType arg_type);
 
+  // Sets the argument list for this command to one homogenous argument type,
+  // with the repeat specified.
+  void AddSimpleArgumentList(
+      lldb::CommandArgumentType arg_type,
+      ArgumentRepetitionType repetition_type = eArgRepeatPlain);
+
+  // Helper function to set BP IDs or ID ranges as the command argument data
+  // for this command.
+  // This used to just populate an entry you could add to, but that was never
+  // used.  If we ever need that we can take optional extra args here.
+  // Use this to define a simple argument list:
+  enum IDType { eBreakpointArgs = 0, eWatchpointArgs = 1 };
+  void AddIDsArgumentData(IDType type);
+
   int GetNumArgumentEntries();
 
   CommandArgumentEntry *GetArgumentEntryAtIndex(int idx);
@@ -222,7 +238,10 @@ public:
   void GetFormattedCommandArguments(Stream &str,
                                     uint32_t opt_set_mask = LLDB_OPT_SET_ALL);
 
-  bool IsPairType(ArgumentRepetitionType arg_repeat_type);
+  static bool IsPairType(ArgumentRepetitionType arg_repeat_type);
+
+  static std::optional<ArgumentRepetitionType> 
+    ArgRepetitionFromString(llvm::StringRef string);
 
   bool ParseOptions(Args &args, CommandReturnObject &result);
 
@@ -237,6 +256,13 @@ public:
   ///    The completion request that needs to be answered.
   virtual void HandleCompletion(CompletionRequest &request);
 
+  /// The default version handles argument definitions that have only one
+  /// argument type, and use one of the argument types that have an entry in
+  /// the CommonCompletions.  Override this if you have a more complex
+  /// argument setup.
+  /// FIXME: we should be able to extend this to more complex argument
+  /// definitions provided we have completers for all the argument types.
+  ///
   /// The input array contains a parsed version of the line.
   ///
   /// We've constructed the map of options and their arguments as well if that
@@ -246,7 +272,7 @@ public:
   ///    The completion request that needs to be answered.
   virtual void
   HandleArgumentCompletion(CompletionRequest &request,
-                           OptionElementVector &opt_element_vector) {}
+                           OptionElementVector &opt_element_vector);
 
   bool HelpTextContainsWord(llvm::StringRef search_word,
                             bool search_short_help = true,
@@ -271,14 +297,18 @@ public:
   /// \param[in] current_command_args
   ///    The command arguments.
   ///
+  /// \param[in] index
+  ///    This is for internal use - it is how the completion request is tracked
+  ///    in CommandObjectMultiword, and should otherwise be ignored.
+  ///
   /// \return
-  ///     llvm::None if there is no special repeat command - it will use the
+  ///     std::nullopt if there is no special repeat command - it will use the
   ///     current command line.
   ///     Otherwise a std::string containing the command to be repeated.
   ///     If the string is empty, the command won't be allow repeating.
-  virtual llvm::Optional<std::string>
+  virtual std::optional<std::string>
   GetRepeatCommand(Args &current_command_args, uint32_t index) {
-    return llvm::None;
+    return std::nullopt;
   }
 
   bool HasOverrideCallback() const {
@@ -292,8 +322,9 @@ public:
     m_command_override_baton = baton;
   }
 
-  void SetOverrideCallback(lldb::CommandOverrideCallbackWithResult callback,
-                           void *baton) {
+  void
+  SetOverrideCallback(lldb_private::CommandOverrideCallbackWithResult callback,
+                      void *baton) {
     m_command_override_callback = callback;
     m_command_override_baton = baton;
   }
@@ -309,7 +340,7 @@ public:
       return false;
   }
 
-  virtual bool Execute(const char *args_string,
+  virtual void Execute(const char *args_string,
                        CommandReturnObject &result) = 0;
 
 protected:
@@ -375,15 +406,9 @@ protected:
   Flags m_flags;
   std::vector<CommandArgumentEntry> m_arguments;
   lldb::CommandOverrideCallback m_deprecated_command_override_callback;
-  lldb::CommandOverrideCallbackWithResult m_command_override_callback;
+  lldb_private::CommandOverrideCallbackWithResult m_command_override_callback;
   void *m_command_override_baton;
   bool m_is_user_command = false;
-
-  // Helper function to populate IDs or ID ranges as the command argument data
-  // to the specified command argument entry.
-  static void AddIDsArgumentData(CommandArgumentEntry &arg,
-                                 lldb::CommandArgumentType ID,
-                                 lldb::CommandArgumentType IDRange);
 };
 
 class CommandObjectParsed : public CommandObject {
@@ -395,10 +420,10 @@ public:
 
   ~CommandObjectParsed() override = default;
 
-  bool Execute(const char *args_string, CommandReturnObject &result) override;
+  void Execute(const char *args_string, CommandReturnObject &result) override;
 
 protected:
-  virtual bool DoExecute(Args &command, CommandReturnObject &result) = 0;
+  virtual void DoExecute(Args &command, CommandReturnObject &result) = 0;
 
   bool WantsRawCommandString() override { return false; }
 };
@@ -412,10 +437,10 @@ public:
 
   ~CommandObjectRaw() override = default;
 
-  bool Execute(const char *args_string, CommandReturnObject &result) override;
+  void Execute(const char *args_string, CommandReturnObject &result) override;
 
 protected:
-  virtual bool DoExecute(llvm::StringRef command,
+  virtual void DoExecute(llvm::StringRef command,
                          CommandReturnObject &result) = 0;
 
   bool WantsRawCommandString() override { return true; }

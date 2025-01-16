@@ -16,6 +16,8 @@
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/StackSafetyAnalysis.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Alignment.h"
 
 namespace llvm {
@@ -51,6 +53,8 @@ struct AllocaInfo {
   SmallVector<IntrinsicInst *, 2> LifetimeStart;
   SmallVector<IntrinsicInst *, 2> LifetimeEnd;
   SmallVector<DbgVariableIntrinsic *, 2> DbgVariableIntrinsics;
+  // Non-intrinsic records of variable locations.
+  SmallVector<DbgVariableRecord *, 2> DbgVariableRecords;
 };
 
 struct StackInfo {
@@ -62,19 +66,27 @@ struct StackInfo {
 
 class StackInfoBuilder {
 public:
-  StackInfoBuilder(std::function<bool(const AllocaInst &)> IsInterestingAlloca)
-      : IsInterestingAlloca(IsInterestingAlloca) {}
+  StackInfoBuilder(const StackSafetyGlobalInfo *SSI) : SSI(SSI) {}
 
   void visit(Instruction &Inst);
+  bool isInterestingAlloca(const AllocaInst &AI);
   StackInfo &get() { return Info; };
 
 private:
   StackInfo Info;
-  std::function<bool(const AllocaInst &)> IsInterestingAlloca;
+  const StackSafetyGlobalInfo *SSI;
 };
 
 uint64_t getAllocaSizeInBytes(const AllocaInst &AI);
 void alignAndPadAlloca(memtag::AllocaInfo &Info, llvm::Align Align);
+bool isLifetimeIntrinsic(Value *V);
+
+Value *readRegister(IRBuilder<> &IRB, StringRef Name);
+Value *getFP(IRBuilder<> &IRB);
+Value *getPC(const Triple &TargetTriple, IRBuilder<> &IRB);
+Value *getAndroidSlotPtr(IRBuilder<> &IRB, int Slot);
+
+void annotateDebugRecords(AllocaInfo &Info, unsigned int Tag);
 
 } // namespace memtag
 } // namespace llvm

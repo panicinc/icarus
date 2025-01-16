@@ -1,40 +1,42 @@
 import CxxLLDB
 
-public struct Value {
+public struct Value: Sendable {
     let lldbValue: lldb.SBValue
     
-    init(_ lldbValue: lldb.SBValue) {
+    init?(_ lldbValue: lldb.SBValue) {
+        var lldbValue = lldbValue
+        guard lldbValue.IsValid() else {
+            return nil
+        }
         self.lldbValue = lldbValue
     }
     
+    init(unsafe lldbValue: lldb.SBValue) {
+        self.lldbValue = lldbValue
+    }
+}
+
+extension Value: Identifiable {
+    public var id: Int {
+        var lldbValue = lldbValue
+        return Int(lldbValue.GetID())
+    }
+}
+
+extension Value {
     public var name: String? {
         var lldbValue = lldbValue
-        if let str = lldbValue.GetName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbValue.GetName())
     }
     
     public var typeName: String? {
         var lldbValue = lldbValue
-        if let str = lldbValue.GetTypeName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbValue.GetTypeName())
     }
     
     public var displayTypeName: String? {
         var lldbValue = lldbValue
-        if let str = lldbValue.GetDisplayTypeName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbValue.GetDisplayTypeName())
     }
     
     public var byteSize: Int {
@@ -48,7 +50,7 @@ public struct Value {
     }
     
     /// Equivalent to lldb::ValueType.
-    public struct ValueType: RawRepresentable, Hashable {
+    public struct ValueType: RawRepresentable, Sendable, Hashable {
         public static let invalid = Self(lldb.eValueTypeInvalid)
         public static let global = Self(lldb.eValueTypeVariableGlobal)
         public static let `static` = Self(lldb.eValueTypeVariableStatic)
@@ -79,62 +81,7 @@ public struct Value {
     
     public var value: String? {
         var lldbValue = lldbValue
-        if let str = lldbValue.GetValue() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
-    }
-    
-    public var summary: String? {
-        var lldbValue = lldbValue
-        if let str = lldbValue.GetSummary() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
-    }
-    
-    public var objectDescription: String? {
-        var lldbValue = lldbValue
-        if let str = lldbValue.GetObjectDescription() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
-    }
-    
-    public var isSynthetic: Bool {
-        var lldbValue = lldbValue
-        return lldbValue.IsSynthetic()
-    }
-    
-    public var childCount: Int {
-        var lldbValue = lldbValue
-        return Int(lldbValue.GetNumChildren())
-    }
-    
-    public func child(at index: Int) -> Value {
-        var lldbValue = lldbValue
-        return Value(lldbValue.GetChildAtIndex(UInt32(index)))
-    }
-    
-    public var children: [Value] {
-        (0 ..< childCount).map { child(at: $0) }
-    }
-    
-    public func childMember(withName name: String) -> Value? {
-        var lldbValue = lldbValue
-        var childMember = lldbValue.GetChildMemberWithName(name)
-        if childMember.IsValid() {
-            return Value(childMember)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbValue.GetValue())
     }
     
     public func setValue(_ string: String) throws {
@@ -142,5 +89,48 @@ public struct Value {
         var error = lldb.SBError()
         lldbValue.SetValueFromCString(string, &error)
         try error.throwOnFail()
+    }
+    
+    public var summary: String? {
+        var lldbValue = lldbValue
+        return String(optionalCString: lldbValue.GetSummary())
+    }
+    
+    public var objectDescription: String? {
+        var lldbValue = lldbValue
+        return String(optionalCString: lldbValue.GetObjectDescription())
+    }
+    
+    public var isSynthetic: Bool {
+        var lldbValue = lldbValue
+        return lldbValue.IsSynthetic()
+    }
+    
+    public struct Children: Sendable, RandomAccessCollection {
+        let lldbValue: lldb.SBValue
+        
+        init(_ lldbValue: lldb.SBValue) {
+            self.lldbValue = lldbValue
+        }
+        
+        public var count: Int {
+            var lldbValue = lldbValue
+            return Int(lldbValue.GetNumChildren())
+        }
+        
+        @inlinable public var startIndex: Int { 0 }
+        @inlinable public var endIndex: Int { count }
+        
+        public subscript(position: Int) -> Value {
+            var lldbValue = lldbValue
+            return Value(unsafe: lldbValue.GetChildAtIndex(UInt32(position)))
+        }
+    }
+    
+    public var children: Children { Children(lldbValue) }
+    
+    public func childMember(named name: String) -> Value? {
+        var lldbValue = lldbValue
+        return Value(lldbValue.GetChildMemberWithName(name))
     }
 }

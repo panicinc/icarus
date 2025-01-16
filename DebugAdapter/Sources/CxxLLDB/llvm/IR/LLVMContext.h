@@ -15,16 +15,15 @@
 #define LLVM_IR_LLVMCONTEXT_H
 
 #include "llvm-c/Types.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/DiagnosticHandler.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace llvm {
 
-class Any;
 class DiagnosticInfo;
 enum DiagnosticSeverity : char;
 class Function;
@@ -69,7 +68,7 @@ class LLVMContext {
 public:
   LLVMContextImpl *const pImpl;
   LLVMContext();
-  LLVMContext(LLVMContext &) = delete;
+  LLVMContext(const LLVMContext &) = delete;
   LLVMContext &operator=(const LLVMContext &) = delete;
   ~LLVMContext();
 
@@ -95,6 +94,8 @@ public:
     OB_gc_live = 5,                // "gc-live"
     OB_clang_arc_attachedcall = 6, // "clang.arc.attachedcall"
     OB_ptrauth = 7,                // "ptrauth"
+    OB_kcfi = 8,                   // "kcfi"
+    OB_convergencectrl = 9,        // "convergencectrl"
   };
 
   /// getMDKindID - Return a unique non-zero ID for the specified metadata kind.
@@ -154,6 +155,10 @@ public:
   void enableDebugTypeODRUniquing();
   void disableDebugTypeODRUniquing();
 
+  /// generateMachineFunctionNum - Get a unique number for MachineFunction
+  /// that associated with the given Function.
+  unsigned generateMachineFunctionNum(Function &);
+
   /// Defines the type of a yield callback.
   /// \see LLVMContext::setYieldCallback.
   using YieldCallbackTy = void (*)(LLVMContext *Context, void *OpaqueHandle);
@@ -205,8 +210,8 @@ public:
 
   bool getMisExpectWarningRequested() const;
   void setMisExpectWarningRequested(bool Requested);
-  void setDiagnosticsMisExpectTolerance(Optional<uint64_t> Tolerance);
-  uint64_t getDiagnosticsMisExpectTolerance() const;
+  void setDiagnosticsMisExpectTolerance(std::optional<uint32_t> Tolerance);
+  uint32_t getDiagnosticsMisExpectTolerance() const;
 
   /// Return the minimum hotness value a diagnostic would need in order
   /// to be included in optimization diagnostics.
@@ -222,7 +227,7 @@ public:
 
   /// Set the minimum hotness value a diagnostic needs in order to be
   /// included in optimization diagnostics.
-  void setDiagnosticsHotnessThreshold(Optional<uint64_t> Threshold);
+  void setDiagnosticsHotnessThreshold(std::optional<uint64_t> Threshold);
 
   /// Return if hotness threshold is requested from PSI.
   bool isDiagnosticsHotnessThresholdSetFromPSI() const;
@@ -311,21 +316,32 @@ public:
   /// LLVMContext is used by compilation.
   void setOptPassGate(OptPassGate&);
 
-  /// Whether we've decided on using opaque pointers or typed pointers yet.
-  bool hasSetOpaquePointersValue() const;
-
   /// Set whether opaque pointers are enabled. The method may be called multiple
   /// times, but only with the same value. Note that creating a pointer type or
   /// otherwise querying the opaque pointer mode performs an implicit set to
   /// the default value.
+  [[deprecated("Opaque pointers are always enabled")]]
   void setOpaquePointers(bool Enable) const;
 
   /// Whether typed pointers are supported. If false, all pointers are opaque.
+  [[deprecated("Always returns false")]]
   bool supportsTypedPointers() const;
 
-  /// Optionally target-spcific data can be attached to the context for lifetime
-  /// management and bypassing layering restrictions.
-  llvm::Any &getTargetData() const;
+  /// Get or set the current "default" target CPU (target-cpu function
+  /// attribute). The intent is that compiler frontends will set this to a value
+  /// that reflects the attribute that a function would get "by default" without
+  /// any specific function attributes, and compiler passes will attach the
+  /// attribute to newly created functions that are not associated with a
+  /// particular function, such as global initializers.
+  /// Function::createWithDefaultAttr() will create functions with this
+  /// attribute. This function should only be called by passes that run at
+  /// compile time and not by the backend or LTO passes.
+  StringRef getDefaultTargetCPU();
+  void setDefaultTargetCPU(StringRef CPU);
+
+  /// Similar to {get,set}DefaultTargetCPU() but for default target-features.
+  StringRef getDefaultTargetFeatures();
+  void setDefaultTargetFeatures(StringRef Features);
 
 private:
   // Module needs access to the add/removeModule methods.
@@ -336,7 +352,7 @@ private:
   void addModule(Module*);
 
   /// removeModule - Unregister a module from this context.
-  void removeModule(Module*);
+  void removeModule(Module *);
 };
 
 // Create wrappers for C Binding types (see CBindingWrapping.h).

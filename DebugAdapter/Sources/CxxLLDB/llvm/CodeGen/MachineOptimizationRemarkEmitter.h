@@ -16,8 +16,10 @@
 #define LLVM_CODEGEN_MACHINEOPTIMIZATIONREMARKEMITTER_H
 
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachinePassManager.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Function.h"
+#include <optional>
 
 namespace llvm {
 class MachineBasicBlock;
@@ -154,6 +156,13 @@ public:
                                    MachineBlockFrequencyInfo *MBFI)
       : MF(MF), MBFI(MBFI) {}
 
+  MachineOptimizationRemarkEmitter(MachineOptimizationRemarkEmitter &&) =
+      default;
+
+  /// Handle invalidation events in the new pass manager.
+  bool invalidate(MachineFunction &MF, const PreservedAnalyses &PA,
+                  MachineFunctionAnalysisManager::Invalidator &Inv);
+
   /// Emit an optimization remark.
   void emit(DiagnosticInfoOptimizationBase &OptDiag);
 
@@ -201,7 +210,7 @@ private:
 
   /// Compute hotness from IR value (currently assumed to be a block) if PGO is
   /// available.
-  Optional<uint64_t> computeHotness(const MachineBasicBlock &MBB);
+  std::optional<uint64_t> computeHotness(const MachineBasicBlock &MBB);
 
   /// Similar but use value from \p OptDiag and update hotness there.
   void computeHotness(DiagnosticInfoMIROptimization &Remark);
@@ -209,6 +218,17 @@ private:
   /// Only allow verbose messages if we know we're filtering by hotness
   /// (BFI is only set in this case).
   bool shouldEmitVerbose() { return MBFI != nullptr; }
+};
+
+/// The analysis pass
+class MachineOptimizationRemarkEmitterAnalysis
+    : public AnalysisInfoMixin<MachineOptimizationRemarkEmitterAnalysis> {
+  friend AnalysisInfoMixin<MachineOptimizationRemarkEmitterAnalysis>;
+  static AnalysisKey Key;
+
+public:
+  using Result = MachineOptimizationRemarkEmitter;
+  Result run(MachineFunction &MF, MachineFunctionAnalysisManager &MFAM);
 };
 
 /// The analysis pass

@@ -9,8 +9,9 @@
 #ifndef LLDB_API_SBPROCESSINFO_H
 #define LLDB_API_SBPROCESSINFO_H
 
-#include "lldb/API/SBDefines.h"
 #include <swift/bridging>
+
+#include "lldb/API/SBDefines.h"
 
 namespace lldb {
 
@@ -56,6 +57,7 @@ public:
 
 private:
   friend class SBProcess;
+  friend class SBProcessInfoList;
 
   lldb_private::ProcessInstanceInfo &ref();
 

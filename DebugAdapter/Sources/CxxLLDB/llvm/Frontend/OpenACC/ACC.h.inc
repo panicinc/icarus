@@ -1,13 +1,37 @@
 #ifndef LLVM_OpenACC_INC
 #define LLVM_OpenACC_INC
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitmaskEnum.h"
+#include <cstddef>
 
 namespace llvm {
 class StringRef;
 namespace acc {
 
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
+
+enum class Association {
+  Block,
+  Declaration,
+  Delimited,
+  Loop,
+  None,
+  Separating,
+};
+
+static constexpr std::size_t Association_enumSize = 6;
+
+enum class Category {
+  Declarative,
+  Executable,
+  Informational,
+  Meta,
+  Subsidiary,
+  Utility,
+};
+
+static constexpr std::size_t Category_enumSize = 6;
 
 enum class Directive {
   ACCD_atomic,
@@ -173,6 +197,9 @@ llvm::StringRef getOpenACCClauseName(Clause C);
 /// Return true if \p C is a valid clause for \p D in version \p Version.
 bool isAllowedClauseForDirective(Directive D, Clause C, unsigned Version);
 
+constexpr std::size_t getMaxLeafCount() { return 2; }
+Association getDirectiveAssociation(Directive D);
+Category getDirectiveCategory(Directive D);
 DefaultValue getDefaultValue(StringRef);
 llvm::StringRef getOpenACCDefaultValueName(DefaultValue);
 

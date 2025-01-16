@@ -1,6 +1,6 @@
 import CxxLLDB
 
-public struct ExecutionContext {
+public struct ExecutionContext: Sendable {
     let lldbExecutionContext: lldb.SBExecutionContext
     
     init(_ lldbExecutionContext: lldb.SBExecutionContext) {
@@ -24,42 +24,18 @@ public struct ExecutionContext {
     }
     
     public var target: Target? {
-        let lldbTarget = lldbExecutionContext.GetTarget()
-        if lldbTarget.IsValid() {
-            return Target(lldbTarget)
-        }
-        else {
-            return nil
-        }
+        return Target(lldbExecutionContext.GetTarget())
     }
     
     public var process: Process? {
-        let lldbProcess = lldbExecutionContext.GetProcess()
-        if lldbProcess.IsValid() {
-            return Process(lldbProcess)
-        }
-        else {
-            return nil
-        }
+        return Process(lldbExecutionContext.GetProcess())
     }
     
     public var thread: Thread? {
-        let lldbThread = lldbExecutionContext.GetThread()
-        if lldbThread.IsValid() {
-            return Thread(lldbThread)
-        }
-        else {
-            return nil
-        }
+        return Thread(lldbExecutionContext.GetThread())
     }
     
     public var frame: Frame? {
-        let lldbFrame = lldbExecutionContext.GetFrame()
-        if lldbFrame.IsValid() {
-            return Frame(lldbFrame)
-        }
-        else {
-            return nil
-        }
+        return Frame(lldbExecutionContext.GetFrame())
     }
 }

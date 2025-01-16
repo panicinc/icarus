@@ -1,0 +1,12 @@
+{
+  "actions" : {
+    "build" : {
+      "enabled" : true,
+      "script" : "pushd DebugAdapter\nswift build --product LLDBAdapter --configuration release\npopd\n\npushd Icarus.novaextension\/Executables\nrm -f LLDBAdapter\ncp ..\/..\/DebugAdapter\/.build\/debug\/LLDBAdapter LLDBAdapter\npopd\n"
+    },
+    "clean" : {
+      "enabled" : true,
+      "script" : "pushd DebugAdapter\nswift package clean\npopd\n"
+    }
+  }
+}

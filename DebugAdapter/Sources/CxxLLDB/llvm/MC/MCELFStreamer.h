@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCDirectives.h"
+#include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCObjectStreamer.h"
 
 namespace llvm {
@@ -39,17 +40,18 @@ public:
   /// state management
   void reset() override {
     SeenIdent = false;
-    BundleGroups.clear();
     MCObjectStreamer::reset();
   }
+
+  ELFObjectWriter &getWriter();
 
   /// \name MCStreamer Interface
   /// @{
 
   void initSections(bool NoExecStack, const MCSubtargetInfo &STI) override;
-  void changeSection(MCSection *Section, const MCExpr *Subsection) override;
+  void changeSection(MCSection *Section, uint32_t Subsection = 0) override;
   void emitLabel(MCSymbol *Symbol, SMLoc Loc = SMLoc()) override;
-  void emitLabelAtPos(MCSymbol *Symbol, SMLoc Loc, MCFragment *F,
+  void emitLabelAtPos(MCSymbol *Symbol, SMLoc Loc, MCDataFragment &F,
                       uint64_t Offset) override;
   void emitAssemblerFlag(MCAssemblerFlag Flag) override;
   void emitThumbFunc(MCSymbol *Func) override;
@@ -57,33 +59,35 @@ public:
   bool emitSymbolAttribute(MCSymbol *Symbol, MCSymbolAttr Attribute) override;
   void emitSymbolDesc(MCSymbol *Symbol, unsigned DescValue) override;
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                        unsigned ByteAlignment) override;
+                        Align ByteAlignment) override;
 
   void emitELFSize(MCSymbol *Symbol, const MCExpr *Value) override;
   void emitELFSymverDirective(const MCSymbol *OriginalSym, StringRef Name,
                               bool KeepOriginalSym) override;
 
   void emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                             unsigned ByteAlignment) override;
+                             Align ByteAlignment) override;
 
   void emitZerofill(MCSection *Section, MCSymbol *Symbol = nullptr,
-                    uint64_t Size = 0, unsigned ByteAlignment = 0,
+                    uint64_t Size = 0, Align ByteAlignment = Align(1),
                     SMLoc L = SMLoc()) override;
   void emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol, uint64_t Size,
-                      unsigned ByteAlignment = 0) override;
+                      Align ByteAlignment = Align(1)) override;
   void emitValueImpl(const MCExpr *Value, unsigned Size,
                      SMLoc Loc = SMLoc()) override;
 
   void emitIdent(StringRef IdentString) override;
 
-  void emitValueToAlignment(unsigned, int64_t, unsigned, unsigned) override;
+  void emitValueToAlignment(Align, int64_t, unsigned, unsigned) override;
 
   void emitCGProfileEntry(const MCSymbolRefExpr *From,
                           const MCSymbolRefExpr *To, uint64_t Count) override;
 
-  void finishImpl() override;
+  // This is final. Override MCTargetStreamer::finish instead for
+  // target-specific code.
+  void finishImpl() final;
 
-  void emitBundleAlignMode(unsigned AlignPow2) override;
+  void emitBundleAlignMode(Align Alignment) override;
   void emitBundleLock(bool AlignToEnd) override;
   void emitBundleUnlock() override;
 
@@ -142,21 +146,14 @@ private:
   void finalizeCGProfileEntry(const MCSymbolRefExpr *&S, uint64_t Offset);
   void finalizeCGProfile();
 
-  /// Merge the content of the fragment \p EF into the fragment \p DF.
-  void mergeFragment(MCDataFragment *, MCDataFragment *);
-
   bool SeenIdent = false;
-
-  /// BundleGroups - The stack of fragments holding the bundle-locked
-  /// instructions.
-  SmallVector<MCDataFragment *, 4> BundleGroups;
 };
 
 MCELFStreamer *createARMELFStreamer(MCContext &Context,
                                     std::unique_ptr<MCAsmBackend> TAB,
                                     std::unique_ptr<MCObjectWriter> OW,
                                     std::unique_ptr<MCCodeEmitter> Emitter,
-                                    bool RelaxAll, bool IsThumb, bool IsAndroid);
+                                    bool IsThumb, bool IsAndroid);
 
 } // end namespace llvm
 

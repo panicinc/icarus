@@ -8,6 +8,7 @@
     
     <detectors>
         <extension>cc,cpp,cxx,c++,hh,hpp,h++,ino,ipp,metal,tcc,tpp</extension>
+        <match-content lines="1">\-\*\-.*C\+\+.*\-\*\-</match-content>
         <combo>
             <extension>h</extension>
             <match-content lines="0">^\s*(namespace|class|template)\s+</match-content>

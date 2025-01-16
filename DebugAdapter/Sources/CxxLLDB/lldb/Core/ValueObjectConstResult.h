@@ -23,6 +23,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace lldb_private {
 class DataExtractor;
@@ -62,11 +63,11 @@ public:
   static lldb::ValueObjectSP Create(ExecutionContextScope *exe_scope,
                                     const Status &error);
 
-  llvm::Optional<uint64_t> GetByteSize() override;
+  std::optional<uint64_t> GetByteSize() override;
 
   lldb::ValueType GetValueType() const override;
 
-  size_t CalculateNumChildren(uint32_t max) override;
+  llvm::Expected<uint32_t> CalculateNumChildren(uint32_t max) override;
 
   ConstString GetTypeName() override;
 
@@ -77,9 +78,6 @@ public:
   void SetByteSize(size_t size);
 
   lldb::ValueObjectSP Dereference(Status &error) override;
-
-  ValueObject *CreateChildAtIndex(size_t idx, bool synthetic_array_member,
-                                  int32_t synthetic_index) override;
 
   lldb::ValueObjectSP GetSyntheticChildAtOffset(
       uint32_t offset, const CompilerType &type, bool can_create,
@@ -105,7 +103,7 @@ public:
 
   lldb::LanguageType GetPreferredDisplayLanguage() override;
 
-  lldb::ValueObjectSP Cast(const CompilerType &compiler_type) override;
+  lldb::ValueObjectSP DoCast(const CompilerType &compiler_type) override;
 
 protected:
   bool UpdateValue() override;
@@ -113,7 +111,7 @@ protected:
   CompilerType GetCompilerTypeImpl() override;
 
   ConstString m_type_name;
-  llvm::Optional<uint64_t> m_byte_size;
+  std::optional<uint64_t> m_byte_size;
 
   ValueObjectConstResultImpl m_impl;
 
@@ -149,6 +147,13 @@ private:
 
   ValueObjectConstResult(ExecutionContextScope *exe_scope,
                          ValueObjectManager &manager, const Status &error);
+
+  ValueObject *CreateChildAtIndex(size_t idx) override {
+    return m_impl.CreateChildAtIndex(idx);
+  }
+  ValueObject *CreateSyntheticArrayMember(size_t idx) override {
+    return m_impl.CreateSyntheticArrayMember(idx);
+  }
 
   ValueObjectConstResult(const ValueObjectConstResult &) = delete;
   const ValueObjectConstResult &

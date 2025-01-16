@@ -125,6 +125,19 @@ protected:
   virtual bool equal_to(SMTExpr const &other) const = 0;
 };
 
+class SMTSolverStatistics {
+public:
+  SMTSolverStatistics() = default;
+  virtual ~SMTSolverStatistics() = default;
+
+  virtual double getDouble(llvm::StringRef) const = 0;
+  virtual unsigned getUnsigned(llvm::StringRef) const = 0;
+
+  virtual void print(raw_ostream &OS) const = 0;
+
+  LLVM_DUMP_METHOD void dump() const;
+};
+
 /// Shared pointer for SMTExprs, used by SMTSolver API.
 using SMTExprRef = const SMTExpr *;
 
@@ -419,7 +432,7 @@ public:
                                  llvm::APFloat &Float) = 0;
 
   /// Check if the constraints are satisfiable
-  virtual Optional<bool> check() const = 0;
+  virtual std::optional<bool> check() const = 0;
 
   /// Push the current solver state
   virtual void push() = 0;
@@ -434,6 +447,12 @@ public:
   virtual bool isFPSupported() = 0;
 
   virtual void print(raw_ostream &OS) const = 0;
+
+  /// Sets the requested option.
+  virtual void setBoolParam(StringRef Key, bool Value) = 0;
+  virtual void setUnsignedParam(StringRef Key, unsigned Value) = 0;
+
+  virtual std::unique_ptr<SMTSolverStatistics> getStatistics() const = 0;
 };
 
 /// Shared pointer for SMTSolvers.

@@ -26,7 +26,6 @@
 #define LLVM_SUPPORT_FORMATVARIADIC_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -37,6 +36,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -66,7 +66,7 @@ struct ReplacementItem {
 class formatv_object_base {
 protected:
   StringRef Fmt;
-  ArrayRef<detail::format_adapter *> Adapters;
+  ArrayRef<support::detail::format_adapter *> Adapters;
 
   static bool consumeFieldLayout(StringRef &Spec, AlignStyle &Where,
                                  size_t &Align, char &Pad);
@@ -75,7 +75,7 @@ protected:
   splitLiteralAndReplacement(StringRef Fmt);
 
   formatv_object_base(StringRef Fmt,
-                      ArrayRef<detail::format_adapter *> Adapters)
+                      ArrayRef<support::detail::format_adapter *> Adapters)
       : Fmt(Fmt), Adapters(Adapters) {}
 
   formatv_object_base(formatv_object_base const &rhs) = delete;
@@ -103,7 +103,7 @@ public:
   }
   static SmallVector<ReplacementItem, 2> parseFormatString(StringRef Fmt);
 
-  static Optional<ReplacementItem> parseReplacementItem(StringRef Spec);
+  static std::optional<ReplacementItem> parseReplacementItem(StringRef Spec);
 
   std::string str() const {
     std::string Result;
@@ -130,7 +130,7 @@ template <typename Tuple> class formatv_object : public formatv_object_base {
   // of the parameters, we have to own the storage for the parameters here, and
   // have the base class store type-erased pointers into this tuple.
   Tuple Parameters;
-  std::array<detail::format_adapter *, std::tuple_size<Tuple>::value>
+  std::array<support::detail::format_adapter *, std::tuple_size<Tuple>::value>
       ParameterPointers;
 
   // The parameters are stored in a std::tuple, which does not provide runtime
@@ -142,8 +142,8 @@ template <typename Tuple> class formatv_object : public formatv_object_base {
   // std::array<Base*>.
   struct create_adapters {
     template <typename... Ts>
-    std::array<detail::format_adapter *, std::tuple_size<Tuple>::value>
-    operator()(Ts &... Items) {
+    std::array<support::detail::format_adapter *, std::tuple_size<Tuple>::value>
+    operator()(Ts &...Items) {
       return {{&Items...}};
     }
   };
@@ -152,7 +152,7 @@ public:
   formatv_object(StringRef Fmt, Tuple &&Params)
       : formatv_object_base(Fmt, ParameterPointers),
         Parameters(std::move(Params)) {
-    ParameterPointers = apply_tuple(create_adapters(), Parameters);
+    ParameterPointers = std::apply(create_adapters(), Parameters);
   }
 
   formatv_object(formatv_object const &rhs) = delete;
@@ -160,7 +160,7 @@ public:
   formatv_object(formatv_object &&rhs)
       : formatv_object_base(std::move(rhs)),
         Parameters(std::move(rhs.Parameters)) {
-    ParameterPointers = apply_tuple(create_adapters(), Parameters);
+    ParameterPointers = std::apply(create_adapters(), Parameters);
     Adapters = ParameterPointers;
   }
 };
@@ -248,13 +248,14 @@ public:
 // the details of what that is are undefined.
 //
 template <typename... Ts>
-inline auto formatv(const char *Fmt, Ts &&... Vals) -> formatv_object<decltype(
-    std::make_tuple(detail::build_format_adapter(std::forward<Ts>(Vals))...))> {
-  using ParamTuple = decltype(
-      std::make_tuple(detail::build_format_adapter(std::forward<Ts>(Vals))...));
+inline auto formatv(const char *Fmt, Ts &&...Vals)
+    -> formatv_object<decltype(std::make_tuple(
+        support::detail::build_format_adapter(std::forward<Ts>(Vals))...))> {
+  using ParamTuple = decltype(std::make_tuple(
+      support::detail::build_format_adapter(std::forward<Ts>(Vals))...));
   return formatv_object<ParamTuple>(
-      Fmt,
-      std::make_tuple(detail::build_format_adapter(std::forward<Ts>(Vals))...));
+      Fmt, std::make_tuple(support::detail::build_format_adapter(
+               std::forward<Ts>(Vals))...));
 }
 
 } // end namespace llvm

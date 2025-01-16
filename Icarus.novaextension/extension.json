@@ -99,7 +99,7 @@
                     "key": "launchPath",
                     "title": "Executable",
                     "type": "path",
-                    "description": "The application bundle or command line tool to debug.",
+                    "description": "The application bundle or command line tool path to debug.",
                     "relative": true
                 },
                 {
@@ -121,7 +121,7 @@
                     "key": "cwd",
                     "title": "Working Directory",
                     "type": "path",
-                    "description": "The current working directory to set when launching the executable.",
+                    "description": "The current working directory to set when launching.",
                     "placeholder": "Parent Directory",
                     "allowFiles": false,
                     "allowFolders": true,
@@ -132,7 +132,7 @@
                     "title": "Stop at Entry",
                     "type": "boolean",
                     "default": false,
-                    "description": "Stop at the program entry point when launching."
+                    "description": "Stop at the program entry point after launching."
                 },
                 {
                     "key": "runInRosetta",

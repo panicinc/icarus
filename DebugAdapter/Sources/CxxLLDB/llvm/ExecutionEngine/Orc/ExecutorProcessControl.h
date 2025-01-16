@@ -14,7 +14,6 @@
 #define LLVM_EXECUTIONENGINE_ORC_EXECUTORPROCESSCONTROL_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
 #include "llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h"
@@ -23,6 +22,7 @@
 #include "llvm/ExecutionEngine/Orc/TaskDispatch.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/MSVCErrorWorkarounds.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <future>
 #include <mutex>
@@ -120,6 +120,9 @@ public:
     virtual void writeBuffersAsync(ArrayRef<tpctypes::BufferWrite> Ws,
                                    WriteResultFn OnWriteComplete) = 0;
 
+    virtual void writePointersAsync(ArrayRef<tpctypes::PointerWrite> Ws,
+                                    WriteResultFn OnWriteComplete) = 0;
+
     Error writeUInt8s(ArrayRef<tpctypes::UInt8Write> Ws) {
       std::promise<MSVCPError> ResultP;
       auto ResultF = ResultP.get_future();
@@ -157,6 +160,14 @@ public:
       auto ResultF = ResultP.get_future();
       writeBuffersAsync(Ws,
                         [&](Error Err) { ResultP.set_value(std::move(Err)); });
+      return ResultF.get();
+    }
+
+    Error writePointers(ArrayRef<tpctypes::PointerWrite> Ws) {
+      std::promise<MSVCPError> ResultP;
+      auto ResultF = ResultP.get_future();
+      writePointersAsync(Ws,
+                         [&](Error Err) { ResultP.set_value(std::move(Err)); });
       return ResultF.get();
     }
   };
@@ -218,6 +229,33 @@ public:
     return *MemMgr;
   }
 
+  /// Returns the bootstrap map.
+  const StringMap<std::vector<char>> &getBootstrapMap() const {
+    return BootstrapMap;
+  }
+
+  /// Look up and SPS-deserialize a bootstrap map value.
+  ///
+  ///
+  template <typename T, typename SPSTagT>
+  Error getBootstrapMapValue(StringRef Key, std::optional<T> &Val) const {
+    Val = std::nullopt;
+
+    auto I = BootstrapMap.find(Key);
+    if (I == BootstrapMap.end())
+      return Error::success();
+
+    T Tmp;
+    shared::SPSInputBuffer IB(I->second.data(), I->second.size());
+    if (!shared::SPSArgList<SPSTagT>::deserialize(IB, Tmp))
+      return make_error<StringError>("Could not deserialize value for key " +
+                                         Key,
+                                     inconvertibleErrorCode());
+
+    Val = std::move(Tmp);
+    return Error::success();
+  }
+
   /// Returns the bootstrap symbol map.
   const StringMap<ExecutorAddr> &getBootstrapSymbolsMap() const {
     return BootstrapSymbols;
@@ -228,7 +266,7 @@ public:
   /// found. If any symbol is not found then the function returns an error.
   Error getBootstrapSymbols(
       ArrayRef<std::pair<ExecutorAddr &, StringRef>> Pairs) const {
-    for (auto &KV : Pairs) {
+    for (const auto &KV : Pairs) {
       auto I = BootstrapSymbols.find(KV.second);
       if (I == BootstrapSymbols.end())
         return make_error<StringError>("Symbol \"" + KV.second +
@@ -248,16 +286,43 @@ public:
 
   /// Search for symbols in the target process.
   ///
-  /// The result of the lookup is a 2-dimentional array of target addresses
+  /// The result of the lookup is a 2-dimensional array of target addresses
   /// that correspond to the lookup order. If a required symbol is not
   /// found then this method will return an error. If a weakly referenced
   /// symbol is not found then it be assigned a '0' value.
-  virtual Expected<std::vector<tpctypes::LookupResult>>
-  lookupSymbols(ArrayRef<LookupRequest> Request) = 0;
+  Expected<std::vector<tpctypes::LookupResult>>
+  lookupSymbols(ArrayRef<LookupRequest> Request) {
+    std::promise<MSVCPExpected<std::vector<tpctypes::LookupResult>>> RP;
+    auto RF = RP.get_future();
+    lookupSymbolsAsync(Request,
+                       [&RP](auto Result) { RP.set_value(std::move(Result)); });
+    return RF.get();
+  }
+
+  using SymbolLookupCompleteFn =
+      unique_function<void(Expected<std::vector<tpctypes::LookupResult>>)>;
+
+  /// Search for symbols in the target process.
+  ///
+  /// The result of the lookup is a 2-dimensional array of target addresses
+  /// that correspond to the lookup order. If a required symbol is not
+  /// found then this method will return an error. If a weakly referenced
+  /// symbol is not found then it be assigned a '0' value.
+  virtual void lookupSymbolsAsync(ArrayRef<LookupRequest> Request,
+                                  SymbolLookupCompleteFn F) = 0;
 
   /// Run function with a main-like signature.
   virtual Expected<int32_t> runAsMain(ExecutorAddr MainFnAddr,
                                       ArrayRef<std::string> Args) = 0;
+
+  // TODO: move this to ORC runtime.
+  /// Run function with a int (*)(void) signature.
+  virtual Expected<int32_t> runAsVoidFunction(ExecutorAddr VoidFnAddr) = 0;
+
+  // TODO: move this to ORC runtime.
+  /// Run function with a int (*)(int) signature.
+  virtual Expected<int32_t> runAsIntFunction(ExecutorAddr IntFnAddr,
+                                             int Arg) = 0;
 
   /// Run a wrapper function in the executor. The given WFRHandler will be
   /// called on the result when it is returned.
@@ -363,37 +428,73 @@ protected:
   JITDispatchInfo JDI;
   MemoryAccess *MemAccess = nullptr;
   jitlink::JITLinkMemoryManager *MemMgr = nullptr;
+  StringMap<std::vector<char>> BootstrapMap;
   StringMap<ExecutorAddr> BootstrapSymbols;
+};
+
+class InProcessMemoryAccess : public ExecutorProcessControl::MemoryAccess {
+public:
+  InProcessMemoryAccess(bool IsArch64Bit) : IsArch64Bit(IsArch64Bit) {}
+  void writeUInt8sAsync(ArrayRef<tpctypes::UInt8Write> Ws,
+                        WriteResultFn OnWriteComplete) override;
+
+  void writeUInt16sAsync(ArrayRef<tpctypes::UInt16Write> Ws,
+                         WriteResultFn OnWriteComplete) override;
+
+  void writeUInt32sAsync(ArrayRef<tpctypes::UInt32Write> Ws,
+                         WriteResultFn OnWriteComplete) override;
+
+  void writeUInt64sAsync(ArrayRef<tpctypes::UInt64Write> Ws,
+                         WriteResultFn OnWriteComplete) override;
+
+  void writeBuffersAsync(ArrayRef<tpctypes::BufferWrite> Ws,
+                         WriteResultFn OnWriteComplete) override;
+
+  void writePointersAsync(ArrayRef<tpctypes::PointerWrite> Ws,
+                          WriteResultFn OnWriteComplete) override;
+
+private:
+  bool IsArch64Bit;
 };
 
 /// A ExecutorProcessControl instance that asserts if any of its methods are
 /// used. Suitable for use is unit tests, and by ORC clients who haven't moved
 /// to ExecutorProcessControl-based APIs yet.
-class UnsupportedExecutorProcessControl : public ExecutorProcessControl {
+class UnsupportedExecutorProcessControl : public ExecutorProcessControl,
+                                          private InProcessMemoryAccess {
 public:
   UnsupportedExecutorProcessControl(
       std::shared_ptr<SymbolStringPool> SSP = nullptr,
-      std::unique_ptr<TaskDispatcher> D = nullptr,
-      const std::string &TT = "", unsigned PageSize = 0)
-      : ExecutorProcessControl(SSP ? std::move(SSP)
-                               : std::make_shared<SymbolStringPool>(),
-                               D ? std::move(D)
-                               : std::make_unique<InPlaceTaskDispatcher>()) {
+      std::unique_ptr<TaskDispatcher> D = nullptr, const std::string &TT = "",
+      unsigned PageSize = 0)
+      : ExecutorProcessControl(
+            SSP ? std::move(SSP) : std::make_shared<SymbolStringPool>(),
+            D ? std::move(D) : std::make_unique<InPlaceTaskDispatcher>()),
+        InProcessMemoryAccess(Triple(TT).isArch64Bit()) {
     this->TargetTriple = Triple(TT);
     this->PageSize = PageSize;
+    this->MemAccess = this;
   }
 
   Expected<tpctypes::DylibHandle> loadDylib(const char *DylibPath) override {
     llvm_unreachable("Unsupported");
   }
 
-  Expected<std::vector<tpctypes::LookupResult>>
-  lookupSymbols(ArrayRef<LookupRequest> Request) override {
+  void lookupSymbolsAsync(ArrayRef<LookupRequest> Request,
+                          SymbolLookupCompleteFn F) override {
     llvm_unreachable("Unsupported");
   }
 
   Expected<int32_t> runAsMain(ExecutorAddr MainFnAddr,
                               ArrayRef<std::string> Args) override {
+    llvm_unreachable("Unsupported");
+  }
+
+  Expected<int32_t> runAsVoidFunction(ExecutorAddr VoidFnAddr) override {
+    llvm_unreachable("Unsupported");
+  }
+
+  Expected<int32_t> runAsIntFunction(ExecutorAddr IntFnAddr, int Arg) override {
     llvm_unreachable("Unsupported");
   }
 
@@ -407,9 +508,8 @@ public:
 };
 
 /// A ExecutorProcessControl implementation targeting the current process.
-class SelfExecutorProcessControl
-    : public ExecutorProcessControl,
-      private ExecutorProcessControl::MemoryAccess {
+class SelfExecutorProcessControl : public ExecutorProcessControl,
+                                   private InProcessMemoryAccess {
 public:
   SelfExecutorProcessControl(
       std::shared_ptr<SymbolStringPool> SSP, std::unique_ptr<TaskDispatcher> D,
@@ -428,11 +528,15 @@ public:
 
   Expected<tpctypes::DylibHandle> loadDylib(const char *DylibPath) override;
 
-  Expected<std::vector<tpctypes::LookupResult>>
-  lookupSymbols(ArrayRef<LookupRequest> Request) override;
+  void lookupSymbolsAsync(ArrayRef<LookupRequest> Request,
+                          SymbolLookupCompleteFn F) override;
 
   Expected<int32_t> runAsMain(ExecutorAddr MainFnAddr,
                               ArrayRef<std::string> Args) override;
+
+  Expected<int32_t> runAsVoidFunction(ExecutorAddr VoidFnAddr) override;
+
+  Expected<int32_t> runAsIntFunction(ExecutorAddr IntFnAddr, int Arg) override;
 
   void callWrapperAsync(ExecutorAddr WrapperFnAddr,
                         IncomingWFRHandler OnComplete,
@@ -441,28 +545,12 @@ public:
   Error disconnect() override;
 
 private:
-  void writeUInt8sAsync(ArrayRef<tpctypes::UInt8Write> Ws,
-                        WriteResultFn OnWriteComplete) override;
-
-  void writeUInt16sAsync(ArrayRef<tpctypes::UInt16Write> Ws,
-                         WriteResultFn OnWriteComplete) override;
-
-  void writeUInt32sAsync(ArrayRef<tpctypes::UInt32Write> Ws,
-                         WriteResultFn OnWriteComplete) override;
-
-  void writeUInt64sAsync(ArrayRef<tpctypes::UInt64Write> Ws,
-                         WriteResultFn OnWriteComplete) override;
-
-  void writeBuffersAsync(ArrayRef<tpctypes::BufferWrite> Ws,
-                         WriteResultFn OnWriteComplete) override;
-
   static shared::CWrapperFunctionResult
   jitDispatchViaWrapperFunctionManager(void *Ctx, const void *FnTag,
                                        const char *Data, size_t Size);
 
   std::unique_ptr<jitlink::JITLinkMemoryManager> OwnedMemMgr;
   char GlobalManglingPrefix = 0;
-  std::vector<std::unique_ptr<sys::DynamicLibrary>> DynamicLibraries;
 };
 
 } // end namespace orc

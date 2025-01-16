@@ -9,6 +9,7 @@
 #ifndef LLVM_CODEGEN_SELECTIONDAGADDRESSANALYSIS_H
 #define LLVM_CODEGEN_SELECTIONDAGADDRESSANALYSIS_H
 
+#include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include <cstdint>
 
@@ -33,7 +34,7 @@ class BaseIndexOffset {
 private:
   SDValue Base;
   SDValue Index;
-  Optional<int64_t> Offset;
+  std::optional<int64_t> Offset;
   bool IsIndexSignExt = false;
 
 public:
@@ -49,6 +50,9 @@ public:
   SDValue getBase() const { return Base; }
   SDValue getIndex() { return Index; }
   SDValue getIndex() const { return Index; }
+  void addToOffset(int64_t VectorOff) {
+    Offset = Offset.value_or(0) + VectorOff;
+  }
   bool hasValidOffset() const { return Offset.has_value(); }
   int64_t getOffset() const { return *Offset; }
 
@@ -78,10 +82,8 @@ public:
 
   // Returns true `Op0` and `Op1` can be proven to alias/not alias, in
   // which case `IsAlias` is set to true/false.
-  static bool computeAliasing(const SDNode *Op0,
-                              const Optional<int64_t> NumBytes0,
-                              const SDNode *Op1,
-                              const Optional<int64_t> NumBytes1,
+  static bool computeAliasing(const SDNode *Op0, const LocationSize NumBytes0,
+                              const SDNode *Op1, const LocationSize NumBytes1,
                               const SelectionDAG &DAG, bool &IsAlias);
 
   /// Parses tree in N for base, index, offset addresses.

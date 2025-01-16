@@ -37,7 +37,7 @@ public:
 
   uint32_t GetSize() const;
 
-  const char *GetStringAtIndex(size_t idx) SWIFT_RETURNS_INDEPENDENT_VALUE;
+  const char *GetStringAtIndex(size_t idx);
 
   const char *GetStringAtIndex(size_t idx) const SWIFT_RETURNS_INDEPENDENT_VALUE;
 
@@ -49,10 +49,13 @@ protected:
   friend class SBBreakpoint;
   friend class SBBreakpointLocation;
   friend class SBBreakpointName;
+  friend class SBStructuredData;
 
   SBStringList(const lldb_private::StringList *lldb_strings);
 
   void AppendList(const lldb_private::StringList &strings);
+
+  lldb_private::StringList *operator->();
 
   const lldb_private::StringList *operator->() const;
 

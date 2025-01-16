@@ -15,15 +15,15 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitmaskEnum.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DbgVariableFragmentInfo.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/PseudoProbe.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Discriminator.h"
@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <vector>
 
 // Helper macros for defining get() overrides.
@@ -63,6 +64,9 @@ namespace llvm {
 namespace dwarf {
 enum Tag : uint16_t;
 }
+
+class DbgVariableIntrinsic;
+class DbgVariableRecord;
 
 extern cl::opt<bool> EnableFSDiscriminator;
 
@@ -126,13 +130,15 @@ public:
 /// A metadata node with a DWARF tag (i.e., a constant named \c DW_TAG_*,
 /// defined in llvm/BinaryFormat/Dwarf.h).  Called \a DINode because it's
 /// potentially used for non-DWARF output.
+///
+/// Uses the SubclassData16 Metadata slot.
 class DINode : public MDNode {
   friend class LLVMContextImpl;
   friend class MDNode;
 
 protected:
   DINode(LLVMContext &C, unsigned ID, StorageType Storage, unsigned Tag,
-         ArrayRef<Metadata *> Ops1, ArrayRef<Metadata *> Ops2 = None)
+         ArrayRef<Metadata *> Ops1, ArrayRef<Metadata *> Ops2 = std::nullopt)
       : MDNode(C, ID, Storage, Ops1, Ops2) {
     assert(Tag < 1u << 16);
     SubclassData16 = Tag;
@@ -213,6 +219,7 @@ public:
     case DIImportedEntityKind:
     case DIModuleKind:
     case DIGenericSubrangeKind:
+    case DIAssignIDKind:
       return true;
     }
   }
@@ -224,6 +231,8 @@ public:
 /// (possibly empty) null-separated \a MDString header that contains arbitrary
 /// fields.  The remaining operands are \a dwarf_operands(), and are pointers
 /// to other metadata.
+///
+/// Uses the SubclassData32 Metadata slot.
 class GenericDINode : public DINode {
   friend class LLVMContextImpl;
   friend class MDNode;
@@ -290,6 +299,45 @@ public:
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == GenericDINodeKind;
+  }
+};
+
+/// Assignment ID.
+/// Used to link stores (as an attachment) and dbg.assigns (as an operand).
+/// DIAssignID metadata is never uniqued as we compare instances using
+/// referential equality (the instance/address is the ID).
+class DIAssignID : public MDNode {
+  friend class LLVMContextImpl;
+  friend class MDNode;
+
+  DIAssignID(LLVMContext &C, StorageType Storage)
+      : MDNode(C, DIAssignIDKind, Storage, std::nullopt) {}
+
+  ~DIAssignID() { dropAllReferences(); }
+
+  static DIAssignID *getImpl(LLVMContext &Context, StorageType Storage,
+                             bool ShouldCreate = true);
+
+  TempDIAssignID cloneImpl() const { return getTemporary(getContext()); }
+
+public:
+  // This node has no operands to replace.
+  void replaceOperandWith(unsigned I, Metadata *New) = delete;
+
+  SmallVector<DbgVariableRecord *> getAllDbgVariableRecordUsers() {
+    return Context.getReplaceableUses()->getAllDbgVariableRecordUsers();
+  }
+
+  static DIAssignID *getDistinct(LLVMContext &Context) {
+    return getImpl(Context, Distinct);
+  }
+  static TempDIAssignID getTemporary(LLVMContext &Context) {
+    return TempDIAssignID(getImpl(Context, Temporary));
+  }
+  // NOTE: Do not define get(LLVMContext&) - see class comment.
+
+  static bool classof(const Metadata *MD) {
+    return MD->getMetadataID() == DIAssignIDKind;
   }
 };
 
@@ -480,7 +528,7 @@ public:
 
   inline StringRef getFilename() const;
   inline StringRef getDirectory() const;
-  inline Optional<StringRef> getSource() const;
+  inline std::optional<StringRef> getSource() const;
 
   StringRef getName() const;
   DIScope *getScope() const;
@@ -559,33 +607,32 @@ public:
   };
 
 private:
-  Optional<ChecksumInfo<MDString *>> Checksum;
-  Optional<MDString *> Source;
+  std::optional<ChecksumInfo<MDString *>> Checksum;
+  /// An optional source. A nullptr means none.
+  MDString *Source;
 
   DIFile(LLVMContext &C, StorageType Storage,
-         Optional<ChecksumInfo<MDString *>> CS, Optional<MDString *> Src,
+         std::optional<ChecksumInfo<MDString *>> CS, MDString *Src,
          ArrayRef<Metadata *> Ops);
   ~DIFile() = default;
 
   static DIFile *getImpl(LLVMContext &Context, StringRef Filename,
                          StringRef Directory,
-                         Optional<ChecksumInfo<StringRef>> CS,
-                         Optional<StringRef> Source, StorageType Storage,
+                         std::optional<ChecksumInfo<StringRef>> CS,
+                         std::optional<StringRef> Source, StorageType Storage,
                          bool ShouldCreate = true) {
-    Optional<ChecksumInfo<MDString *>> MDChecksum;
+    std::optional<ChecksumInfo<MDString *>> MDChecksum;
     if (CS)
       MDChecksum.emplace(CS->Kind, getCanonicalMDString(Context, CS->Value));
-    return getImpl(
-        Context, getCanonicalMDString(Context, Filename),
-        getCanonicalMDString(Context, Directory), MDChecksum,
-        Source ? Optional<MDString *>(getCanonicalMDString(Context, *Source))
-               : None,
-        Storage, ShouldCreate);
+    return getImpl(Context, getCanonicalMDString(Context, Filename),
+                   getCanonicalMDString(Context, Directory), MDChecksum,
+                   Source ? MDString::get(Context, *Source) : nullptr, Storage,
+                   ShouldCreate);
   }
   static DIFile *getImpl(LLVMContext &Context, MDString *Filename,
                          MDString *Directory,
-                         Optional<ChecksumInfo<MDString *>> CS,
-                         Optional<MDString *> Source, StorageType Storage,
+                         std::optional<ChecksumInfo<MDString *>> CS,
+                         MDString *Source, StorageType Storage,
                          bool ShouldCreate = true);
 
   TempDIFile cloneImpl() const {
@@ -596,36 +643,39 @@ private:
 public:
   DEFINE_MDNODE_GET(DIFile,
                     (StringRef Filename, StringRef Directory,
-                     Optional<ChecksumInfo<StringRef>> CS = None,
-                     Optional<StringRef> Source = None),
+                     std::optional<ChecksumInfo<StringRef>> CS = std::nullopt,
+                     std::optional<StringRef> Source = std::nullopt),
                     (Filename, Directory, CS, Source))
   DEFINE_MDNODE_GET(DIFile,
                     (MDString * Filename, MDString *Directory,
-                     Optional<ChecksumInfo<MDString *>> CS = None,
-                     Optional<MDString *> Source = None),
+                     std::optional<ChecksumInfo<MDString *>> CS = std::nullopt,
+                     MDString *Source = nullptr),
                     (Filename, Directory, CS, Source))
 
   TempDIFile clone() const { return cloneImpl(); }
 
   StringRef getFilename() const { return getStringOperand(0); }
   StringRef getDirectory() const { return getStringOperand(1); }
-  Optional<ChecksumInfo<StringRef>> getChecksum() const {
-    Optional<ChecksumInfo<StringRef>> StringRefChecksum;
+  std::optional<ChecksumInfo<StringRef>> getChecksum() const {
+    std::optional<ChecksumInfo<StringRef>> StringRefChecksum;
     if (Checksum)
       StringRefChecksum.emplace(Checksum->Kind, Checksum->Value->getString());
     return StringRefChecksum;
   }
-  Optional<StringRef> getSource() const {
-    return Source ? Optional<StringRef>((*Source)->getString()) : None;
+  std::optional<StringRef> getSource() const {
+    return Source ? std::optional<StringRef>(Source->getString())
+                  : std::nullopt;
   }
 
   MDString *getRawFilename() const { return getOperandAs<MDString>(0); }
   MDString *getRawDirectory() const { return getOperandAs<MDString>(1); }
-  Optional<ChecksumInfo<MDString *>> getRawChecksum() const { return Checksum; }
-  Optional<MDString *> getRawSource() const { return Source; }
+  std::optional<ChecksumInfo<MDString *>> getRawChecksum() const {
+    return Checksum;
+  }
+  MDString *getRawSource() const { return Source; }
 
   static StringRef getChecksumKindAsString(ChecksumKind CSKind);
-  static Optional<ChecksumKind> getChecksumKind(StringRef CSKindStr);
+  static std::optional<ChecksumKind> getChecksumKind(StringRef CSKindStr);
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DIFileKind;
@@ -644,10 +694,10 @@ StringRef DIScope::getDirectory() const {
   return "";
 }
 
-Optional<StringRef> DIScope::getSource() const {
+std::optional<StringRef> DIScope::getSource() const {
   if (auto *F = getFile())
     return F->getSource();
-  return None;
+  return std::nullopt;
 }
 
 /// Base class for types.
@@ -655,12 +705,13 @@ Optional<StringRef> DIScope::getSource() const {
 /// TODO: Remove the hardcoded name and context, since many types don't use
 /// them.
 /// TODO: Split up flags.
+///
+/// Uses the SubclassData32 Metadata slot.
 class DIType : public DIScope {
   unsigned Line;
   DIFlags Flags;
   uint64_t SizeInBits;
   uint64_t OffsetInBits;
-  uint32_t AlignInBits;
 
 protected:
   DIType(LLVMContext &C, unsigned ID, StorageType Storage, unsigned Tag,
@@ -676,7 +727,7 @@ protected:
     this->Line = Line;
     this->Flags = Flags;
     this->SizeInBits = SizeInBits;
-    this->AlignInBits = AlignInBits;
+    this->SubclassData32 = AlignInBits;
     this->OffsetInBits = OffsetInBits;
   }
 
@@ -695,7 +746,7 @@ public:
 
   unsigned getLine() const { return Line; }
   uint64_t getSizeInBits() const { return SizeInBits; }
-  uint32_t getAlignInBits() const { return AlignInBits; }
+  uint32_t getAlignInBits() const;
   uint32_t getAlignInBytes() const { return getAlignInBits() / CHAR_BIT; }
   uint64_t getOffsetInBits() const { return OffsetInBits; }
   DIFlags getFlags() const { return Flags; }
@@ -819,9 +870,9 @@ public:
 
   enum class Signedness { Signed, Unsigned };
 
-  /// Return the signedness of this type, or None if this type is neither
-  /// signed nor unsigned.
-  Optional<Signedness> getSignedness() const;
+  /// Return the signedness of this type, or std::nullopt if this type is
+  /// neither signed nor unsigned.
+  std::optional<Signedness> getSignedness() const;
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DIBasicTypeKind;
@@ -922,69 +973,109 @@ public:
 ///
 /// TODO: Split out members (inheritance, fields, methods, etc.).
 class DIDerivedType : public DIType {
+public:
+  /// Pointer authentication (__ptrauth) metadata.
+  struct PtrAuthData {
+    // RawData layout:
+    // - Bits 0..3:  Key
+    // - Bit  4:     IsAddressDiscriminated
+    // - Bits 5..20: ExtraDiscriminator
+    // - Bit  21:    IsaPointer
+    // - Bit  22:    AuthenticatesNullValues
+    unsigned RawData;
+
+    PtrAuthData(unsigned FromRawData) : RawData(FromRawData) {}
+    PtrAuthData(unsigned Key, bool IsDiscr, unsigned Discriminator,
+                bool IsaPointer, bool AuthenticatesNullValues) {
+      assert(Key < 16);
+      assert(Discriminator <= 0xffff);
+      RawData = (Key << 0) | (IsDiscr ? (1 << 4) : 0) | (Discriminator << 5) |
+                (IsaPointer ? (1 << 21) : 0) |
+                (AuthenticatesNullValues ? (1 << 22) : 0);
+    }
+
+    unsigned key() { return (RawData >> 0) & 0b1111; }
+    bool isAddressDiscriminated() { return (RawData >> 4) & 1; }
+    unsigned extraDiscriminator() { return (RawData >> 5) & 0xffff; }
+    bool isaPointer() { return (RawData >> 21) & 1; }
+    bool authenticatesNullValues() { return (RawData >> 22) & 1; }
+  };
+
+private:
   friend class LLVMContextImpl;
   friend class MDNode;
 
   /// The DWARF address space of the memory pointed to or referenced by a
   /// pointer or reference type respectively.
-  Optional<unsigned> DWARFAddressSpace;
+  std::optional<unsigned> DWARFAddressSpace;
 
   DIDerivedType(LLVMContext &C, StorageType Storage, unsigned Tag,
                 unsigned Line, uint64_t SizeInBits, uint32_t AlignInBits,
-                uint64_t OffsetInBits, Optional<unsigned> DWARFAddressSpace,
-                DIFlags Flags, ArrayRef<Metadata *> Ops)
+                uint64_t OffsetInBits,
+                std::optional<unsigned> DWARFAddressSpace,
+                std::optional<PtrAuthData> PtrAuthData, DIFlags Flags,
+                ArrayRef<Metadata *> Ops)
       : DIType(C, DIDerivedTypeKind, Storage, Tag, Line, SizeInBits,
                AlignInBits, OffsetInBits, Flags, Ops),
-        DWARFAddressSpace(DWARFAddressSpace) {}
+        DWARFAddressSpace(DWARFAddressSpace) {
+    if (PtrAuthData)
+      SubclassData32 = PtrAuthData->RawData;
+  }
   ~DIDerivedType() = default;
-
   static DIDerivedType *
   getImpl(LLVMContext &Context, unsigned Tag, StringRef Name, DIFile *File,
           unsigned Line, DIScope *Scope, DIType *BaseType, uint64_t SizeInBits,
           uint32_t AlignInBits, uint64_t OffsetInBits,
-          Optional<unsigned> DWARFAddressSpace, DIFlags Flags,
+          std::optional<unsigned> DWARFAddressSpace,
+          std::optional<PtrAuthData> PtrAuthData, DIFlags Flags,
           Metadata *ExtraData, DINodeArray Annotations, StorageType Storage,
           bool ShouldCreate = true) {
     return getImpl(Context, Tag, getCanonicalMDString(Context, Name), File,
                    Line, Scope, BaseType, SizeInBits, AlignInBits, OffsetInBits,
-                   DWARFAddressSpace, Flags, ExtraData, Annotations.get(),
-                   Storage, ShouldCreate);
+                   DWARFAddressSpace, PtrAuthData, Flags, ExtraData,
+                   Annotations.get(), Storage, ShouldCreate);
   }
   static DIDerivedType *
   getImpl(LLVMContext &Context, unsigned Tag, MDString *Name, Metadata *File,
           unsigned Line, Metadata *Scope, Metadata *BaseType,
           uint64_t SizeInBits, uint32_t AlignInBits, uint64_t OffsetInBits,
-          Optional<unsigned> DWARFAddressSpace, DIFlags Flags,
+          std::optional<unsigned> DWARFAddressSpace,
+          std::optional<PtrAuthData> PtrAuthData, DIFlags Flags,
           Metadata *ExtraData, Metadata *Annotations, StorageType Storage,
           bool ShouldCreate = true);
 
   TempDIDerivedType cloneImpl() const {
-    return getTemporary(
-        getContext(), getTag(), getName(), getFile(), getLine(), getScope(),
-        getBaseType(), getSizeInBits(), getAlignInBits(), getOffsetInBits(),
-        getDWARFAddressSpace(), getFlags(), getExtraData(), getAnnotations());
+    return getTemporary(getContext(), getTag(), getName(), getFile(), getLine(),
+                        getScope(), getBaseType(), getSizeInBits(),
+                        getAlignInBits(), getOffsetInBits(),
+                        getDWARFAddressSpace(), getPtrAuthData(), getFlags(),
+                        getExtraData(), getAnnotations());
   }
 
 public:
-  DEFINE_MDNODE_GET(
-      DIDerivedType,
-      (unsigned Tag, MDString *Name, Metadata *File, unsigned Line,
-       Metadata *Scope, Metadata *BaseType, uint64_t SizeInBits,
-       uint32_t AlignInBits, uint64_t OffsetInBits,
-       Optional<unsigned> DWARFAddressSpace, DIFlags Flags,
-       Metadata *ExtraData = nullptr, Metadata *Annotations = nullptr),
-      (Tag, Name, File, Line, Scope, BaseType, SizeInBits, AlignInBits,
-       OffsetInBits, DWARFAddressSpace, Flags, ExtraData, Annotations))
+  DEFINE_MDNODE_GET(DIDerivedType,
+                    (unsigned Tag, MDString *Name, Metadata *File,
+                     unsigned Line, Metadata *Scope, Metadata *BaseType,
+                     uint64_t SizeInBits, uint32_t AlignInBits,
+                     uint64_t OffsetInBits,
+                     std::optional<unsigned> DWARFAddressSpace,
+                     std::optional<PtrAuthData> PtrAuthData, DIFlags Flags,
+                     Metadata *ExtraData = nullptr,
+                     Metadata *Annotations = nullptr),
+                    (Tag, Name, File, Line, Scope, BaseType, SizeInBits,
+                     AlignInBits, OffsetInBits, DWARFAddressSpace, PtrAuthData,
+                     Flags, ExtraData, Annotations))
   DEFINE_MDNODE_GET(DIDerivedType,
                     (unsigned Tag, StringRef Name, DIFile *File, unsigned Line,
                      DIScope *Scope, DIType *BaseType, uint64_t SizeInBits,
                      uint32_t AlignInBits, uint64_t OffsetInBits,
-                     Optional<unsigned> DWARFAddressSpace, DIFlags Flags,
+                     std::optional<unsigned> DWARFAddressSpace,
+                     std::optional<PtrAuthData> PtrAuthData, DIFlags Flags,
                      Metadata *ExtraData = nullptr,
                      DINodeArray Annotations = nullptr),
                     (Tag, Name, File, Line, Scope, BaseType, SizeInBits,
-                     AlignInBits, OffsetInBits, DWARFAddressSpace, Flags,
-                     ExtraData, Annotations))
+                     AlignInBits, OffsetInBits, DWARFAddressSpace, PtrAuthData,
+                     Flags, ExtraData, Annotations))
 
   TempDIDerivedType clone() const { return cloneImpl(); }
 
@@ -994,18 +1085,27 @@ public:
 
   /// \returns The DWARF address space of the memory pointed to or referenced by
   /// a pointer or reference type respectively.
-  Optional<unsigned> getDWARFAddressSpace() const { return DWARFAddressSpace; }
+  std::optional<unsigned> getDWARFAddressSpace() const {
+    return DWARFAddressSpace;
+  }
+
+  std::optional<PtrAuthData> getPtrAuthData() const;
 
   /// Get extra data associated with this derived type.
   ///
   /// Class type for pointer-to-members, objective-c property node for ivars,
-  /// global constant wrapper for static members, or virtual base pointer offset
-  /// for inheritance.
+  /// global constant wrapper for static members, virtual base pointer offset
+  /// for inheritance, or a tuple of template parameters for template aliases.
   ///
   /// TODO: Separate out types that need this extra operand: pointer-to-member
   /// types and member fields (static members and ivars).
   Metadata *getExtraData() const { return getRawExtraData(); }
   Metadata *getRawExtraData() const { return getOperand(4); }
+
+  /// Get the template parameters from a template alias.
+  DITemplateParameterArray getTemplateParams() const {
+    return cast_or_null<MDTuple>(getExtraData());
+  }
 
   /// Get annotations associated with this derived type.
   DINodeArray getAnnotations() const {
@@ -1034,6 +1134,16 @@ public:
     return MD->getMetadataID() == DIDerivedTypeKind;
   }
 };
+
+inline bool operator==(DIDerivedType::PtrAuthData Lhs,
+                       DIDerivedType::PtrAuthData Rhs) {
+  return Lhs.RawData == Rhs.RawData;
+}
+
+inline bool operator!=(DIDerivedType::PtrAuthData Lhs,
+                       DIDerivedType::PtrAuthData Rhs) {
+  return !(Lhs == Rhs);
+}
 
 /// Composite types.
 ///
@@ -1336,23 +1446,24 @@ public:
     Default = 0,
     GNU = 1,
     None = 2,
-    LastDebugNameTableKind = None
+    Apple = 3,
+    LastDebugNameTableKind = Apple
   };
 
-  static Optional<DebugEmissionKind> getEmissionKind(StringRef Str);
+  static std::optional<DebugEmissionKind> getEmissionKind(StringRef Str);
   static const char *emissionKindString(DebugEmissionKind EK);
-  static Optional<DebugNameTableKind> getNameTableKind(StringRef Str);
+  static std::optional<DebugNameTableKind> getNameTableKind(StringRef Str);
   static const char *nameTableKindString(DebugNameTableKind PK);
 
 private:
   unsigned SourceLanguage;
-  bool IsOptimized;
   unsigned RuntimeVersion;
-  unsigned EmissionKind;
   uint64_t DWOId;
+  unsigned EmissionKind;
+  unsigned NameTableKind;
+  bool IsOptimized;
   bool SplitDebugInlining;
   bool DebugInfoForProfiling;
-  unsigned NameTableKind;
   bool RangesBaseAddress;
 
   DICompileUnit(LLVMContext &C, StorageType Storage, unsigned SourceLanguage,
@@ -1538,6 +1649,13 @@ public:
   /// chain.
   DISubprogram *getSubprogram() const;
 
+  /// Traverses the scope chain rooted at RootScope until it hits a Subprogram,
+  /// recreating the chain with "NewSP" instead.
+  static DILocalScope *
+  cloneScopeForSubprogram(DILocalScope &RootScope, DISubprogram &NewSP,
+                          LLVMContext &Ctx,
+                          DenseMap<const MDNode *, MDNode *> &Cache);
+
   /// Get the first non DILexicalBlockFile scope of this scope.
   ///
   /// Return this if it's not a \a DILexicalBlockFIle; otherwise, look up the
@@ -1548,254 +1666,6 @@ public:
     return MD->getMetadataID() == DISubprogramKind ||
            MD->getMetadataID() == DILexicalBlockKind ||
            MD->getMetadataID() == DILexicalBlockFileKind;
-  }
-};
-
-/// Debug location.
-///
-/// A debug location in source code, used for debug info and otherwise.
-class DILocation : public MDNode {
-  friend class LLVMContextImpl;
-  friend class MDNode;
-
-  DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
-             unsigned Column, ArrayRef<Metadata *> MDs, bool ImplicitCode);
-  ~DILocation() { dropAllReferences(); }
-
-  static DILocation *getImpl(LLVMContext &Context, unsigned Line,
-                             unsigned Column, Metadata *Scope,
-                             Metadata *InlinedAt, bool ImplicitCode,
-                             StorageType Storage, bool ShouldCreate = true);
-  static DILocation *getImpl(LLVMContext &Context, unsigned Line,
-                             unsigned Column, DILocalScope *Scope,
-                             DILocation *InlinedAt, bool ImplicitCode,
-                             StorageType Storage, bool ShouldCreate = true) {
-    return getImpl(Context, Line, Column, static_cast<Metadata *>(Scope),
-                   static_cast<Metadata *>(InlinedAt), ImplicitCode, Storage,
-                   ShouldCreate);
-  }
-
-  TempDILocation cloneImpl() const {
-    // Get the raw scope/inlinedAt since it is possible to invoke this on
-    // a DILocation containing temporary metadata.
-    return getTemporary(getContext(), getLine(), getColumn(), getRawScope(),
-                        getRawInlinedAt(), isImplicitCode());
-  }
-
-public:
-  // Disallow replacing operands.
-  void replaceOperandWith(unsigned I, Metadata *New) = delete;
-
-  DEFINE_MDNODE_GET(DILocation,
-                    (unsigned Line, unsigned Column, Metadata *Scope,
-                     Metadata *InlinedAt = nullptr, bool ImplicitCode = false),
-                    (Line, Column, Scope, InlinedAt, ImplicitCode))
-  DEFINE_MDNODE_GET(DILocation,
-                    (unsigned Line, unsigned Column, DILocalScope *Scope,
-                     DILocation *InlinedAt = nullptr,
-                     bool ImplicitCode = false),
-                    (Line, Column, Scope, InlinedAt, ImplicitCode))
-
-  /// Return a (temporary) clone of this.
-  TempDILocation clone() const { return cloneImpl(); }
-
-  unsigned getLine() const { return SubclassData32; }
-  unsigned getColumn() const { return SubclassData16; }
-  DILocalScope *getScope() const { return cast<DILocalScope>(getRawScope()); }
-
-  DILocation *getInlinedAt() const {
-    return cast_or_null<DILocation>(getRawInlinedAt());
-  }
-
-  /// Check if the location corresponds to an implicit code.
-  /// When the ImplicitCode flag is true, it means that the Instruction
-  /// with this DILocation has been added by the front-end but it hasn't been
-  /// written explicitly by the user (e.g. cleanup stuff in C++ put on a closing
-  /// bracket). It's useful for code coverage to not show a counter on "empty"
-  /// lines.
-  bool isImplicitCode() const { return SubclassData1; }
-  void setImplicitCode(bool ImplicitCode) { SubclassData1 = ImplicitCode; }
-
-  DIFile *getFile() const { return getScope()->getFile(); }
-  StringRef getFilename() const { return getScope()->getFilename(); }
-  StringRef getDirectory() const { return getScope()->getDirectory(); }
-  Optional<StringRef> getSource() const { return getScope()->getSource(); }
-
-  /// Get the scope where this is inlined.
-  ///
-  /// Walk through \a getInlinedAt() and return \a getScope() from the deepest
-  /// location.
-  DILocalScope *getInlinedAtScope() const {
-    if (auto *IA = getInlinedAt())
-      return IA->getInlinedAtScope();
-    return getScope();
-  }
-
-  /// Get the DWARF discriminator.
-  ///
-  /// DWARF discriminators distinguish identical file locations between
-  /// instructions that are on different basic blocks.
-  ///
-  /// There are 3 components stored in discriminator, from lower bits:
-  ///
-  /// Base discriminator: assigned by AddDiscriminators pass to identify IRs
-  ///                     that are defined by the same source line, but
-  ///                     different basic blocks.
-  /// Duplication factor: assigned by optimizations that will scale down
-  ///                     the execution frequency of the original IR.
-  /// Copy Identifier: assigned by optimizations that clones the IR.
-  ///                  Each copy of the IR will be assigned an identifier.
-  ///
-  /// Encoding:
-  ///
-  /// The above 3 components are encoded into a 32bit unsigned integer in
-  /// order. If the lowest bit is 1, the current component is empty, and the
-  /// next component will start in the next bit. Otherwise, the current
-  /// component is non-empty, and its content starts in the next bit. The
-  /// value of each components is either 5 bit or 12 bit: if the 7th bit
-  /// is 0, the bit 2~6 (5 bits) are used to represent the component; if the
-  /// 7th bit is 1, the bit 2~6 (5 bits) and 8~14 (7 bits) are combined to
-  /// represent the component. Thus, the number of bits used for a component
-  /// is either 0 (if it and all the next components are empty); 1 - if it is
-  /// empty; 7 - if its value is up to and including 0x1f (lsb and msb are both
-  /// 0); or 14, if its value is up to and including 0x1ff. Note that the last
-  /// component is also capped at 0x1ff, even in the case when both first
-  /// components are 0, and we'd technically have 29 bits available.
-  ///
-  /// For precise control over the data being encoded in the discriminator,
-  /// use encodeDiscriminator/decodeDiscriminator.
-
-  inline unsigned getDiscriminator() const;
-
-  // For the regular discriminator, it stands for all empty components if all
-  // the lowest 3 bits are non-zero and all higher 29 bits are unused(zero by
-  // default). Here we fully leverage the higher 29 bits for pseudo probe use.
-  // This is the format:
-  // [2:0] - 0x7
-  // [31:3] - pseudo probe fields guaranteed to be non-zero as a whole
-  // So if the lower 3 bits is non-zero and the others has at least one
-  // non-zero bit, it guarantees to be a pseudo probe discriminator
-  inline static bool isPseudoProbeDiscriminator(unsigned Discriminator) {
-    return ((Discriminator & 0x7) == 0x7) && (Discriminator & 0xFFFFFFF8);
-  }
-
-  /// Returns a new DILocation with updated \p Discriminator.
-  inline const DILocation *cloneWithDiscriminator(unsigned Discriminator) const;
-
-  /// Returns a new DILocation with updated base discriminator \p BD. Only the
-  /// base discriminator is set in the new DILocation, the other encoded values
-  /// are elided.
-  /// If the discriminator cannot be encoded, the function returns None.
-  inline Optional<const DILocation *>
-  cloneWithBaseDiscriminator(unsigned BD) const;
-
-  /// Returns the duplication factor stored in the discriminator, or 1 if no
-  /// duplication factor (or 0) is encoded.
-  inline unsigned getDuplicationFactor() const;
-
-  /// Returns the copy identifier stored in the discriminator.
-  inline unsigned getCopyIdentifier() const;
-
-  /// Returns the base discriminator stored in the discriminator.
-  inline unsigned getBaseDiscriminator() const;
-
-  /// Returns a new DILocation with duplication factor \p DF * current
-  /// duplication factor encoded in the discriminator. The current duplication
-  /// factor is as defined by getDuplicationFactor().
-  /// Returns None if encoding failed.
-  inline Optional<const DILocation *>
-  cloneByMultiplyingDuplicationFactor(unsigned DF) const;
-
-  /// When two instructions are combined into a single instruction we also
-  /// need to combine the original locations into a single location.
-  ///
-  /// When the locations are the same we can use either location. When they
-  /// differ, we need a third location which is distinct from either. If they
-  /// have the same file/line but have a different discriminator we could
-  /// create a location with a new discriminator. If they are from different
-  /// files/lines the location is ambiguous and can't be represented in a line
-  /// entry. In this case, if \p GenerateLocation is true, we will set the
-  /// merged debug location as line 0 of the nearest common scope where the two
-  /// locations are inlined from.
-  ///
-  /// \p GenerateLocation: Whether the merged location can be generated when
-  /// \p LocA and \p LocB differ.
-  static const DILocation *getMergedLocation(const DILocation *LocA,
-                                             const DILocation *LocB);
-
-  /// Try to combine the vector of locations passed as input in a single one.
-  /// This function applies getMergedLocation() repeatedly left-to-right.
-  ///
-  /// \p Locs: The locations to be merged.
-  static const DILocation *
-  getMergedLocations(ArrayRef<const DILocation *> Locs);
-
-  /// Return the masked discriminator value for an input discrimnator value D
-  /// (i.e. zero out the (B+1)-th and above bits for D (B is 0-base).
-  // Example: an input of (0x1FF, 7) returns 0xFF.
-  static unsigned getMaskedDiscriminator(unsigned D, unsigned B) {
-    return (D & getN1Bits(B));
-  }
-
-  /// Return the bits used for base discriminators.
-  static unsigned getBaseDiscriminatorBits() { return getBaseFSBitEnd(); }
-
-  /// Returns the base discriminator for a given encoded discriminator \p D.
-  static unsigned
-  getBaseDiscriminatorFromDiscriminator(unsigned D,
-                                        bool IsFSDiscriminator = false) {
-    if (IsFSDiscriminator)
-      return getMaskedDiscriminator(D, getBaseDiscriminatorBits());
-    return getUnsignedFromPrefixEncoding(D);
-  }
-
-  /// Raw encoding of the discriminator. APIs such as cloneWithDuplicationFactor
-  /// have certain special case behavior (e.g. treating empty duplication factor
-  /// as the value '1').
-  /// This API, in conjunction with cloneWithDiscriminator, may be used to
-  /// encode the raw values provided.
-  ///
-  /// \p BD: base discriminator
-  /// \p DF: duplication factor
-  /// \p CI: copy index
-  ///
-  /// The return is None if the values cannot be encoded in 32 bits - for
-  /// example, values for BD or DF larger than 12 bits. Otherwise, the return is
-  /// the encoded value.
-  static Optional<unsigned> encodeDiscriminator(unsigned BD, unsigned DF,
-                                                unsigned CI);
-
-  /// Raw decoder for values in an encoded discriminator D.
-  static void decodeDiscriminator(unsigned D, unsigned &BD, unsigned &DF,
-                                  unsigned &CI);
-
-  /// Returns the duplication factor for a given encoded discriminator \p D, or
-  /// 1 if no value or 0 is encoded.
-  static unsigned getDuplicationFactorFromDiscriminator(unsigned D) {
-    if (EnableFSDiscriminator)
-      return 1;
-    D = getNextComponentInDiscriminator(D);
-    unsigned Ret = getUnsignedFromPrefixEncoding(D);
-    if (Ret == 0)
-      return 1;
-    return Ret;
-  }
-
-  /// Returns the copy identifier for a given encoded discriminator \p D.
-  static unsigned getCopyIdentifierFromDiscriminator(unsigned D) {
-    return getUnsignedFromPrefixEncoding(
-        getNextComponentInDiscriminator(getNextComponentInDiscriminator(D)));
-  }
-
-  Metadata *getRawScope() const { return getOperand(0); }
-  Metadata *getRawInlinedAt() const {
-    if (getNumOperands() == 2)
-      return getOperand(1);
-    return nullptr;
-  }
-
-  static bool classof(const Metadata *MD) {
-    return MD->getMetadataID() == DILocationKind;
   }
 };
 
@@ -2017,6 +1887,7 @@ public:
   DISubprogram *getDeclaration() const {
     return cast_or_null<DISubprogram>(getRawDeclaration());
   }
+  void replaceDeclaration(DISubprogram *Decl) { replaceOperandWith(6, Decl); }
   DINodeArray getRetainedNodes() const {
     return cast_or_null<MDTuple>(getRawRetainedNodes());
   }
@@ -2056,6 +1927,9 @@ public:
   void replaceRawLinkageName(MDString *LinkageName) {
     replaceOperandWith(3, LinkageName);
   }
+  void replaceRetainedNodes(DINodeArray N) {
+    replaceOperandWith(7, N.get());
+  }
 
   /// Check if this subprogram describes the given function.
   ///
@@ -2064,6 +1938,283 @@ public:
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DISubprogramKind;
+  }
+};
+
+/// Debug location.
+///
+/// A debug location in source code, used for debug info and otherwise.
+///
+/// Uses the SubclassData1, SubclassData16 and SubclassData32
+/// Metadata slots.
+
+class DILocation : public MDNode {
+  friend class LLVMContextImpl;
+  friend class MDNode;
+
+  DILocation(LLVMContext &C, StorageType Storage, unsigned Line,
+             unsigned Column, ArrayRef<Metadata *> MDs, bool ImplicitCode);
+  ~DILocation() { dropAllReferences(); }
+
+  static DILocation *getImpl(LLVMContext &Context, unsigned Line,
+                             unsigned Column, Metadata *Scope,
+                             Metadata *InlinedAt, bool ImplicitCode,
+                             StorageType Storage, bool ShouldCreate = true);
+  static DILocation *getImpl(LLVMContext &Context, unsigned Line,
+                             unsigned Column, DILocalScope *Scope,
+                             DILocation *InlinedAt, bool ImplicitCode,
+                             StorageType Storage, bool ShouldCreate = true) {
+    return getImpl(Context, Line, Column, static_cast<Metadata *>(Scope),
+                   static_cast<Metadata *>(InlinedAt), ImplicitCode, Storage,
+                   ShouldCreate);
+  }
+
+  TempDILocation cloneImpl() const {
+    // Get the raw scope/inlinedAt since it is possible to invoke this on
+    // a DILocation containing temporary metadata.
+    return getTemporary(getContext(), getLine(), getColumn(), getRawScope(),
+                        getRawInlinedAt(), isImplicitCode());
+  }
+
+public:
+  // Disallow replacing operands.
+  void replaceOperandWith(unsigned I, Metadata *New) = delete;
+
+  DEFINE_MDNODE_GET(DILocation,
+                    (unsigned Line, unsigned Column, Metadata *Scope,
+                     Metadata *InlinedAt = nullptr, bool ImplicitCode = false),
+                    (Line, Column, Scope, InlinedAt, ImplicitCode))
+  DEFINE_MDNODE_GET(DILocation,
+                    (unsigned Line, unsigned Column, DILocalScope *Scope,
+                     DILocation *InlinedAt = nullptr,
+                     bool ImplicitCode = false),
+                    (Line, Column, Scope, InlinedAt, ImplicitCode))
+
+  /// Return a (temporary) clone of this.
+  TempDILocation clone() const { return cloneImpl(); }
+
+  unsigned getLine() const { return SubclassData32; }
+  unsigned getColumn() const { return SubclassData16; }
+  DILocalScope *getScope() const { return cast<DILocalScope>(getRawScope()); }
+
+  /// Return the linkage name of Subprogram. If the linkage name is empty,
+  /// return scope name (the demangled name).
+  StringRef getSubprogramLinkageName() const {
+    DISubprogram *SP = getScope()->getSubprogram();
+    if (!SP)
+      return "";
+    auto Name = SP->getLinkageName();
+    if (!Name.empty())
+      return Name;
+    return SP->getName();
+  }
+
+  DILocation *getInlinedAt() const {
+    return cast_or_null<DILocation>(getRawInlinedAt());
+  }
+
+  /// Check if the location corresponds to an implicit code.
+  /// When the ImplicitCode flag is true, it means that the Instruction
+  /// with this DILocation has been added by the front-end but it hasn't been
+  /// written explicitly by the user (e.g. cleanup stuff in C++ put on a closing
+  /// bracket). It's useful for code coverage to not show a counter on "empty"
+  /// lines.
+  bool isImplicitCode() const { return SubclassData1; }
+  void setImplicitCode(bool ImplicitCode) { SubclassData1 = ImplicitCode; }
+
+  DIFile *getFile() const { return getScope()->getFile(); }
+  StringRef getFilename() const { return getScope()->getFilename(); }
+  StringRef getDirectory() const { return getScope()->getDirectory(); }
+  std::optional<StringRef> getSource() const { return getScope()->getSource(); }
+
+  /// Get the scope where this is inlined.
+  ///
+  /// Walk through \a getInlinedAt() and return \a getScope() from the deepest
+  /// location.
+  DILocalScope *getInlinedAtScope() const {
+    if (auto *IA = getInlinedAt())
+      return IA->getInlinedAtScope();
+    return getScope();
+  }
+
+  /// Get the DWARF discriminator.
+  ///
+  /// DWARF discriminators distinguish identical file locations between
+  /// instructions that are on different basic blocks.
+  ///
+  /// There are 3 components stored in discriminator, from lower bits:
+  ///
+  /// Base discriminator: assigned by AddDiscriminators pass to identify IRs
+  ///                     that are defined by the same source line, but
+  ///                     different basic blocks.
+  /// Duplication factor: assigned by optimizations that will scale down
+  ///                     the execution frequency of the original IR.
+  /// Copy Identifier: assigned by optimizations that clones the IR.
+  ///                  Each copy of the IR will be assigned an identifier.
+  ///
+  /// Encoding:
+  ///
+  /// The above 3 components are encoded into a 32bit unsigned integer in
+  /// order. If the lowest bit is 1, the current component is empty, and the
+  /// next component will start in the next bit. Otherwise, the current
+  /// component is non-empty, and its content starts in the next bit. The
+  /// value of each components is either 5 bit or 12 bit: if the 7th bit
+  /// is 0, the bit 2~6 (5 bits) are used to represent the component; if the
+  /// 7th bit is 1, the bit 2~6 (5 bits) and 8~14 (7 bits) are combined to
+  /// represent the component. Thus, the number of bits used for a component
+  /// is either 0 (if it and all the next components are empty); 1 - if it is
+  /// empty; 7 - if its value is up to and including 0x1f (lsb and msb are both
+  /// 0); or 14, if its value is up to and including 0x1ff. Note that the last
+  /// component is also capped at 0x1ff, even in the case when both first
+  /// components are 0, and we'd technically have 29 bits available.
+  ///
+  /// For precise control over the data being encoded in the discriminator,
+  /// use encodeDiscriminator/decodeDiscriminator.
+
+  inline unsigned getDiscriminator() const;
+
+  // For the regular discriminator, it stands for all empty components if all
+  // the lowest 3 bits are non-zero and all higher 29 bits are unused(zero by
+  // default). Here we fully leverage the higher 29 bits for pseudo probe use.
+  // This is the format:
+  // [2:0] - 0x7
+  // [31:3] - pseudo probe fields guaranteed to be non-zero as a whole
+  // So if the lower 3 bits is non-zero and the others has at least one
+  // non-zero bit, it guarantees to be a pseudo probe discriminator
+  inline static bool isPseudoProbeDiscriminator(unsigned Discriminator) {
+    return ((Discriminator & 0x7) == 0x7) && (Discriminator & 0xFFFFFFF8);
+  }
+
+  /// Returns a new DILocation with updated \p Discriminator.
+  inline const DILocation *cloneWithDiscriminator(unsigned Discriminator) const;
+
+  /// Returns a new DILocation with updated base discriminator \p BD. Only the
+  /// base discriminator is set in the new DILocation, the other encoded values
+  /// are elided.
+  /// If the discriminator cannot be encoded, the function returns std::nullopt.
+  inline std::optional<const DILocation *>
+  cloneWithBaseDiscriminator(unsigned BD) const;
+
+  /// Returns the duplication factor stored in the discriminator, or 1 if no
+  /// duplication factor (or 0) is encoded.
+  inline unsigned getDuplicationFactor() const;
+
+  /// Returns the copy identifier stored in the discriminator.
+  inline unsigned getCopyIdentifier() const;
+
+  /// Returns the base discriminator stored in the discriminator.
+  inline unsigned getBaseDiscriminator() const;
+
+  /// Returns a new DILocation with duplication factor \p DF * current
+  /// duplication factor encoded in the discriminator. The current duplication
+  /// factor is as defined by getDuplicationFactor().
+  /// Returns std::nullopt if encoding failed.
+  inline std::optional<const DILocation *>
+  cloneByMultiplyingDuplicationFactor(unsigned DF) const;
+
+  /// When two instructions are combined into a single instruction we also
+  /// need to combine the original locations into a single location.
+  /// When the locations are the same we can use either location.
+  /// When they differ, we need a third location which is distinct from either.
+  /// If they share a common scope, use this scope and compare the line/column
+  /// pair of the locations with the common scope:
+  /// * if both match, keep the line and column;
+  /// * if only the line number matches, keep the line and set the column as 0;
+  /// * otherwise set line and column as 0.
+  /// If they do not share a common scope the location is ambiguous and can't be
+  /// represented in a line entry. In this case, set line and column as 0 and
+  /// use the scope of any location.
+  ///
+  /// \p LocA \p LocB: The locations to be merged.
+  static DILocation *getMergedLocation(DILocation *LocA, DILocation *LocB);
+
+  /// Try to combine the vector of locations passed as input in a single one.
+  /// This function applies getMergedLocation() repeatedly left-to-right.
+  ///
+  /// \p Locs: The locations to be merged.
+  static DILocation *getMergedLocations(ArrayRef<DILocation *> Locs);
+
+  /// Return the masked discriminator value for an input discrimnator value D
+  /// (i.e. zero out the (B+1)-th and above bits for D (B is 0-base).
+  // Example: an input of (0x1FF, 7) returns 0xFF.
+  static unsigned getMaskedDiscriminator(unsigned D, unsigned B) {
+    return (D & getN1Bits(B));
+  }
+
+  /// Return the bits used for base discriminators.
+  static unsigned getBaseDiscriminatorBits() { return getBaseFSBitEnd(); }
+
+  /// Returns the base discriminator for a given encoded discriminator \p D.
+  static unsigned
+  getBaseDiscriminatorFromDiscriminator(unsigned D,
+                                        bool IsFSDiscriminator = false) {
+    // Extract the dwarf base discriminator if it's encoded in the pseudo probe
+    // discriminator.
+    if (isPseudoProbeDiscriminator(D)) {
+      auto DwarfBaseDiscriminator =
+          PseudoProbeDwarfDiscriminator::extractDwarfBaseDiscriminator(D);
+      if (DwarfBaseDiscriminator)
+        return *DwarfBaseDiscriminator;
+      // Return the probe id instead of zero for a pseudo probe discriminator.
+      // This should help differenciate callsites with same line numbers to
+      // achieve a decent AutoFDO profile under -fpseudo-probe-for-profiling,
+      // where the original callsite dwarf discriminator is overwritten by
+      // callsite probe information.
+      return PseudoProbeDwarfDiscriminator::extractProbeIndex(D);
+    }
+
+    if (IsFSDiscriminator)
+      return getMaskedDiscriminator(D, getBaseDiscriminatorBits());
+    return getUnsignedFromPrefixEncoding(D);
+  }
+
+  /// Raw encoding of the discriminator. APIs such as cloneWithDuplicationFactor
+  /// have certain special case behavior (e.g. treating empty duplication factor
+  /// as the value '1').
+  /// This API, in conjunction with cloneWithDiscriminator, may be used to
+  /// encode the raw values provided.
+  ///
+  /// \p BD: base discriminator
+  /// \p DF: duplication factor
+  /// \p CI: copy index
+  ///
+  /// The return is std::nullopt if the values cannot be encoded in 32 bits -
+  /// for example, values for BD or DF larger than 12 bits. Otherwise, the
+  /// return is the encoded value.
+  static std::optional<unsigned> encodeDiscriminator(unsigned BD, unsigned DF,
+                                                     unsigned CI);
+
+  /// Raw decoder for values in an encoded discriminator D.
+  static void decodeDiscriminator(unsigned D, unsigned &BD, unsigned &DF,
+                                  unsigned &CI);
+
+  /// Returns the duplication factor for a given encoded discriminator \p D, or
+  /// 1 if no value or 0 is encoded.
+  static unsigned getDuplicationFactorFromDiscriminator(unsigned D) {
+    if (EnableFSDiscriminator)
+      return 1;
+    D = getNextComponentInDiscriminator(D);
+    unsigned Ret = getUnsignedFromPrefixEncoding(D);
+    if (Ret == 0)
+      return 1;
+    return Ret;
+  }
+
+  /// Returns the copy identifier for a given encoded discriminator \p D.
+  static unsigned getCopyIdentifierFromDiscriminator(unsigned D) {
+    return getUnsignedFromPrefixEncoding(
+        getNextComponentInDiscriminator(getNextComponentInDiscriminator(D)));
+  }
+
+  Metadata *getRawScope() const { return getOperand(0); }
+  Metadata *getRawInlinedAt() const {
+    if (getNumOperands() == 2)
+      return getOperand(1);
+    return nullptr;
+  }
+
+  static bool classof(const Metadata *MD) {
+    return MD->getMetadataID() == DILocationKind;
   }
 };
 
@@ -2078,23 +2229,31 @@ public:
 
   Metadata *getRawScope() const { return getOperand(1); }
 
+  void replaceScope(DIScope *Scope) {
+    assert(!isUniqued());
+    setOperand(1, Scope);
+  }
+
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DILexicalBlockKind ||
            MD->getMetadataID() == DILexicalBlockFileKind;
   }
 };
 
+/// Debug lexical block.
+///
+/// Uses the SubclassData32 Metadata slot.
 class DILexicalBlock : public DILexicalBlockBase {
   friend class LLVMContextImpl;
   friend class MDNode;
 
-  unsigned Line;
   uint16_t Column;
 
   DILexicalBlock(LLVMContext &C, StorageType Storage, unsigned Line,
                  unsigned Column, ArrayRef<Metadata *> Ops)
-      : DILexicalBlockBase(C, DILexicalBlockKind, Storage, Ops), Line(Line),
+      : DILexicalBlockBase(C, DILexicalBlockKind, Storage, Ops),
         Column(Column) {
+    SubclassData32 = Line;
     assert(Column < (1u << 16) && "Expected 16-bit column");
   }
   ~DILexicalBlock() = default;
@@ -2129,7 +2288,7 @@ public:
 
   TempDILexicalBlock clone() const { return cloneImpl(); }
 
-  unsigned getLine() const { return Line; }
+  unsigned getLine() const { return SubclassData32; }
   unsigned getColumn() const { return Column; }
 
   static bool classof(const Metadata *MD) {
@@ -2141,12 +2300,11 @@ class DILexicalBlockFile : public DILexicalBlockBase {
   friend class LLVMContextImpl;
   friend class MDNode;
 
-  unsigned Discriminator;
-
   DILexicalBlockFile(LLVMContext &C, StorageType Storage,
                      unsigned Discriminator, ArrayRef<Metadata *> Ops)
-      : DILexicalBlockBase(C, DILexicalBlockFileKind, Storage, Ops),
-        Discriminator(Discriminator) {}
+      : DILexicalBlockBase(C, DILexicalBlockFileKind, Storage, Ops) {
+    SubclassData32 = Discriminator;
+  }
   ~DILexicalBlockFile() = default;
 
   static DILexicalBlockFile *getImpl(LLVMContext &Context, DILocalScope *Scope,
@@ -2178,7 +2336,7 @@ public:
                     (Scope, File, Discriminator))
 
   TempDILexicalBlockFile clone() const { return cloneImpl(); }
-  unsigned getDiscriminator() const { return Discriminator; }
+  unsigned getDiscriminator() const { return SubclassData32; }
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DILexicalBlockFileKind;
@@ -2221,7 +2379,7 @@ unsigned DILocation::getCopyIdentifier() const {
   return getCopyIdentifierFromDiscriminator(getDiscriminator());
 }
 
-Optional<const DILocation *>
+std::optional<const DILocation *>
 DILocation::cloneWithBaseDiscriminator(unsigned D) const {
   unsigned BD, DF, CI;
 
@@ -2235,14 +2393,20 @@ DILocation::cloneWithBaseDiscriminator(unsigned D) const {
   decodeDiscriminator(getDiscriminator(), BD, DF, CI);
   if (D == BD)
     return this;
-  if (Optional<unsigned> Encoded = encodeDiscriminator(D, DF, CI))
+  if (std::optional<unsigned> Encoded = encodeDiscriminator(D, DF, CI))
     return cloneWithDiscriminator(*Encoded);
-  return None;
+  return std::nullopt;
 }
 
-Optional<const DILocation *>
+std::optional<const DILocation *>
 DILocation::cloneByMultiplyingDuplicationFactor(unsigned DF) const {
   assert(!EnableFSDiscriminator && "FSDiscriminator should not call this.");
+  // Do no interfere with pseudo probes. Pseudo probe doesn't need duplication
+  // factor support as samples collected on cloned probes will be aggregated.
+  // Also pseudo probe at a callsite uses the dwarf discriminator to store
+  // pseudo probe related information, such as the probe id.
+  if (isPseudoProbeDiscriminator(getDiscriminator()))
+    return this;
 
   DF *= getDuplicationFactor();
   if (DF <= 1)
@@ -2250,16 +2414,17 @@ DILocation::cloneByMultiplyingDuplicationFactor(unsigned DF) const {
 
   unsigned BD = getBaseDiscriminator();
   unsigned CI = getCopyIdentifier();
-  if (Optional<unsigned> D = encodeDiscriminator(BD, DF, CI))
+  if (std::optional<unsigned> D = encodeDiscriminator(BD, DF, CI))
     return cloneWithDiscriminator(*D);
-  return None;
+  return std::nullopt;
 }
 
+/// Debug lexical block.
+///
+/// Uses the SubclassData1 Metadata slot.
 class DINamespace : public DIScope {
   friend class LLVMContextImpl;
   friend class MDNode;
-
-  unsigned ExportSymbols : 1;
 
   DINamespace(LLVMContext &Context, StorageType Storage, bool ExportSymbols,
               ArrayRef<Metadata *> Ops);
@@ -2290,7 +2455,7 @@ public:
 
   TempDINamespace clone() const { return cloneImpl(); }
 
-  bool getExportSymbols() const { return ExportSymbols; }
+  bool getExportSymbols() const { return SubclassData1; }
   DIScope *getScope() const { return cast_or_null<DIScope>(getRawScope()); }
   StringRef getName() const { return getStringOperand(2); }
 
@@ -2304,11 +2469,11 @@ public:
 
 /// Represents a module in the programming language, for example, a Clang
 /// module, or a Fortran module.
+///
+/// Uses the SubclassData1 and SubclassData32 Metadata slots.
 class DIModule : public DIScope {
   friend class LLVMContextImpl;
   friend class MDNode;
-  unsigned LineNo;
-  bool IsDecl;
 
   DIModule(LLVMContext &Context, StorageType Storage, unsigned LineNo,
            bool IsDecl, ArrayRef<Metadata *> Ops);
@@ -2360,8 +2525,8 @@ public:
   StringRef getConfigurationMacros() const { return getStringOperand(3); }
   StringRef getIncludePath() const { return getStringOperand(4); }
   StringRef getAPINotesFile() const { return getStringOperand(5); }
-  unsigned getLineNo() const { return LineNo; }
-  bool getIsDecl() const { return IsDecl; }
+  unsigned getLineNo() const { return SubclassData32; }
+  bool getIsDecl() const { return SubclassData1; }
 
   Metadata *getRawScope() const { return getOperand(1); }
   MDString *getRawName() const { return getOperandAs<MDString>(2); }
@@ -2377,13 +2542,15 @@ public:
 };
 
 /// Base class for template parameters.
+///
+/// Uses the SubclassData1 Metadata slot.
 class DITemplateParameter : public DINode {
 protected:
-  bool IsDefault;
-
   DITemplateParameter(LLVMContext &Context, unsigned ID, StorageType Storage,
                       unsigned Tag, bool IsDefault, ArrayRef<Metadata *> Ops)
-      : DINode(Context, ID, Storage, Tag, Ops), IsDefault(IsDefault) {}
+      : DINode(Context, ID, Storage, Tag, Ops) {
+    SubclassData1 = IsDefault;
+  }
   ~DITemplateParameter() = default;
 
 public:
@@ -2392,7 +2559,7 @@ public:
 
   MDString *getRawName() const { return getOperandAs<MDString>(0); }
   Metadata *getRawType() const { return getOperand(1); }
-  bool isDefault() const { return IsDefault; }
+  bool isDefault() const { return SubclassData1; }
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DITemplateTypeParameterKind ||
@@ -2489,9 +2656,10 @@ public:
 };
 
 /// Base class for variables.
+///
+/// Uses the SubclassData32 Metadata slot.
 class DIVariable : public DINode {
   unsigned Line;
-  uint32_t AlignInBits;
 
 protected:
   DIVariable(LLVMContext &C, unsigned ID, StorageType Storage, signed Line,
@@ -2504,17 +2672,17 @@ public:
   StringRef getName() const { return getStringOperand(1); }
   DIFile *getFile() const { return cast_or_null<DIFile>(getRawFile()); }
   DIType *getType() const { return cast_or_null<DIType>(getRawType()); }
-  uint32_t getAlignInBits() const { return AlignInBits; }
+  uint32_t getAlignInBits() const { return SubclassData32; }
   uint32_t getAlignInBytes() const { return getAlignInBits() / CHAR_BIT; }
   /// Determines the size of the variable's type.
-  Optional<uint64_t> getSizeInBits() const;
+  std::optional<uint64_t> getSizeInBits() const;
 
-  /// Return the signedness of this variable's type, or None if this type is
-  /// neither signed nor unsigned.
-  Optional<DIBasicType::Signedness> getSignedness() const {
+  /// Return the signedness of this variable's type, or std::nullopt if this
+  /// type is neither signed nor unsigned.
+  std::optional<DIBasicType::Signedness> getSignedness() const {
     if (auto *BT = dyn_cast<DIBasicType>(getType()))
       return BT->getSignedness();
-    return None;
+    return std::nullopt;
   }
 
   StringRef getFilename() const {
@@ -2529,10 +2697,10 @@ public:
     return "";
   }
 
-  Optional<StringRef> getSource() const {
+  std::optional<StringRef> getSource() const {
     if (auto *F = getFile())
       return F->getSource();
-    return None;
+    return std::nullopt;
   }
 
   Metadata *getRawScope() const { return getOperand(0); }
@@ -2562,7 +2730,7 @@ class DIExpression : public MDNode {
   std::vector<uint64_t> Elements;
 
   DIExpression(LLVMContext &C, StorageType Storage, ArrayRef<uint64_t> Elements)
-      : MDNode(C, DIExpressionKind, Storage, None),
+      : MDNode(C, DIExpressionKind, Storage, std::nullopt),
         Elements(Elements.begin(), Elements.end()) {}
   ~DIExpression() = default;
 
@@ -2591,7 +2759,7 @@ public:
   enum SignedOrUnsignedConstant { SignedConstant, UnsignedConstant };
   /// Determine whether this represents a constant value, if so
   // return it's sign information.
-  llvm::Optional<SignedOrUnsignedConstant> isConstant() const;
+  std::optional<SignedOrUnsignedConstant> isConstant() const;
 
   /// Return the number of unique location operands referred to (via
   /// DW_OP_LLVM_arg) in this expression; this is not necessarily the number of
@@ -2716,18 +2884,23 @@ public:
   /// Return whether the first element a DW_OP_deref.
   bool startsWithDeref() const;
 
-  /// Holds the characteristics of one fragment of a larger variable.
-  struct FragmentInfo {
-    uint64_t SizeInBits;
-    uint64_t OffsetInBits;
-  };
+  /// Return whether there is exactly one operator and it is a DW_OP_deref;
+  bool isDeref() const;
+
+  using FragmentInfo = DbgVariableFragmentInfo;
+
+  /// Return the number of bits that have an active value, i.e. those that
+  /// aren't known to be zero/sign (depending on the type of Var) and which
+  /// are within the size of this fragment (if it is one). If we can't deduce
+  /// anything from the expression this will return the size of Var.
+  std::optional<uint64_t> getActiveBits(DIVariable *Var);
 
   /// Retrieve the details of this fragment expression.
-  static Optional<FragmentInfo> getFragmentInfo(expr_op_iterator Start,
-                                                expr_op_iterator End);
+  static std::optional<FragmentInfo> getFragmentInfo(expr_op_iterator Start,
+                                                     expr_op_iterator End);
 
   /// Retrieve the details of this fragment expression.
-  Optional<FragmentInfo> getFragmentInfo() const {
+  std::optional<FragmentInfo> getFragmentInfo() const {
     return getFragmentInfo(expr_op_begin(), expr_op_end());
   }
 
@@ -2741,12 +2914,83 @@ public:
   /// it cannot be a simple register location.
   bool isComplex() const;
 
+  /// Return whether the evaluated expression makes use of a single location at
+  /// the start of the expression, i.e. if it contains only a single
+  /// DW_OP_LLVM_arg op as its first operand, or if it contains none.
+  bool isSingleLocationExpression() const;
+
+  /// Returns a reference to the elements contained in this expression, skipping
+  /// past the leading `DW_OP_LLVM_arg, 0` if one is present.
+  /// Similar to `convertToNonVariadicExpression`, but faster and cheaper - it
+  /// does not check whether the expression is a single-location expression, and
+  /// it returns elements rather than creating a new DIExpression.
+  std::optional<ArrayRef<uint64_t>> getSingleLocationExpressionElements() const;
+
+  /// Removes all elements from \p Expr that do not apply to an undef debug
+  /// value, which includes every operator that computes the value/location on
+  /// the DWARF stack, including any DW_OP_LLVM_arg elements (making the result
+  /// of this function always a single-location expression) while leaving
+  /// everything that defines what the computed value applies to, i.e. the
+  /// fragment information.
+  static const DIExpression *convertToUndefExpression(const DIExpression *Expr);
+
+  /// If \p Expr is a non-variadic expression (i.e. one that does not contain
+  /// DW_OP_LLVM_arg), returns \p Expr converted to variadic form by adding a
+  /// leading [DW_OP_LLVM_arg, 0] to the expression; otherwise returns \p Expr.
+  static const DIExpression *
+  convertToVariadicExpression(const DIExpression *Expr);
+
+  /// If \p Expr is a valid single-location expression, i.e. it refers to only a
+  /// single debug operand at the start of the expression, then return that
+  /// expression in a non-variadic form by removing DW_OP_LLVM_arg from the
+  /// expression if it is present; otherwise returns std::nullopt.
+  /// See also `getSingleLocationExpressionElements` above, which skips
+  /// checking `isSingleLocationExpression` and returns a list of elements
+  /// rather than a DIExpression.
+  static std::optional<const DIExpression *>
+  convertToNonVariadicExpression(const DIExpression *Expr);
+
+  /// Inserts the elements of \p Expr into \p Ops modified to a canonical form,
+  /// which uses DW_OP_LLVM_arg (i.e. is a variadic expression) and folds the
+  /// implied derefence from the \p IsIndirect flag into the expression. This
+  /// allows us to check equivalence between expressions with differing
+  /// directness or variadicness.
+  static void canonicalizeExpressionOps(SmallVectorImpl<uint64_t> &Ops,
+                                        const DIExpression *Expr,
+                                        bool IsIndirect);
+
+  /// Determines whether two debug values should produce equivalent DWARF
+  /// expressions, using their DIExpressions and directness, ignoring the
+  /// differences between otherwise identical expressions in variadic and
+  /// non-variadic form and not considering the debug operands.
+  /// \p FirstExpr is the DIExpression for the first debug value.
+  /// \p FirstIndirect should be true if the first debug value is indirect; in
+  /// IR this should be true for dbg.declare intrinsics and false for
+  /// dbg.values, and in MIR this should be true only for DBG_VALUE instructions
+  /// whose second operand is an immediate value.
+  /// \p SecondExpr and \p SecondIndirect have the same meaning as the prior
+  /// arguments, but apply to the second debug value.
+  static bool isEqualExpression(const DIExpression *FirstExpr,
+                                bool FirstIndirect,
+                                const DIExpression *SecondExpr,
+                                bool SecondIndirect);
+
   /// Append \p Ops with operations to apply the \p Offset.
   static void appendOffset(SmallVectorImpl<uint64_t> &Ops, int64_t Offset);
 
   /// If this is a constant offset, extract it. If there is no expression,
   /// return true with an offset of zero.
   bool extractIfOffset(int64_t &Offset) const;
+
+  /// Assuming that the expression operates on an address, extract a constant
+  /// offset and the successive ops. Return false if the expression contains
+  /// any incompatible ops (including non-zero DW_OP_LLVM_args - only a single
+  /// address operand to the expression is permitted).
+  ///
+  /// We don't try very hard to interpret the expression because we assume that
+  /// foldConstantMath has canonicalized the expression.
+  bool extractLeadingOffset(int64_t &OffsetInBytes,
+                            SmallVectorImpl<uint64_t> &RemainingOps) const;
 
   /// Returns true iff this DIExpression contains at least one instance of
   /// `DW_OP_LLVM_arg, n` for all n in [0, N).
@@ -2820,7 +3064,7 @@ public:
   /// \return             Creating a fragment expression may fail if \c Expr
   ///                     contains arithmetic operations that would be
   ///                     truncated.
-  static Optional<DIExpression *>
+  static std::optional<DIExpression *>
   createFragmentExpression(const DIExpression *Expr, unsigned OffsetInBits,
                            unsigned SizeInBits);
 
@@ -2839,6 +3083,43 @@ public:
     else
       return 0;
   }
+
+  /// Computes a fragment, bit-extract operation if needed, and new constant
+  /// offset to describe a part of a variable covered by some memory.
+  ///
+  /// The memory region starts at:
+  ///   \p SliceStart + \p SliceOffsetInBits
+  /// And is size:
+  ///   \p SliceSizeInBits
+  ///
+  /// The location of the existing variable fragment \p VarFrag is:
+  ///   \p DbgPtr + \p DbgPtrOffsetInBits + \p DbgExtractOffsetInBits.
+  ///
+  /// It is intended that these arguments are derived from a debug record:
+  /// - \p DbgPtr is the (single) DIExpression operand.
+  /// - \p DbgPtrOffsetInBits is the constant offset applied to \p DbgPtr.
+  /// - \p DbgExtractOffsetInBits is the offset from a
+  ///   DW_OP_LLVM_bit_extract_[sz]ext operation.
+  ///
+  /// Results and return value:
+  /// - Return false if the result can't be calculated for any reason.
+  /// - \p Result is set to nullopt if the intersect equals \p VarFarg.
+  /// - \p Result contains a zero-sized fragment if there's no intersect.
+  /// - \p OffsetFromLocationInBits is set to the difference between the first
+  ///   bit of the variable location and the first bit of the slice. The
+  ///   magnitude of a negative value therefore indicates the number of bits
+  ///   into the variable fragment that the memory region begins.
+  ///
+  /// We don't pass in a debug record directly to get the constituent parts
+  /// and offsets because different debug records store the information in
+  /// different places (dbg_assign has two DIExpressions - one contains the
+  /// fragment info for the entire intrinsic).
+  static bool calculateFragmentIntersect(
+      const DataLayout &DL, const Value *SliceStart, uint64_t SliceOffsetInBits,
+      uint64_t SliceSizeInBits, const Value *DbgPtr, int64_t DbgPtrOffsetInBits,
+      int64_t DbgExtractOffsetInBits, DIExpression::FragmentInfo VarFrag,
+      std::optional<DIExpression::FragmentInfo> &Result,
+      int64_t &OffsetFromLocationInBits);
 
   using ExtOps = std::array<uint64_t, 6>;
 
@@ -2879,6 +3160,11 @@ public:
   /// expression and constant on failure.
   std::pair<DIExpression *, const ConstantInt *>
   constantFold(const ConstantInt *CI);
+
+  /// Try to shorten an expression with constant math operations that can be
+  /// evaluated at compile time. Returns a new expression on success, or the old
+  /// expression if there is nothing to be reduced.
+  DIExpression *foldConstantMath();
 };
 
 inline bool operator==(const DIExpression::FragmentInfo &A,
@@ -2906,6 +3192,84 @@ template <> struct DenseMapInfo<DIExpression::FragmentInfo> {
   }
 
   static bool isEqual(const FragInfo &A, const FragInfo &B) { return A == B; }
+};
+
+/// Holds a DIExpression and keeps track of how many operands have been consumed
+/// so far.
+class DIExpressionCursor {
+  DIExpression::expr_op_iterator Start, End;
+
+public:
+  DIExpressionCursor(const DIExpression *Expr) {
+    if (!Expr) {
+      assert(Start == End);
+      return;
+    }
+    Start = Expr->expr_op_begin();
+    End = Expr->expr_op_end();
+  }
+
+  DIExpressionCursor(ArrayRef<uint64_t> Expr)
+      : Start(Expr.begin()), End(Expr.end()) {}
+
+  DIExpressionCursor(const DIExpressionCursor &) = default;
+
+  /// Consume one operation.
+  std::optional<DIExpression::ExprOperand> take() {
+    if (Start == End)
+      return std::nullopt;
+    return *(Start++);
+  }
+
+  /// Consume N operations.
+  void consume(unsigned N) { std::advance(Start, N); }
+
+  /// Return the current operation.
+  std::optional<DIExpression::ExprOperand> peek() const {
+    if (Start == End)
+      return std::nullopt;
+    return *(Start);
+  }
+
+  /// Return the next operation.
+  std::optional<DIExpression::ExprOperand> peekNext() const {
+    if (Start == End)
+      return std::nullopt;
+
+    auto Next = Start.getNext();
+    if (Next == End)
+      return std::nullopt;
+
+    return *Next;
+  }
+
+  std::optional<DIExpression::ExprOperand> peekNextN(unsigned N) const {
+    if (Start == End)
+      return std::nullopt;
+    DIExpression::expr_op_iterator Nth = Start;
+    for (unsigned I = 0; I < N; I++) {
+      Nth = Nth.getNext();
+      if (Nth == End)
+        return std::nullopt;
+    }
+    return *Nth;
+  }
+
+  void assignNewExpr(ArrayRef<uint64_t> Expr) {
+    this->Start = DIExpression::expr_op_iterator(Expr.begin());
+    this->End = DIExpression::expr_op_iterator(Expr.end());
+  }
+
+  /// Determine whether there are any operations left in this expression.
+  operator bool() const { return Start != End; }
+
+  DIExpression::expr_op_iterator begin() const { return Start; }
+  DIExpression::expr_op_iterator end() const { return End; }
+
+  /// Retrieve the fragment information, if any.
+  std::optional<DIExpression::FragmentInfo> getFragmentInfo() const {
+    return DIExpression::getFragmentInfo(Start, End);
+  }
 };
 
 /// Global variables.
@@ -2996,9 +3360,10 @@ public:
   }
 };
 
+/// Debug common block.
+///
+/// Uses the SubclassData32 Metadata slot.
 class DICommonBlock : public DIScope {
-  unsigned LineNo;
-
   friend class LLVMContextImpl;
   friend class MDNode;
 
@@ -3040,7 +3405,7 @@ public:
   }
   StringRef getName() const { return getStringOperand(2); }
   DIFile *getFile() const { return cast_or_null<DIFile>(getRawFile()); }
-  unsigned getLineNo() const { return LineNo; }
+  unsigned getLineNo() const { return SubclassData32; }
 
   Metadata *getRawScope() const { return getOperand(0); }
   Metadata *getRawDecl() const { return getOperand(1); }
@@ -3145,11 +3510,10 @@ public:
 
 /// Label.
 ///
+/// Uses the SubclassData32 Metadata slot.
 class DILabel : public DINode {
   friend class LLVMContextImpl;
   friend class MDNode;
-
-  unsigned Line;
 
   DILabel(LLVMContext &C, StorageType Storage, unsigned Line,
           ArrayRef<Metadata *> Ops);
@@ -3188,7 +3552,7 @@ public:
   DILocalScope *getScope() const {
     return cast_or_null<DILocalScope>(getRawScope());
   }
-  unsigned getLine() const { return Line; }
+  unsigned getLine() const { return SubclassData32; }
   StringRef getName() const { return getStringOperand(1); }
   DIFile *getFile() const { return cast_or_null<DIFile>(getRawFile()); }
 
@@ -3290,15 +3654,17 @@ public:
 };
 
 /// An imported module (C++ using directive or similar).
+///
+/// Uses the SubclassData32 Metadata slot.
 class DIImportedEntity : public DINode {
   friend class LLVMContextImpl;
   friend class MDNode;
 
-  unsigned Line;
-
   DIImportedEntity(LLVMContext &C, StorageType Storage, unsigned Tag,
                    unsigned Line, ArrayRef<Metadata *> Ops)
-      : DINode(C, DIImportedEntityKind, Storage, Tag, Ops), Line(Line) {}
+      : DINode(C, DIImportedEntityKind, Storage, Tag, Ops) {
+    SubclassData32 = Line;
+  }
   ~DIImportedEntity() = default;
 
   static DIImportedEntity *getImpl(LLVMContext &Context, unsigned Tag,
@@ -3334,7 +3700,7 @@ public:
 
   TempDIImportedEntity clone() const { return cloneImpl(); }
 
-  unsigned getLine() const { return Line; }
+  unsigned getLine() const { return SubclassData32; }
   DIScope *getScope() const { return cast_or_null<DIScope>(getRawScope()); }
   DINode *getEntity() const { return cast_or_null<DINode>(getRawEntity()); }
   StringRef getName() const { return getStringOperand(2); }
@@ -3402,13 +3768,16 @@ public:
 /// \c DW_MACINFO_*, defined in llvm/BinaryFormat/Dwarf.h).  Called \a
 /// DIMacroNode
 /// because it's potentially used for non-DWARF output.
+///
+/// Uses the SubclassData16 Metadata slot.
 class DIMacroNode : public MDNode {
   friend class LLVMContextImpl;
   friend class MDNode;
 
 protected:
   DIMacroNode(LLVMContext &C, unsigned ID, StorageType Storage, unsigned MIType,
-              ArrayRef<Metadata *> Ops1, ArrayRef<Metadata *> Ops2 = None)
+              ArrayRef<Metadata *> Ops1,
+              ArrayRef<Metadata *> Ops2 = std::nullopt)
       : MDNode(C, ID, Storage, Ops1, Ops2) {
     assert(MIType < 1u << 16);
     SubclassData16 = MIType;
@@ -3445,15 +3814,18 @@ public:
   }
 };
 
+/// Macro
+///
+/// Uses the SubclassData32 Metadata slot.
 class DIMacro : public DIMacroNode {
   friend class LLVMContextImpl;
   friend class MDNode;
 
-  unsigned Line;
-
   DIMacro(LLVMContext &C, StorageType Storage, unsigned MIType, unsigned Line,
           ArrayRef<Metadata *> Ops)
-      : DIMacroNode(C, DIMacroKind, Storage, MIType, Ops), Line(Line) {}
+      : DIMacroNode(C, DIMacroKind, Storage, MIType, Ops) {
+    SubclassData32 = Line;
+  }
   ~DIMacro() = default;
 
   static DIMacro *getImpl(LLVMContext &Context, unsigned MIType, unsigned Line,
@@ -3483,7 +3855,7 @@ public:
 
   TempDIMacro clone() const { return cloneImpl(); }
 
-  unsigned getLine() const { return Line; }
+  unsigned getLine() const { return SubclassData32; }
 
   StringRef getName() const { return getStringOperand(0); }
   StringRef getValue() const { return getStringOperand(1); }
@@ -3496,15 +3868,18 @@ public:
   }
 };
 
+/// Macro file
+///
+/// Uses the SubclassData32 Metadata slot.
 class DIMacroFile : public DIMacroNode {
   friend class LLVMContextImpl;
   friend class MDNode;
 
-  unsigned Line;
-
   DIMacroFile(LLVMContext &C, StorageType Storage, unsigned MIType,
               unsigned Line, ArrayRef<Metadata *> Ops)
-      : DIMacroNode(C, DIMacroFileKind, Storage, MIType, Ops), Line(Line) {}
+      : DIMacroNode(C, DIMacroFileKind, Storage, MIType, Ops) {
+    SubclassData32 = Line;
+  }
   ~DIMacroFile() = default;
 
   static DIMacroFile *getImpl(LLVMContext &Context, unsigned MIType,
@@ -3545,7 +3920,7 @@ public:
     replaceOperandWith(1, Elements.get());
   }
 
-  unsigned getLine() const { return Line; }
+  unsigned getLine() const { return SubclassData32; }
   DIFile *getFile() const { return cast_or_null<DIFile>(getRawFile()); }
 
   DIMacroNodeArray getElements() const {
@@ -3562,37 +3937,26 @@ public:
 
 /// List of ValueAsMetadata, to be used as an argument to a dbg.value
 /// intrinsic.
-class DIArgList : public MDNode {
+class DIArgList : public Metadata, ReplaceableMetadataImpl {
+  friend class ReplaceableMetadataImpl;
   friend class LLVMContextImpl;
-  friend class MDNode;
   using iterator = SmallVectorImpl<ValueAsMetadata *>::iterator;
 
   SmallVector<ValueAsMetadata *, 4> Args;
 
-  DIArgList(LLVMContext &C, StorageType Storage,
-            ArrayRef<ValueAsMetadata *> Args)
-      : MDNode(C, DIArgListKind, Storage, None),
+  DIArgList(LLVMContext &Context, ArrayRef<ValueAsMetadata *> Args)
+      : Metadata(DIArgListKind, Uniqued), ReplaceableMetadataImpl(Context),
         Args(Args.begin(), Args.end()) {
     track();
   }
   ~DIArgList() { untrack(); }
 
-  static DIArgList *getImpl(LLVMContext &Context,
-                            ArrayRef<ValueAsMetadata *> Args,
-                            StorageType Storage, bool ShouldCreate = true);
-
-  TempDIArgList cloneImpl() const {
-    return getTemporary(getContext(), getArgs());
-  }
-
   void track();
   void untrack();
-  void dropAllReferences();
+  void dropAllReferences(bool Untrack);
 
 public:
-  DEFINE_MDNODE_GET(DIArgList, (ArrayRef<ValueAsMetadata *> Args), (Args))
-
-  TempDIArgList clone() const { return cloneImpl(); }
+  static DIArgList *get(LLVMContext &Context, ArrayRef<ValueAsMetadata *> Args);
 
   ArrayRef<ValueAsMetadata *> getArgs() const { return Args; }
 
@@ -3601,6 +3965,10 @@ public:
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DIArgListKind;
+  }
+
+  SmallVector<DbgVariableRecord *> getAllDbgVariableRecordUsers() {
+    return ReplaceableMetadataImpl::getAllDbgVariableRecordUsers();
   }
 
   void handleChangedOperand(void *Ref, Metadata *New);
@@ -3621,7 +3989,7 @@ class DebugVariable {
   using FragmentInfo = DIExpression::FragmentInfo;
 
   const DILocalVariable *Variable;
-  Optional<FragmentInfo> Fragment;
+  std::optional<FragmentInfo> Fragment;
   const DILocation *InlinedAt;
 
   /// Fragment that will overlap all other fragments. Used as default when
@@ -3629,18 +3997,22 @@ class DebugVariable {
   static const FragmentInfo DefaultFragment;
 
 public:
-  DebugVariable(const DILocalVariable *Var, Optional<FragmentInfo> FragmentInfo,
+  DebugVariable(const DbgVariableIntrinsic *DII);
+  DebugVariable(const DbgVariableRecord *DVR);
+
+  DebugVariable(const DILocalVariable *Var,
+                std::optional<FragmentInfo> FragmentInfo,
                 const DILocation *InlinedAt)
       : Variable(Var), Fragment(FragmentInfo), InlinedAt(InlinedAt) {}
 
   DebugVariable(const DILocalVariable *Var, const DIExpression *DIExpr,
                 const DILocation *InlinedAt)
       : Variable(Var),
-        Fragment(DIExpr ? DIExpr->getFragmentInfo() : NoneType()),
+        Fragment(DIExpr ? DIExpr->getFragmentInfo() : std::nullopt),
         InlinedAt(InlinedAt) {}
 
   const DILocalVariable *getVariable() const { return Variable; }
-  Optional<FragmentInfo> getFragment() const { return Fragment; }
+  std::optional<FragmentInfo> getFragment() const { return Fragment; }
   const DILocation *getInlinedAt() const { return InlinedAt; }
 
   FragmentInfo getFragmentOrDefault() const {
@@ -3667,7 +4039,7 @@ template <> struct DenseMapInfo<DebugVariable> {
 
   /// Empty key: no key should be generated that has no DILocalVariable.
   static inline DebugVariable getEmptyKey() {
-    return DebugVariable(nullptr, NoneType(), nullptr);
+    return DebugVariable(nullptr, std::nullopt, nullptr);
   }
 
   /// Difference in tombstone is that the Optional is meaningful.
@@ -3677,7 +4049,7 @@ template <> struct DenseMapInfo<DebugVariable> {
 
   static unsigned getHashValue(const DebugVariable &D) {
     unsigned HV = 0;
-    const Optional<FragmentInfo> Fragment = D.getFragment();
+    const std::optional<FragmentInfo> Fragment = D.getFragment();
     if (Fragment)
       HV = DenseMapInfo<FragmentInfo>::getHashValue(*Fragment);
 
@@ -3689,6 +4061,18 @@ template <> struct DenseMapInfo<DebugVariable> {
   }
 };
 
+/// Identifies a unique instance of a whole variable (discards/ignores fragment
+/// information).
+class DebugVariableAggregate : public DebugVariable {
+public:
+  DebugVariableAggregate(const DbgVariableIntrinsic *DVI);
+  DebugVariableAggregate(const DebugVariable &V)
+      : DebugVariable(V.getVariable(), std::nullopt, V.getInlinedAt()) {}
+};
+
+template <>
+struct DenseMapInfo<DebugVariableAggregate>
+    : public DenseMapInfo<DebugVariable> {};
 } // end namespace llvm
 
 #undef DEFINE_MDNODE_GET_UNPACK_IMPL

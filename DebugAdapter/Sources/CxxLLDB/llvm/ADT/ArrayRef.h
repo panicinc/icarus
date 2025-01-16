@@ -10,7 +10,6 @@
 #define LLVM_ADT_ARRAYREF_H
 
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
@@ -25,7 +24,7 @@
 #include <vector>
 
 namespace llvm {
-  template<typename T> class LLVM_NODISCARD MutableArrayRef;
+  template<typename T> class [[nodiscard]] MutableArrayRef;
 
   /// ArrayRef - Represent a constant reference to an array (0 or more elements
   /// consecutively in memory), i.e. a start pointer and a length.  It allows
@@ -39,7 +38,7 @@ namespace llvm {
   /// This is intended to be trivially copyable, so it should be passed by
   /// value.
   template<typename T>
-  class LLVM_GSL_POINTER LLVM_NODISCARD ArrayRef {
+  class LLVM_GSL_POINTER [[nodiscard]] ArrayRef {
   public:
     using value_type = T;
     using pointer = value_type *;
@@ -67,20 +66,22 @@ namespace llvm {
     /// Construct an empty ArrayRef.
     /*implicit*/ ArrayRef() = default;
 
-    /// Construct an empty ArrayRef from None.
-    /*implicit*/ ArrayRef(NoneType) {}
+    /// Construct an empty ArrayRef from std::nullopt.
+    /*implicit*/ ArrayRef(std::nullopt_t) {}
 
     /// Construct an ArrayRef from a single element.
     /*implicit*/ ArrayRef(const T &OneElt)
       : Data(&OneElt), Length(1) {}
 
     /// Construct an ArrayRef from a pointer and length.
-    /*implicit*/ ArrayRef(const T *data, size_t length)
-      : Data(data), Length(length) {}
+    constexpr /*implicit*/ ArrayRef(const T *data, size_t length)
+        : Data(data), Length(length) {}
 
     /// Construct an ArrayRef from a range.
-    ArrayRef(const T *begin, const T *end)
-      : Data(begin), Length(end - begin) {}
+    constexpr ArrayRef(const T *begin, const T *end)
+        : Data(begin), Length(end - begin) {
+      assert(begin <= end);
+    }
 
     /// Construct an ArrayRef from a SmallVector. This is templated in order to
     /// avoid instantiating SmallVectorTemplateCommon<T> whenever we
@@ -112,9 +113,9 @@ namespace llvm {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winit-list-lifetime"
 #endif
-    /*implicit*/ ArrayRef(const std::initializer_list<T> &Vec)
-    : Data(Vec.begin() == Vec.end() ? (T*)nullptr : Vec.begin()),
-      Length(Vec.size()) {}
+    constexpr /*implicit*/ ArrayRef(const std::initializer_list<T> &Vec)
+        : Data(Vec.begin() == Vec.end() ? (T *)nullptr : Vec.begin()),
+          Length(Vec.size()) {}
 #if LLVM_GNUC_PREREQ(9, 0, 0)
 #pragma GCC diagnostic pop
 #endif
@@ -303,7 +304,7 @@ namespace llvm {
   /// This is intended to be trivially copyable, so it should be passed by
   /// value.
   template<typename T>
-  class LLVM_NODISCARD MutableArrayRef : public ArrayRef<T> {
+  class [[nodiscard]] MutableArrayRef : public ArrayRef<T> {
   public:
     using value_type = T;
     using pointer = value_type *;
@@ -320,8 +321,8 @@ namespace llvm {
     /// Construct an empty MutableArrayRef.
     /*implicit*/ MutableArrayRef() = default;
 
-    /// Construct an empty MutableArrayRef from None.
-    /*implicit*/ MutableArrayRef(NoneType) : ArrayRef<T>() {}
+    /// Construct an empty MutableArrayRef from std::nullopt.
+    /*implicit*/ MutableArrayRef(std::nullopt_t) : ArrayRef<T>() {}
 
     /// Construct a MutableArrayRef from a single element.
     /*implicit*/ MutableArrayRef(T &OneElt) : ArrayRef<T>(OneElt) {}
@@ -467,114 +468,69 @@ namespace llvm {
     ~OwningArrayRef() { delete[] this->data(); }
   };
 
-  /// @name ArrayRef Convenience constructors
+  /// @name ArrayRef Deduction guides
   /// @{
+  /// Deduction guide to construct an ArrayRef from a single element.
+  template <typename T> ArrayRef(const T &OneElt) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from a single element.
-  template<typename T>
-  ArrayRef<T> makeArrayRef(const T &OneElt) {
-    return OneElt;
-  }
+  /// Deduction guide to construct an ArrayRef from a pointer and length
+  template <typename T> ArrayRef(const T *data, size_t length) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from a pointer and length.
-  template<typename T>
-  ArrayRef<T> makeArrayRef(const T *data, size_t length) {
-    return ArrayRef<T>(data, length);
-  }
+  /// Deduction guide to construct an ArrayRef from a range
+  template <typename T> ArrayRef(const T *data, const T *end) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from a range.
-  template<typename T>
-  ArrayRef<T> makeArrayRef(const T *begin, const T *end) {
-    return ArrayRef<T>(begin, end);
-  }
+  /// Deduction guide to construct an ArrayRef from a SmallVector
+  template <typename T> ArrayRef(const SmallVectorImpl<T> &Vec) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from a SmallVector.
-  template <typename T>
-  ArrayRef<T> makeArrayRef(const SmallVectorImpl<T> &Vec) {
-    return Vec;
-  }
-
-  /// Construct an ArrayRef from a SmallVector.
+  /// Deduction guide to construct an ArrayRef from a SmallVector
   template <typename T, unsigned N>
-  ArrayRef<T> makeArrayRef(const SmallVector<T, N> &Vec) {
-    return Vec;
-  }
+  ArrayRef(const SmallVector<T, N> &Vec) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from a std::vector.
-  template<typename T>
-  ArrayRef<T> makeArrayRef(const std::vector<T> &Vec) {
-    return Vec;
-  }
+  /// Deduction guide to construct an ArrayRef from a std::vector
+  template <typename T> ArrayRef(const std::vector<T> &Vec) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from a std::array.
+  /// Deduction guide to construct an ArrayRef from a std::array
   template <typename T, std::size_t N>
-  ArrayRef<T> makeArrayRef(const std::array<T, N> &Arr) {
-    return Arr;
-  }
+  ArrayRef(const std::array<T, N> &Vec) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from an ArrayRef (no-op) (const)
-  template <typename T> ArrayRef<T> makeArrayRef(const ArrayRef<T> &Vec) {
-    return Vec;
-  }
+  /// Deduction guide to construct an ArrayRef from an ArrayRef (const)
+  template <typename T> ArrayRef(const ArrayRef<T> &Vec) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from an ArrayRef (no-op)
-  template <typename T> ArrayRef<T> &makeArrayRef(ArrayRef<T> &Vec) {
-    return Vec;
-  }
+  /// Deduction guide to construct an ArrayRef from an ArrayRef
+  template <typename T> ArrayRef(ArrayRef<T> &Vec) -> ArrayRef<T>;
 
-  /// Construct an ArrayRef from a C array.
-  template<typename T, size_t N>
-  ArrayRef<T> makeArrayRef(const T (&Arr)[N]) {
-    return ArrayRef<T>(Arr);
-  }
+  /// Deduction guide to construct an ArrayRef from a C array.
+  template <typename T, size_t N> ArrayRef(const T (&Arr)[N]) -> ArrayRef<T>;
 
-  /// Construct a MutableArrayRef from a single element.
-  template<typename T>
-  MutableArrayRef<T> makeMutableArrayRef(T &OneElt) {
-    return OneElt;
-  }
+  /// @}
 
-  /// Construct a MutableArrayRef from a pointer and length.
-  template<typename T>
-  MutableArrayRef<T> makeMutableArrayRef(T *data, size_t length) {
-    return MutableArrayRef<T>(data, length);
-  }
+  /// @name MutableArrayRef Deduction guides
+  /// @{
+  /// Deduction guide to construct a `MutableArrayRef` from a single element
+  template <class T> MutableArrayRef(T &OneElt) -> MutableArrayRef<T>;
 
-  /// Construct a MutableArrayRef from a SmallVector.
-  template <typename T>
-  MutableArrayRef<T> makeMutableArrayRef(SmallVectorImpl<T> &Vec) {
-    return Vec;
-  }
+  /// Deduction guide to construct a `MutableArrayRef` from a pointer and
+  /// length.
+  template <class T>
+  MutableArrayRef(T *data, size_t length) -> MutableArrayRef<T>;
 
-  /// Construct a MutableArrayRef from a SmallVector.
-  template <typename T, unsigned N>
-  MutableArrayRef<T> makeMutableArrayRef(SmallVector<T, N> &Vec) {
-    return Vec;
-  }
+  /// Deduction guide to construct a `MutableArrayRef` from a `SmallVector`.
+  template <class T>
+  MutableArrayRef(SmallVectorImpl<T> &Vec) -> MutableArrayRef<T>;
 
-  /// Construct a MutableArrayRef from a std::vector.
-  template<typename T>
-  MutableArrayRef<T> makeMutableArrayRef(std::vector<T> &Vec) {
-    return Vec;
-  }
+  template <class T, unsigned N>
+  MutableArrayRef(SmallVector<T, N> &Vec) -> MutableArrayRef<T>;
 
-  /// Construct a MutableArrayRef from a std::array.
-  template <typename T, std::size_t N>
-  MutableArrayRef<T> makeMutableArrayRef(std::array<T, N> &Arr) {
-    return Arr;
-  }
+  /// Deduction guide to construct a `MutableArrayRef` from a `std::vector`.
+  template <class T> MutableArrayRef(std::vector<T> &Vec) -> MutableArrayRef<T>;
 
-  /// Construct a MutableArrayRef from a MutableArrayRef (no-op) (const)
-  template <typename T>
-  MutableArrayRef<T> makeMutableArrayRef(const MutableArrayRef<T> &Vec) {
-    return Vec;
-  }
+  /// Deduction guide to construct a `MutableArrayRef` from a `std::array`.
+  template <class T, std::size_t N>
+  MutableArrayRef(std::array<T, N> &Vec) -> MutableArrayRef<T>;
 
-  /// Construct a MutableArrayRef from a C array.
-  template<typename T, size_t N>
-  MutableArrayRef<T> makeMutableArrayRef(T (&Arr)[N]) {
-    return MutableArrayRef<T>(Arr);
-  }
+  /// Deduction guide to construct a `MutableArrayRef` from a C array.
+  template <typename T, size_t N>
+  MutableArrayRef(T (&Arr)[N]) -> MutableArrayRef<T>;
 
   /// @}
   /// @name ArrayRef Comparison Operators

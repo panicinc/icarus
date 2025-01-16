@@ -1,61 +1,81 @@
 import CxxLLDB
 
-public struct Frame: Equatable, Identifiable {
+public struct Frame: Sendable {
     let lldbFrame: lldb.SBFrame
     
-    init(_ lldbFrame: lldb.SBFrame) {
+    init?(_ lldbFrame: lldb.SBFrame) {
+        guard lldbFrame.IsValid() else {
+            return nil
+        }
         self.lldbFrame = lldbFrame
     }
     
+    init(unsafe lldbFrame: lldb.SBFrame) {
+        self.lldbFrame = lldbFrame
+    }
+}
+
+extension Frame: Equatable {
     public static func == (lhs: Frame, rhs: Frame) -> Bool {
         return lhs.lldbFrame.IsEqual(rhs.lldbFrame)
     }
-    
+}
+
+extension Frame: Identifiable {
     public var id: Int {
-        Int(lldbFrame.GetFrameID())
+        return Int(lldbFrame.GetFrameID())
+    }
+}
+
+extension Frame {
+    public var displayFunctionName: String? {
+        var lldbFrame = lldbFrame
+        return String(optionalCString: lldbFrame.GetDisplayFunctionName())
     }
     
-    public var lineEntry: LineEntry {
-        LineEntry(lldbFrame.GetLineEntry())
+    public var lineEntry: LineEntry? {
+        return LineEntry(lldbFrame.GetLineEntry())
     }
     
-    public var programCounter: UInt64 {
-        lldbFrame.GetPC()
+    public var programCounter: UInt64? {
+        let pc = lldbFrame.GetPC()
+        guard pc != LLDB_INVALID_ADDRESS else {
+            return nil
+        }
+        return pc
     }
     
     public var stackPointer: UInt64 {
-        lldbFrame.GetSP()
+        return lldbFrame.GetSP()
     }
     
     public var framePointer: UInt64 {
-        lldbFrame.GetFP()
+        return lldbFrame.GetFP()
     }
     
     public var function: Function? {
-        let lldbFunction = lldbFrame.GetFunction()
-        if lldbFunction.IsValid() {
-            return Function(lldbFunction)
-        }
-        else {
-            return nil
-        }
+        return Function(lldbFrame.GetFunction())
     }
     
     public var isInlined: Bool {
-        lldbFrame.IsInlined()
+        return lldbFrame.IsInlined()
     }
     
     public var isArtificial: Bool {
-        lldbFrame.IsArtificial()
+        return lldbFrame.IsArtificial()
     }
-    
+}
+
+extension Frame {
     public func evaluate(expression: String) throws -> Value {
         var lldbFrame = lldbFrame
         var lldbValue = lldbFrame.EvaluateExpression(expression)
         try lldbValue.GetError().throwOnFail()
-        return Value(lldbValue)
+        return Value(unsafe: lldbValue)
     }
-    
+}
+
+extension Frame {
     public var registers: ValueList {
         var lldbFrame = lldbFrame
         return ValueList(lldbFrame.GetRegisters())
@@ -63,16 +83,13 @@ public struct Frame: Equatable, Identifiable {
     
     public func findRegister(withName name: String) -> Value? {
         var lldbFrame = lldbFrame
-        var lldbValue = lldbFrame.FindRegister(name)
-        if lldbValue.IsValid() {
-            return Value(lldbValue)
-        }
-        else {
-            return nil
-        }
+        let lldbValue = lldbFrame.FindRegister(name)
+        return Value(lldbValue)
     }
-    
-    public enum VariableCategory: Hashable {
+}
+
+extension Frame {
+    public enum VariableCategory: Sendable, Hashable {
         case arguments
         case locals
         case statics
@@ -87,14 +104,9 @@ public struct Frame: Equatable, Identifiable {
             inScopeOnly))
     }
     
-    public func findVariable(withName name: String) -> Value? {
+    public func findVariable(named name: String) -> Value? {
         var lldbFrame = lldbFrame
-        var lldbValue = lldbFrame.FindVariable(name)
-        if lldbValue.IsValid() {
-            return Value(lldbValue)
-        }
-        else {
-            return nil
-        }
+        let lldbValue = lldbFrame.FindVariable(name)
+        return Value(lldbValue)
     }
 }

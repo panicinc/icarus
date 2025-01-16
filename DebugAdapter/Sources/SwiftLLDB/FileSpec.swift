@@ -1,9 +1,12 @@
 import CxxLLDB
 
-public struct FileSpec: Equatable {
+public struct FileSpec: Sendable, Equatable {
     let lldbFileSpec: lldb.SBFileSpec
     
-    init(_ lldbFileSpec: lldb.SBFileSpec) {
+    init?(_ lldbFileSpec: lldb.SBFileSpec) {
+        guard lldbFileSpec.IsValid() else {
+            return nil
+        }
         self.lldbFileSpec = lldbFileSpec
     }
     
@@ -11,29 +14,15 @@ public struct FileSpec: Equatable {
         return lhs.lldbFileSpec == rhs.lldbFileSpec
     }
     
-    public var directory: String? {
-        if let directory = lldbFileSpec.GetDirectory() {
-            return String(cString: directory)
-        }
-        else {
-            return nil
-        }
+    public var directory: String {
+        return String(cString: lldbFileSpec.GetDirectory())
     }
     
-    public var filename: String? {
-        if let filename = lldbFileSpec.GetFilename() {
-            return String(cString: filename)
-        }
-        else {
-            return nil
-        }
+    public var filename: String {
+        return String(cString: lldbFileSpec.GetFilename())
     }
     
-    public var path: String? {
-        guard let directory,
-              let filename else {
-            return nil
-        }
+    public var path: String {
         return "\(directory)/\(filename)"
     }
 }

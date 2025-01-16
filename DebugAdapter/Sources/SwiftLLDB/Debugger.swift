@@ -1,15 +1,7 @@
 import CxxLLDB
 
-public final class Debugger {
+public final class Debugger: Sendable {
     let lldbDebugger = lldb.SBDebugger.Create(false)
-    
-    public static func initialize() throws {
-        try lldb.SBDebugger.InitializeWithErrorHandling().throwOnFail()
-    }
-    
-    public static func terminate() {
-        lldb.SBDebugger.Terminate()
-    }
     
     public init() {
     }
@@ -18,27 +10,98 @@ public final class Debugger {
         var lldbDebugger = lldbDebugger
         lldb.SBDebugger.Destroy(&lldbDebugger)
     }
-    
-    public var commandInterpreter: CommandInterpreter {
-        var lldbDebugger = lldbDebugger
-        return CommandInterpreter(lldbDebugger.GetCommandInterpreter())
+}
+
+extension Debugger {
+    public static func initialize() throws {
+        try lldb.SBDebugger.InitializeWithErrorHandling().throwOnFail()
     }
     
-    public var targets: [Target] {
-        var lldbDebugger = lldbDebugger
-        let count = lldbDebugger.GetNumTargets()
-        return (0 ..< count).map { Target(lldbDebugger.GetTargetAtIndex($0)) }
+    public static func terminate() {
+        lldb.SBDebugger.Terminate()
     }
+}
+
+extension Debugger {
+    public struct AvailablePlatform: Sendable, Equatable {
+        public let name: String
+        public let caption: String?
+        
+        init(name: String, caption: String?) {
+            self.name = name
+            self.caption = caption
+        }
+    }
+    
+    public struct AvailablePlatforms: Sendable, RandomAccessCollection {
+        let lldbDebugger: lldb.SBDebugger
+        
+        init(_ lldbDebugger: lldb.SBDebugger) {
+            self.lldbDebugger = lldbDebugger
+        }
+        
+        public var count: Int {
+            var lldbDebugger = lldbDebugger
+            return Int(lldbDebugger.GetNumAvailablePlatforms())
+        }
+        
+        @inlinable public var startIndex: Int { 0 }
+        @inlinable public var endIndex: Int { count }
+        
+        public subscript(position: Int) -> AvailablePlatform {
+            var lldbDebugger = lldbDebugger
+            let info = StructuredData(unsafe: lldbDebugger.GetAvailablePlatformInfoAtIndex(UInt32(position)))
+            
+            let name = info["name"]?.stringValue ?? "<unknown>"
+            let caption = info["description"]?.stringValue
+            
+            return AvailablePlatform(name: name, caption: caption)
+        }
+    }
+    
+    public var availablePlatforms: AvailablePlatforms { AvailablePlatforms(lldbDebugger) }
+    
+    public var selectedPlatform: Platform? {
+        get {
+            var lldbDebugger = lldbDebugger
+            return Platform(lldbDebugger.GetSelectedPlatform())
+        }
+        set {
+            var lldbDebugger = lldbDebugger
+            var lldbPlatform = newValue?.lldbPlatform ?? lldb.SBPlatform()
+            lldbDebugger.SetSelectedPlatform(&lldbPlatform)
+        }
+    }
+}
+
+extension Debugger {
+    public struct Targets: Sendable, RandomAccessCollection {
+        let lldbDebugger: lldb.SBDebugger
+        
+        init(_ lldbDebugger: lldb.SBDebugger) {
+            self.lldbDebugger = lldbDebugger
+        }
+        
+        public var count: Int {
+            var lldbDebugger = lldbDebugger
+            return Int(lldbDebugger.GetNumTargets())
+        }
+        
+        @inlinable public var startIndex: Int { 0 }
+        @inlinable public var endIndex: Int { count }
+        
+        public subscript(position: Int) -> Target {
+            var lldbDebugger = lldbDebugger
+            return Target(unsafe: lldbDebugger.GetTargetAtIndex(UInt32(position)))
+        }
+    }
+    
+    public var targets: Targets { Targets(lldbDebugger) }
     
     public var selectedTarget: Target? {
         var lldbDebugger = lldbDebugger
         let lldbTarget = lldbDebugger.GetSelectedTarget()
-        if lldbTarget.IsValid() {
-            return Target(lldbTarget)
-        }
-        else {
-            return nil
-        }
+        return Target(lldbTarget)
     }
     
     public func setSelectedTarget(_ target: Target) {
@@ -52,35 +115,25 @@ public final class Debugger {
         var error = lldb.SBError()
         let lldbTarget = lldbDebugger.CreateTarget(path, triple, platform, true, &error)
         try error.throwOnFail()
-        return Target(lldbTarget)
+        return Target(unsafe: lldbTarget)
     }
     
     public func createTarget(path: String, architecture: Architecture = .system) throws -> Target {
         var lldbDebugger = lldbDebugger
         let lldbTarget = lldbDebugger.CreateTargetWithFileAndArch(path, architecture.rawValue)
-        return Target(lldbTarget)
+        return Target(unsafe: lldbTarget)
     }
     
     public func findTarget(path: String, architecture: Architecture = .system) -> Target? {
         var lldbDebugger = lldbDebugger
         let lldbTarget = lldbDebugger.FindTargetWithFileAndArch(path, architecture.rawValue)
-        if lldbTarget.IsValid() {
-            return Target(lldbTarget)
-        }
-        else {
-            return nil
-        }
+        return Target(unsafe: lldbTarget)
     }
     
-    public func findTarget(processIdentifier: UInt64) -> Target? {
+    public func findTarget(processID: UInt64) -> Target? {
         var lldbDebugger = lldbDebugger
-        let lldbTarget = lldbDebugger.FindTargetWithProcessID(lldb.pid_t(processIdentifier))
-        if lldbTarget.IsValid() {
-            return Target(lldbTarget)
-        }
-        else {
-            return nil
-        }
+        let lldbTarget = lldbDebugger.FindTargetWithProcessID(lldb.pid_t(processID))
+        return Target(lldbTarget)
     }
     
     @discardableResult
@@ -89,51 +142,59 @@ public final class Debugger {
         var lldbTarget = target.lldbTarget
         return lldbDebugger.DeleteTarget(&lldbTarget)
     }
-    
-    public struct AvailablePlatform: Equatable {
-        public let name: String
-        public let descriptiveText: String?
+}
+
+extension Debugger {
+    public struct Events: AsyncSequence {
+        fileprivate let debugger: Debugger
         
-        init(name: String, descriptiveText: String?) {
-            self.name = name
-            self.descriptiveText = descriptiveText
+        fileprivate init(_ debugger: Debugger) {
+            self.debugger = debugger
         }
-    }
-    
-    public var availablePlatforms: [AvailablePlatform] {
-        var lldbDebugger = lldbDebugger
-        let count = lldbDebugger.GetNumAvailablePlatforms()
-        return (0 ..< count).map { idx in
-            let lldbPlatformInfo = lldbDebugger.GetAvailablePlatformInfoAtIndex(idx)
+        
+        public struct AsyncIterator: AsyncIteratorProtocol {
+            fileprivate let debugger: Debugger
             
-            let name = withUnsafeTemporaryAllocation(of: CChar.self, capacity: 255) { buffer in
-                lldbPlatformInfo.GetValueForKey("name").GetStringValue(buffer.baseAddress, 255)
-                return String(cString: buffer.baseAddress!)
+            fileprivate var listener: lldb.SBListener
+            
+            init(_ debugger: Debugger) {
+                self.debugger = debugger
+                var lldbDebugger = debugger.lldbDebugger
+                self.listener = lldbDebugger.GetListener()
             }
             
-            let descriptiveText = withUnsafeTemporaryAllocation(of: CChar.self, capacity: 255) { buffer in
-                lldbPlatformInfo.GetValueForKey("description").GetStringValue(buffer.baseAddress, 255)
-                return String(cString: buffer.baseAddress!)
+            public mutating func next() async -> Event? {
+                while !Task.isCancelled {
+                    var lldbEvent = lldb.SBEvent()
+                    if listener.WaitForEvent(1, &lldbEvent),
+                       let event = Event(lldbEvent) {
+                        return event
+                    }
+                    await Task.yield()
+                }
+                return nil
             }
-            
-            return AvailablePlatform(name: name, descriptiveText: descriptiveText)
+        }
+        
+        public func makeAsyncIterator() -> AsyncIterator {
+            return AsyncIterator(debugger)
         }
     }
     
-    public var selectedPlatform: Platform? {
-        var lldbDebugger = lldbDebugger
-        let lldbPlatform = lldbDebugger.GetSelectedPlatform()
-        if lldbPlatform.IsValid() {
-            return Platform(lldbPlatform)
-        }
-        else {
-            return nil
-        }
-    }
+    public var events: Events { Events(self) }
     
-    public func setSelectedPlatform(_ platform: Platform) {
+    public func startListening(to target: Target, events: TargetEvent.EventType) {
         var lldbDebugger = lldbDebugger
-        var lldbPlatform = platform.lldbPlatform
-        lldbDebugger.SetSelectedPlatform(&lldbPlatform)
+        var listener = lldbDebugger.GetListener()
+        
+        let targetBroadcaster = target.lldbTarget.GetBroadcaster()
+        listener.StartListeningForEvents(targetBroadcaster, events.rawValue);
+    }
+}
+
+extension Debugger {
+    public var commandInterpreter: CommandInterpreter {
+        var lldbDebugger = lldbDebugger
+        return CommandInterpreter(lldbDebugger.GetCommandInterpreter())
     }
 }

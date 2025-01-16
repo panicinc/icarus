@@ -1,6 +1,6 @@
 import CxxLLDB
 
-public struct CommandInterpreter {
+public struct CommandInterpreter: Sendable {
     let lldbCommandInterpreter: lldb.SBCommandInterpreter
     
     init(_ lldbCommandInterpreter: lldb.SBCommandInterpreter) {
@@ -24,28 +24,16 @@ public struct CommandInterpreter {
         }
     }
     
-    public func handleCompletions(_ text: String, cursorPosition: Int, matchStart: Int, maxCount: Int? = nil) -> [String] {
+    public func handleCompletions(_ text: String, cursorPosition: Int, matchStart: Int, maxResults: Int? = nil) -> StringList {
         var lldbCommandInterpreter = lldbCommandInterpreter
+        let maxCount = maxResults != nil ? Int32(maxResults!) : Int32.max
         var matches = lldb.SBStringList()
-        let maxCount = maxCount != nil ? Int32(maxCount!) : Int32.max
-        if lldbCommandInterpreter.HandleCompletion(text, UInt32(cursorPosition), Int32(matchStart), maxCount, &matches) > 0 {
-            let count = Int(matches.GetSize())
-            return (0 ..< count).compactMap { idx in
-                if let str = matches.GetStringAtIndex(idx) {
-                    return String(cString: str)
-                }
-                else {
-                    return nil
-                }
-            }
-        }
-        else {
-            return []
-        }
+        _ = lldbCommandInterpreter.HandleCompletion(text, UInt32(cursorPosition), Int32(matchStart), maxCount, &matches)
+        return StringList(matches)
     }
 }
 
-public struct CommandReturnObject {
+public struct CommandReturnObject: Sendable {
     let lldbCommandReturnObject: lldb.SBCommandReturnObject
     
     init(_ lldbCommandReturnObject: lldb.SBCommandReturnObject) {
@@ -54,21 +42,11 @@ public struct CommandReturnObject {
     
     public var output: String? {
         var lldbCommandReturnObject = lldbCommandReturnObject
-        if let str = lldbCommandReturnObject.GetOutput() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbCommandReturnObject.GetOutput())
     }
     
     public var error: String? {
         var lldbCommandReturnObject = lldbCommandReturnObject
-        if let str = lldbCommandReturnObject.GetError() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbCommandReturnObject.GetError())
     }
 }

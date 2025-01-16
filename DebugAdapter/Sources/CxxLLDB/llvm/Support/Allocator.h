@@ -17,7 +17,6 @@
 #ifndef LLVM_SUPPORT_ALLOCATOR_H
 #define LLVM_SUPPORT_ALLOCATOR_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/AllocatorBase.h"
@@ -28,6 +27,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -159,9 +159,9 @@ public:
 #endif
 
     // Check if we have enough space.
-    if (Adjustment + SizeToAllocate <= size_t(End - CurPtr)
-        // We can't return nullptr even for a zero-sized allocation!
-        && CurPtr != nullptr) {
+    if (LLVM_LIKELY(Adjustment + SizeToAllocate <= size_t(End - CurPtr)
+                    // We can't return nullptr even for a zero-sized allocation!
+                    && CurPtr != nullptr)) {
       char *AlignedPtr = CurPtr + Adjustment;
       CurPtr = AlignedPtr + SizeToAllocate;
       // Update the allocation point of this memory block in MemorySanitizer.
@@ -173,6 +173,11 @@ public:
       return AlignedPtr;
     }
 
+    return AllocateSlow(Size, SizeToAllocate, Alignment);
+  }
+
+  LLVM_ATTRIBUTE_RETURNS_NONNULL LLVM_ATTRIBUTE_NOINLINE void *
+  AllocateSlow(size_t Size, size_t SizeToAllocate, Align Alignment) {
     // If Size is really big, allocate a separate slab for it.
     size_t PaddedSize = SizeToAllocate + Alignment.value() - 1;
     if (PaddedSize > SizeThreshold) {
@@ -229,7 +234,7 @@ public:
   /// The returned value is negative iff the object is inside a custom-size
   /// slab.
   /// Returns an empty optional if the pointer is not found in the allocator.
-  llvm::Optional<int64_t> identifyObject(const void *Ptr) {
+  std::optional<int64_t> identifyObject(const void *Ptr) {
     const char *P = static_cast<const char *>(Ptr);
     int64_t InSlabIdx = 0;
     for (size_t Idx = 0, E = Slabs.size(); Idx < E; Idx++) {
@@ -248,7 +253,7 @@ public:
         return InCustomSizedSlabIdx - static_cast<int64_t>(P - S);
       InCustomSizedSlabIdx -= static_cast<int64_t>(Size);
     }
-    return None;
+    return std::nullopt;
   }
 
   /// A wrapper around identifyObject that additionally asserts that
@@ -256,7 +261,7 @@ public:
   /// \return An index uniquely and reproducibly identifying
   /// an input pointer \p Ptr in the given allocator.
   int64_t identifyKnownObject(const void *Ptr) {
-    Optional<int64_t> Out = identifyObject(Ptr);
+    std::optional<int64_t> Out = identifyObject(Ptr);
     assert(Out && "Wrong allocator used");
     return *Out;
   }

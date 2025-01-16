@@ -1,9 +1,12 @@
 import CxxLLDB
 
-public struct LineEntry: Equatable {
+public struct LineEntry: Sendable, Equatable {
     let lldbLineEntry: lldb.SBLineEntry
     
-    init(_ lldbLineEntry: lldb.SBLineEntry) {
+    init?(_ lldbLineEntry: lldb.SBLineEntry) {
+        guard lldbLineEntry.IsValid() else {
+            return nil
+        }
         self.lldbLineEntry = lldbLineEntry
     }
     
@@ -11,15 +14,19 @@ public struct LineEntry: Equatable {
         return lhs.lldbLineEntry == rhs.lldbLineEntry
     }
     
-    public var line: Int {
-        Int(lldbLineEntry.GetLine())
+    public var line: Int? {
+        let line = lldbLineEntry.GetLine()
+        guard line != LLDB_INVALID_LINE_NUMBER else {
+            return nil
+        }
+        return Int(line)
     }
     
     public var column: Int {
-        Int(lldbLineEntry.GetColumn())
+        return Int(lldbLineEntry.GetColumn())
     }
     
-    public var fileSpec: FileSpec {
-        FileSpec(lldbLineEntry.GetFileSpec())
+    public var fileSpec: FileSpec? {
+        return FileSpec(lldbLineEntry.GetFileSpec())
     }
 }

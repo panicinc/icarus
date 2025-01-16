@@ -1,27 +1,29 @@
 import CxxLLDB
 
-public struct Queue: Identifiable {
+public struct Queue: Sendable {
     let lldbQueue: lldb.SBQueue
     
-    init(_ lldbQueue: lldb.SBQueue) {
-        self.lldbQueue = lldbQueue
-    }
-    
-    public var id: Int {
-        Int(lldbQueue.GetQueueID())
-    }
-    
-    public var name: String? {
-        if let str = lldbQueue.GetName() {
-            return String(cString: str)
-        }
-        else {
+    init?(_ lldbQueue: lldb.SBQueue) {
+        guard lldbQueue.IsValid() else {
             return nil
         }
+        self.lldbQueue = lldbQueue
+    }
+}
+
+extension Queue: Identifiable {
+    public var id: Int {
+        return Int(lldbQueue.GetQueueID())
+    }
+}
+
+extension Queue {
+    public var name: String? {
+        return String(optionalCString: lldbQueue.GetName())
     }
     
     public var indexID: Int {
-        Int(lldbQueue.GetIndexID())
+        return Int(lldbQueue.GetIndexID())
     }
     
     public struct Kind: RawRepresentable, Hashable {
@@ -47,8 +49,10 @@ public struct Queue: Identifiable {
         var lldbQueue = lldbQueue
         return Kind(lldbQueue.GetKind())
     }
-    
-    public struct Threads: RandomAccessCollection {
+}
+
+extension Queue {
+    public struct Threads: Sendable, RandomAccessCollection {
         let lldbQueue: lldb.SBQueue
         
         init(_ lldbQueue: lldb.SBQueue) {
@@ -62,14 +66,13 @@ public struct Queue: Identifiable {
         
         @inlinable public var startIndex: Int { 0 }
         @inlinable public var endIndex: Int { count }
-        @inlinable public func index(before i: Int) -> Int { i - 1 }
-        @inlinable public func index(after i: Int) -> Int { i + 1 }
         
         public subscript(position: Int) -> Thread {
             var lldbQueue = lldbQueue
-            return Thread(lldbQueue.GetThreadAtIndex(UInt32(position)))
+            return Thread(unsafe: lldbQueue.GetThreadAtIndex(UInt32(position)))
         }
     }
+    
     public var threads: Threads { Threads(lldbQueue) }
 }
 

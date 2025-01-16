@@ -1,47 +1,39 @@
 import CxxLLDB
 
-public struct Platform {
+public struct Platform: Sendable {
     let lldbPlatform: lldb.SBPlatform
     
-    init(_ lldbPlatform: lldb.SBPlatform) {
+    init?(_ lldbPlatform: lldb.SBPlatform) {
+        guard lldbPlatform.IsValid() else {
+            return nil
+        }
         self.lldbPlatform = lldbPlatform
     }
     
-    public init(name: String) {
-        self.lldbPlatform = lldb.SBPlatform(name)
+    public init?(named: String) {
+        self.init(lldb.SBPlatform(named))
     }
-    
+}
+
+extension Platform {
     public var name: String? {
         var lldbPlatform = lldbPlatform
-        if let str = lldbPlatform.GetName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbPlatform.GetName())
     }
     
     public var triple: String? {
         var lldbPlatform = lldbPlatform
-        if let str = lldbPlatform.GetTriple() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbPlatform.GetTriple())
     }
     
     public var hostname: String? {
         var lldbPlatform = lldbPlatform
-        if let str = lldbPlatform.GetHostname() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbPlatform.GetHostname())
     }
-    
-    public struct ConnectOptions {
+}
+
+extension Platform {
+    public struct ConnectOptions: Sendable {
         public var url: String
         public var isRsyncEnabled = false
         public var rsyncOptions: String?
@@ -58,7 +50,7 @@ public struct Platform {
         return lldbPlatform.IsConnected()
     }
     
-    public func connect(with options: ConnectOptions) throws {
+    public func connect(_ options: ConnectOptions) throws {
         var lldbOptions = lldb.SBPlatformConnectOptions(options.url)
         
         if options.isRsyncEnabled {

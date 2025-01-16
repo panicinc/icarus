@@ -1,27 +1,41 @@
 import CxxLLDB
+import os
 
-public struct Breakpoint: Equatable, Identifiable {
+public struct Breakpoint: Sendable {
     let lldbBreakpoint: lldb.SBBreakpoint
     
-    init(_ lldbBreakpoint: lldb.SBBreakpoint) {
+    init?(_ lldbBreakpoint: lldb.SBBreakpoint) {
+        guard lldbBreakpoint.IsValid() else {
+            return nil
+        }
         self.lldbBreakpoint = lldbBreakpoint
     }
     
+    init(unsafe lldbBreakpoint: lldb.SBBreakpoint) {
+        self.lldbBreakpoint = lldbBreakpoint
+    }
+}
+
+extension Breakpoint: Equatable {
     public static func == (lhs: Breakpoint, rhs: Breakpoint) -> Bool {
         var lhsv = lhs.lldbBreakpoint
         return lhsv == rhs.lldbBreakpoint
     }
-    
+}
+
+extension Breakpoint: Identifiable {
     public var id: Int {
-        Int(lldbBreakpoint.GetID())
+        return Int(lldbBreakpoint.GetID())
     }
-    
+}
+
+extension Breakpoint {
     public var isEnabled: Bool {
         get {
             var lldbBreakpoint = lldbBreakpoint
             return lldbBreakpoint.IsEnabled()
         }
-        set {
+        nonmutating set {
             var lldbBreakpoint = lldbBreakpoint
             lldbBreakpoint.SetEnabled(newValue)
         }
@@ -30,14 +44,9 @@ public struct Breakpoint: Equatable, Identifiable {
     public var condition: String? {
         get {
             var lldbBreakpoint = lldbBreakpoint
-            if let str = lldbBreakpoint.GetCondition() {
-                return String(cString: str)
-            }
-            else {
-                return nil
-            }
+            return String(optionalCString: lldbBreakpoint.GetCondition())
         }
-        set {
+        nonmutating set {
             var lldbBreakpoint = lldbBreakpoint
             lldbBreakpoint.SetCondition(newValue)
         }
@@ -47,7 +56,7 @@ public struct Breakpoint: Equatable, Identifiable {
         get {
             return lldbBreakpoint.IsOneShot()
         }
-        set {
+        nonmutating set {
             var lldbBreakpoint = lldbBreakpoint
             lldbBreakpoint.SetOneShot(newValue)
         }
@@ -61,7 +70,7 @@ public struct Breakpoint: Equatable, Identifiable {
         get {
             return Int(lldbBreakpoint.GetIgnoreCount())
         }
-        set {
+        nonmutating set {
             var lldbBreakpoint = lldbBreakpoint
             lldbBreakpoint.SetIgnoreCount(UInt32(truncatingIfNeeded: newValue))
         }
@@ -72,67 +81,133 @@ public struct Breakpoint: Equatable, Identifiable {
             var lldbBreakpoint = lldbBreakpoint
             return lldbBreakpoint.GetAutoContinue()
         }
-        set {
+        nonmutating set {
             var lldbBreakpoint = lldbBreakpoint
             lldbBreakpoint.SetAutoContinue(newValue)
         }
     }
-    
-    fileprivate class CallbackInfo {
-        let callback: (Process, Thread, BreakpointLocation) -> Bool
+}
+
+extension Breakpoint {
+    fileprivate final class CallbackInfo: Sendable {
+        let callback: @Sendable (Process, Thread, Breakpoint.Location) -> Bool
         
-        init(callback: @escaping (Process, Thread, BreakpointLocation) -> Bool) {
+        init(_ callback: @Sendable @escaping (Process, Thread, Breakpoint.Location) -> Bool) {
             self.callback = callback
         }
     }
     
-    private static var callbackInfos: [Int: CallbackInfo] = [:]
-    private static let callbackInfosLock: UnsafeMutablePointer<os_unfair_lock> = {
-        let ptr = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
-        ptr.initialize(to: os_unfair_lock())
-        return ptr
-    }()
+    private static let callbacks = OSAllocatedUnfairLock<[Int: CallbackInfo]>(initialState: [:])
     
-    public func setCallback(_ callback: ((Process, Thread, BreakpointLocation) -> Bool)?) {
-        os_unfair_lock_lock(Self.callbackInfosLock)
-        defer { os_unfair_lock_unlock(Self.callbackInfosLock) }
-        let id = id
-        var lldbBreakpoint = lldbBreakpoint
-        if let callback {
-            let info = CallbackInfo(callback: callback)
-            Self.callbackInfos[id] = info
-            let baton = Unmanaged.passUnretained(info).toOpaque()
-            lldbBreakpoint.SetCallback(breakpointCallbackThunk, baton)
-        }
-        else {
-            lldbBreakpoint.SetCallback(nil, nil)
-            Self.callbackInfos[id] = nil
+    public func setCallback(_ callback: (@Sendable (Process, Thread, Breakpoint.Location) -> Bool)?) {
+        Self.callbacks.withLock { state in
+            var lldbBreakpoint = lldbBreakpoint
+            if let callback {
+                let info = CallbackInfo(callback)
+                state[id] = info
+                let baton = Unmanaged.passUnretained(info).toOpaque()
+                lldbBreakpoint.SetCallback(breakpointThunk, baton)
+            }
+            else {
+                lldbBreakpoint.SetCallback(nil, nil)
+                state[id] = nil
+            }
         }
     }
     
     public static func clearAllCallbacks() {
-        os_unfair_lock_lock(Self.callbackInfosLock)
-        defer { os_unfair_lock_unlock(Self.callbackInfosLock) }
-        Self.callbackInfos.removeAll()
+        Self.callbacks.withLock { state in
+            state.removeAll()
+        }
     }
 }
 
-private func breakpointCallbackThunk(baton: UnsafeMutableRawPointer?, process: UnsafeMutablePointer<lldb.SBProcess>, thread: UnsafeMutablePointer<lldb.SBThread>, location: UnsafeMutablePointer<lldb.SBBreakpointLocation>) -> Bool {
+private func breakpointThunk(baton: UnsafeMutableRawPointer?, process: UnsafeMutablePointer<lldb.SBProcess>, thread: UnsafeMutablePointer<lldb.SBThread>, location: UnsafeMutablePointer<lldb.SBBreakpointLocation>) -> Bool {
     guard let baton else { return true }
     let info = Unmanaged<Breakpoint.CallbackInfo>.fromOpaque(baton).takeUnretainedValue()
-    return info.callback(Process(process.pointee), Thread(thread.pointee), BreakpointLocation(location.pointee))
+    return info.callback(Process(unsafe: process.pointee), Thread(unsafe: thread.pointee), Breakpoint.Location(unsafe: location.pointee))
 }
 
-public struct BreakpointLocation {
-    let lldbLocation: lldb.SBBreakpointLocation
-    
-    init(_ lldbLocation: lldb.SBBreakpointLocation) {
-        self.lldbLocation = lldbLocation
+extension Breakpoint {
+    public func addName(_ name: String) throws {
+        var lldbBreakpoint = lldbBreakpoint
+        let error = lldbBreakpoint.AddNameWithErrorHandling(name)
+        try error.throwOnFail()
     }
     
+    public func removeName(_ name: String) {
+        var lldbBreakpoint = lldbBreakpoint
+        lldbBreakpoint.RemoveName(name)
+    }
+    
+    public func matchesName(_ name: String) -> Bool {
+        var lldbBreakpoint = lldbBreakpoint
+        return lldbBreakpoint.MatchesName(name)
+    }
+    
+    public var names: StringList {
+        var lldbBreakpoint = lldbBreakpoint
+        var names = lldb.SBStringList()
+        lldbBreakpoint.GetNames(&names)
+        return StringList(names)
+    }
+}
+
+extension Breakpoint {
+    public struct Location: Sendable {
+        let lldbLocation: lldb.SBBreakpointLocation
+        
+        init?(_ lldbLocation: lldb.SBBreakpointLocation) {
+            guard lldbLocation.IsValid() else {
+                return nil
+            }
+            self.lldbLocation = lldbLocation
+        }
+        
+        init(unsafe lldbLocation: lldb.SBBreakpointLocation) {
+            self.lldbLocation = lldbLocation
+        }
+    }
+    
+    public struct Locations: Sendable, RandomAccessCollection {
+        let lldbBreakpoint: lldb.SBBreakpoint
+        
+        init(_ lldbBreakpoint: lldb.SBBreakpoint) {
+            self.lldbBreakpoint = lldbBreakpoint
+        }
+        
+        public var count: Int { lldbBreakpoint.GetNumLocations() }
+        
+        @inlinable public var startIndex: Int { 0 }
+        @inlinable public var endIndex: Int { count }
+        
+        public subscript(position: Int) -> Location {
+            var lldbBreakpoint = lldbBreakpoint
+            return Location(unsafe: lldbBreakpoint.GetLocationAtIndex(UInt32(position)))
+        }
+    }
+    
+    public var locations: Locations { Locations(lldbBreakpoint) }
+    
+    public var resolvedLocationsCount: Int {
+        return lldbBreakpoint.GetNumResolvedLocations()
+    }
+}
+
+extension Breakpoint.Location {
     public var id: Int {
         var lldbLocation = lldbLocation
         return Int(lldbLocation.GetID())
+    }
+    
+    public var address: Address? {
+        var lldbLocation = lldbLocation
+        return Address(lldbLocation.GetAddress())
+    }
+    
+    public var loadAddress: UInt64 {
+        var lldbLocation = lldbLocation
+        return lldbLocation.GetLoadAddress()
     }
     
     public var isEnabled: Bool {
@@ -140,7 +215,7 @@ public struct BreakpointLocation {
             var lldbLocation = lldbLocation
             return lldbLocation.IsEnabled()
         }
-        set {
+        nonmutating set {
             var lldbLocation = lldbLocation
             lldbLocation.SetEnabled(newValue)
         }
@@ -149,14 +224,9 @@ public struct BreakpointLocation {
     public var condition: String? {
         get {
             var lldbLocation = lldbLocation
-            if let str = lldbLocation.GetCondition() {
-                return String(cString: str)
-            }
-            else {
-                return nil
-            }
+            return String(optionalCString: lldbLocation.GetCondition())
         }
-        set {
+        nonmutating set {
             var lldbLocation = lldbLocation
             lldbLocation.SetCondition(newValue)
         }
@@ -172,7 +242,7 @@ public struct BreakpointLocation {
             var lldbLocation = lldbLocation
             return Int(lldbLocation.GetIgnoreCount())
         }
-        set {
+        nonmutating set {
             var lldbLocation = lldbLocation
             lldbLocation.SetIgnoreCount(UInt32(truncatingIfNeeded: newValue))
         }
@@ -183,7 +253,7 @@ public struct BreakpointLocation {
             var lldbLocation = lldbLocation
             return lldbLocation.GetAutoContinue()
         }
-        set {
+        nonmutating set {
             var lldbLocation = lldbLocation
             lldbLocation.SetAutoContinue(newValue)
         }
@@ -195,58 +265,48 @@ public struct BreakpointLocation {
     }
 }
 
-public struct BreakpointEvent {
+public struct BreakpointEvent: Sendable {
     let lldbEvent: lldb.SBEvent
     
     init(_ lldbEvent: lldb.SBEvent) {
         self.lldbEvent = lldbEvent
     }
     
-    public init?(_ event: Event) {
-        let lldbEvent = event.lldbEvent
-        if lldb.SBBreakpoint.EventIsBreakpointEvent(lldbEvent) {
-            self.init(lldbEvent)
-        }
-        else {
-            return nil
-        }
-    }
-    
     public var breakpoint: Breakpoint {
-        Breakpoint(lldb.SBBreakpoint.GetBreakpointFromEvent(lldbEvent))
+        Breakpoint(unsafe: lldb.SBBreakpoint.GetBreakpointFromEvent(lldbEvent))
     }
     
-    public var eventType: BreakpointEventType {
-        BreakpointEventType(lldb.SBBreakpoint.GetBreakpointEventTypeFromEvent(lldbEvent))
+    public struct EventType: RawRepresentable, Sendable, Hashable {
+        public static let invalid = Self(lldb.eBreakpointEventTypeInvalidType)
+        public static let added = Self(lldb.eBreakpointEventTypeAdded)
+        public static let removed = Self(lldb.eBreakpointEventTypeRemoved)
+        public static let locationsAdded = Self(lldb.eBreakpointEventTypeLocationsAdded)
+        public static let locationsRemoved = Self(lldb.eBreakpointEventTypeLocationsRemoved)
+        public static let locationsResolved = Self(lldb.eBreakpointEventTypeLocationsResolved)
+        public static let enabled = Self(lldb.eBreakpointEventTypeEnabled)
+        public static let disabled = Self(lldb.eBreakpointEventTypeDisabled)
+        public static let commandChanged = Self(lldb.eBreakpointEventTypeCommandChanged)
+        public static let conditionChanged = Self(lldb.eBreakpointEventTypeConditionChanged)
+        public static let ignoreChanged = Self(lldb.eBreakpointEventTypeIgnoreChanged)
+        public static let threadChanged = Self(lldb.eBreakpointEventTypeThreadChanged)
+        public static let autoContinueChanged = Self(lldb.eBreakpointEventTypeAutoContinueChanged)
+        
+        public let rawValue: Int
+        
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+        
+        init(_ value: lldb.BreakpointEventType) {
+            self.rawValue = Int(value.rawValue)
+        }
+    }
+    
+    public var eventType: EventType {
+        return EventType(lldb.SBBreakpoint.GetBreakpointEventTypeFromEvent(lldbEvent))
     }
     
     public var locationCount: Int {
-        Int(lldb.SBBreakpoint.GetNumBreakpointLocationsFromEvent(lldbEvent))
-    }
-}
-
-public struct BreakpointEventType: OptionSet {
-    public static let invalid = Self(lldb.eBreakpointEventTypeInvalidType)
-    public static let added = Self(lldb.eBreakpointEventTypeAdded)
-    public static let removed = Self(lldb.eBreakpointEventTypeRemoved)
-    public static let locationsAdded = Self(lldb.eBreakpointEventTypeLocationsAdded)
-    public static let locationsRemoved = Self(lldb.eBreakpointEventTypeLocationsRemoved)
-    public static let locationsResolved = Self(lldb.eBreakpointEventTypeLocationsResolved)
-    public static let enabled = Self(lldb.eBreakpointEventTypeEnabled)
-    public static let disabled = Self(lldb.eBreakpointEventTypeDisabled)
-    public static let commandChanged = Self(lldb.eBreakpointEventTypeCommandChanged)
-    public static let conditionChanged = Self(lldb.eBreakpointEventTypeConditionChanged)
-    public static let ignoreChanged = Self(lldb.eBreakpointEventTypeIgnoreChanged)
-    public static let threadChanged = Self(lldb.eBreakpointEventTypeThreadChanged)
-    public static let autoContinueChanged = Self(lldb.eBreakpointEventTypeAutoContinueChanged)
-    
-    public let rawValue: Int
-    
-    public init(rawValue: Int) {
-        self.rawValue = rawValue
-    }
-    
-    init(_ value: lldb.BreakpointEventType) {
-        self.rawValue = Int(value.rawValue)
+        return Int(lldb.SBBreakpoint.GetNumBreakpointLocationsFromEvent(lldbEvent))
     }
 }

@@ -1,6 +1,6 @@
 import CxxLLDB
 
-public struct Architecture: RawRepresentable, Hashable, ExpressibleByStringLiteral {
+public struct Architecture: RawRepresentable, Sendable, Hashable, ExpressibleByStringLiteral {
     /// Architecture of the host platform.
     public static let system = Self(rawValue: LLDB_ARCH_DEFAULT)
     /// 32-bit variant of the architecture of the host platform.

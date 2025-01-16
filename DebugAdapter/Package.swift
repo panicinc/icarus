@@ -4,12 +4,11 @@ import PackageDescription
 let package = Package(
     name: "LLDBAdapter",
     platforms: [
-        .macOS(.v11)
+        .macOS(.v13)
     ],
     products: [
         .executable(name: "LLDBAdapter", targets: ["LLDBAdapter"]),
         .library(name: "SwiftLLDB", targets: ["SwiftLLDB"]),
-        .executable(name: "TestApplication", targets: ["TestApplication"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
@@ -42,6 +41,5 @@ let package = Package(
             ]
         ),
         .systemLibrary(name: "CxxLLDB"),
-        .executableTarget(name: "TestApplication"),
     ]
 )

@@ -1,61 +1,50 @@
 import CxxLLDB
 
-public struct Target: Equatable {
+public struct Target: Sendable {
     let lldbTarget: lldb.SBTarget
     
-    init(_ lldbTarget: lldb.SBTarget) {
+    init?(_ lldbTarget: lldb.SBTarget) {
+        guard lldbTarget.IsValid() else {
+            return nil
+        }
         self.lldbTarget = lldbTarget
     }
     
+    init(unsafe lldbTarget: lldb.SBTarget) {
+        self.lldbTarget = lldbTarget
+    }
+}
+
+extension Target: Equatable {
     public static func == (lhs: Target, rhs: Target) -> Bool {
         return lhs.lldbTarget == rhs.lldbTarget
     }
-    
-    public static let broadcasterClassName = String(cString: lldb.SBTarget.GetBroadcasterClassName())
-    
+}
+
+extension Target {
     public var triple: String? {
         var lldbTarget = lldbTarget
-        if let str = lldbTarget.GetTriple() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbTarget.GetTriple())
     }
     
     public var abiName: String? {
         var lldbTarget = lldbTarget
-        if let str = lldbTarget.GetABIName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbTarget.GetABIName())
     }
     
     public var process: Process? {
         var lldbTarget = lldbTarget
-        let lldbProcess = lldbTarget.GetProcess()
-        if lldbProcess.IsValid() {
-            return Process(lldbProcess)
-        }
-        else {
-            return nil
-        }
+        return Process(lldbTarget.GetProcess())
     }
     
     public var platform: Platform? {
         var lldbTarget = lldbTarget
-        let lldbPlatform = lldbTarget.GetPlatform()
-        if lldbPlatform.IsValid() {
-            return Platform(lldbPlatform)
-        }
-        else {
-            return nil
-        }
+        return Platform(lldbTarget.GetPlatform())
     }
-    
-    public struct LaunchOptions: Equatable {
+}
+
+extension Target {
+    public struct LaunchOptions: Sendable, Equatable {
         public var arguments: [String]?
         public var environment: [String: String]?
         public var workingDirectory: String?
@@ -97,24 +86,25 @@ public struct Target: Equatable {
         var error = lldb.SBError()
         let lldbProcess = lldbTarget.Launch(&lldbLaunchInfo, &error)
         try error.throwOnFail()
-        return Process(lldbProcess)
+        return Process(unsafe: lldbProcess)
     }
-    
-    public struct AttachOptions: Equatable {
-        public enum AttachTarget: Equatable {
-            case processIdentifier(UInt64)
-            case executablePath(String)
+}
+
+extension Target {
+    public struct AttachOptions: Sendable, Equatable {
+        public enum AttachTarget: Sendable, Equatable {
+            case processID(UInt64)
+            case path(String)
         }
         public var target: AttachTarget
         public var waitForLaunch = false
-        public var stopAtEntry = false
         
-        public init(processIdentifier: UInt64) {
-            self.target = .processIdentifier(processIdentifier)
+        public init(processID: UInt64) {
+            self.target = .processID(processID)
         }
         
-        public init(executablePath: String) {
-            self.target = .executablePath(executablePath)
+        public init(path: String) {
+            self.target = .path(path)
         }
     }
     
@@ -123,10 +113,10 @@ public struct Target: Equatable {
         var lldbAttachInfo = lldb.SBAttachInfo()
         
         switch options.target {
-        case let .processIdentifier(processIdentifier):
-            lldbAttachInfo.SetProcessID(lldb.pid_t(processIdentifier))
-        case let .executablePath(executablePath):
-            lldbAttachInfo.SetExecutable(executablePath)
+        case let .processID(processID):
+            lldbAttachInfo.SetProcessID(lldb.pid_t(processID))
+        case let .path(path):
+            lldbAttachInfo.SetExecutable(path)
         }
         
         lldbAttachInfo.SetWaitForLaunch(options.waitForLaunch, true)
@@ -135,92 +125,81 @@ public struct Target: Equatable {
         var error = lldb.SBError()
         let lldbProcess = lldbTarget.Attach(&lldbAttachInfo, &error)
         try error.throwOnFail()
-        return Process(lldbProcess)
+        return Process(unsafe: lldbProcess)
     }
-    
+}
+
+extension Target {
     public func createBreakpoint(path: String, line: Int) -> Breakpoint {
         var lldbTarget = lldbTarget
-        return Breakpoint(lldbTarget.BreakpointCreateByLocation(path, UInt32(line)))
+        return Breakpoint(unsafe: lldbTarget.BreakpointCreateByLocation(path, UInt32(line)))
     }
     
-    public func createBreakpoint(path: String, line: Int, column: Int?, offset: Int?, moveToNearestCode: Bool) -> Breakpoint {
+    public func createBreakpoint(path: String, line: Int, column: Int? = nil, offset: Int? = nil, moveToNearestCode: Bool = true) -> Breakpoint {
         var lldbTarget = lldbTarget
         let lldbFileSpec = lldb.SBFileSpec(path)
         var lldbModuleList = lldb.SBFileSpecList()
-        return Breakpoint(lldbTarget.BreakpointCreateByLocation(lldbFileSpec, UInt32(line), UInt32(column ?? 0), lldb.addr_t(offset ?? 0), &lldbModuleList, moveToNearestCode))
+        return Breakpoint(unsafe: lldbTarget.BreakpointCreateByLocation(lldbFileSpec, UInt32(line), UInt32(column ?? 0), UInt64(offset ?? 0), &lldbModuleList, moveToNearestCode))
     }
     
     public func createBreakpoint(name: String) -> Breakpoint {
         var lldbTarget = lldbTarget
-        return Breakpoint(lldbTarget.BreakpointCreateByName(name, nil))
+        return Breakpoint(unsafe: lldbTarget.BreakpointCreateByName(name, nil))
     }
     
     public func createBreakpoint(forExceptionIn language: Language, onCatch: Bool, onThrow: Bool) -> Breakpoint {
         var lldbTarget = lldbTarget
-        return Breakpoint(lldbTarget.BreakpointCreateForException(language.lldbLanguageType, onCatch, onThrow))
+        return Breakpoint(unsafe: lldbTarget.BreakpointCreateForException(language.lldbLanguageType, onCatch, onThrow))
     }
     
-    public func findBreakpoint(withID id: Int) -> Breakpoint? {
+    public func findBreakpoint(id: Int) -> Breakpoint? {
         var lldbTarget = lldbTarget
         let lldbBreakpoint = lldbTarget.FindBreakpointByID(lldb.break_id_t(id))
-        if lldbBreakpoint.IsValid() {
-            return Breakpoint(lldbBreakpoint)
-        }
-        else {
-            return nil
-        }
+        return Breakpoint(lldbBreakpoint)
     }
     
     @discardableResult
-    public func removeBreakpoint(withID id: Int) -> Bool {
+    public func removeBreakpoint(id: Int) -> Bool {
         var lldbTarget = lldbTarget
         return lldbTarget.BreakpointDelete(lldb.break_id_t(id))
     }
-    
+}
+
+extension Target {
     public func evaluate(expression: String) throws -> Value {
         var lldbTarget = lldbTarget
         var lldbValue = lldbTarget.EvaluateExpression(expression)
         try lldbValue.GetError().throwOnFail()
-        return Value(lldbValue)
+        return Value(unsafe: lldbValue)
     }
 }
 
-public struct TargetEvent {
+public struct TargetEvent: Sendable {
     let lldbEvent: lldb.SBEvent
     
     init(_ lldbEvent: lldb.SBEvent) {
         self.lldbEvent = lldbEvent
     }
     
-    public init?(_ event: Event) {
-        let lldbEvent = event.lldbEvent
-        if lldb.SBTarget.EventIsTargetEvent(lldbEvent) {
-            self.init(lldbEvent)
-        }
-        else {
-            return nil
-        }
-    }
-    
-    public struct EventFlags: OptionSet, Hashable {
+    public struct EventType: OptionSet, Sendable, Hashable {
         public static let breakpointChanged = Self(rawValue: 1 << 0)
         public static let modulesLoaded = Self(rawValue: 1 << 1)
         public static let modulesUnloaded = Self(rawValue: 1 << 2)
         public static let watchpointChanged = Self(rawValue: 1 << 3)
         public static let symbolsLoaded = Self(rawValue: 1 << 4)
         
-        public let rawValue: Int
+        public let rawValue: UInt32
         
-        public init(rawValue: Int) {
+        public init(rawValue: UInt32) {
             self.rawValue = rawValue
         }
     }
     
-    public var flags: EventFlags {
-        EventFlags(rawValue: Int(lldbEvent.GetType()))
+    public var eventType: EventType {
+        return EventType(rawValue: lldbEvent.GetType())
     }
     
     public var target: Target {
-        Target(lldb.SBTarget.GetTargetFromEvent(lldbEvent))
+        return Target(unsafe: lldb.SBTarget.GetTargetFromEvent(lldbEvent))
     }
 }

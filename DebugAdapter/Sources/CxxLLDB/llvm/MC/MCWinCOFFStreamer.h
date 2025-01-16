@@ -22,6 +22,7 @@ class MCSection;
 class MCSubtargetInfo;
 class MCSymbol;
 class StringRef;
+class WinCOFFObjectWriter;
 class raw_pwrite_stream;
 
 class MCWinCOFFStreamer : public MCObjectStreamer {
@@ -36,10 +37,13 @@ public:
     MCObjectStreamer::reset();
   }
 
+  WinCOFFObjectWriter &getWriter();
+
   /// \name MCStreamer interface
   /// \{
 
   void initSections(bool NoExecStack, const MCSubtargetInfo &STI) override;
+  void changeSection(MCSection *Section, uint32_t Subsection = 0) override;
   void emitLabel(MCSymbol *Symbol, SMLoc Loc = SMLoc()) override;
   void emitAssemblerFlag(MCAssemblerFlag Flag) override;
   void emitThumbFunc(MCSymbol *Func) override;
@@ -55,14 +59,14 @@ public:
   void emitCOFFSecRel32(MCSymbol const *Symbol, uint64_t Offset) override;
   void emitCOFFImgRel32(MCSymbol const *Symbol, int64_t Offset) override;
   void emitCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                        unsigned ByteAlignment) override;
+                        Align ByteAlignment) override;
   void emitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
-                             unsigned ByteAlignment) override;
+                             Align ByteAlignment) override;
   void emitWeakReference(MCSymbol *Alias, const MCSymbol *Symbol) override;
   void emitZerofill(MCSection *Section, MCSymbol *Symbol, uint64_t Size,
-                    unsigned ByteAlignment, SMLoc Loc = SMLoc()) override;
+                    Align ByteAlignment, SMLoc Loc = SMLoc()) override;
   void emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol, uint64_t Size,
-                      unsigned ByteAlignment) override;
+                      Align ByteAlignment) override;
   void emitIdent(StringRef IdentString) override;
   void emitWinEHHandlerData(SMLoc Loc) override;
   void emitCGProfileEntry(const MCSymbolRefExpr *From,
@@ -77,7 +81,6 @@ protected:
   void emitInstToData(const MCInst &Inst, const MCSubtargetInfo &STI) override;
 
   void finalizeCGProfileEntry(const MCSymbolRefExpr *&S);
-  void finalizeCGProfile();
 
 private:
   void Error(const Twine &Msg) const;

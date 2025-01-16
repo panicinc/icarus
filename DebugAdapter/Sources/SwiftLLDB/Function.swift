@@ -1,41 +1,37 @@
 import CxxLLDB
 
-public struct Function: Equatable {
+public struct Function: Sendable {
     let lldbFunction: lldb.SBFunction
     
-    init(_ lldbFunction: lldb.SBFunction) {
+    init?(_ lldbFunction: lldb.SBFunction) {
+        guard lldbFunction.IsValid() else {
+            return nil
+        }
         self.lldbFunction = lldbFunction
     }
     
+    init(unsafe lldbFunction: lldb.SBFunction) {
+        self.lldbFunction = lldbFunction
+    }
+}
+
+extension Function: Equatable {
     public static func == (lhs: Function, rhs: Function) -> Bool {
         return lhs.lldbFunction == rhs.lldbFunction
     }
-    
+}
+
+extension Function {
     public var name: String? {
-        if let str = lldbFunction.GetName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbFunction.GetName())
     }
     
     public var displayName: String? {
-        if let str = lldbFunction.GetDisplayName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbFunction.GetDisplayName())
     }
     
     public var mangledName: String? {
-        if let str = lldbFunction.GetMangledName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbFunction.GetMangledName())
     }
     
     public var isOptimized: Bool {

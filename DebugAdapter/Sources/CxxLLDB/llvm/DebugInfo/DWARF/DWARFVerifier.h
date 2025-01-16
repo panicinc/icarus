@@ -9,7 +9,6 @@
 #ifndef LLVM_DEBUGINFO_DWARF_DWARFVERIFIER_H
 #define LLVM_DEBUGINFO_DWARF_DWARFVERIFIER_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFAcceleratorTable.h"
 #include "llvm/DebugInfo/DWARF/DWARFAddressRange.h"
@@ -30,6 +29,20 @@ class DWARFDataExtractor;
 class DWARFDebugAbbrev;
 class DataExtractor;
 struct DWARFSection;
+
+class OutputCategoryAggregator {
+private:
+  std::map<std::string, unsigned> Aggregation;
+  bool IncludeDetail;
+
+public:
+  OutputCategoryAggregator(bool includeDetail = false)
+      : IncludeDetail(includeDetail) {}
+  void ShowDetail(bool showDetail) { IncludeDetail = showDetail; }
+  size_t GetNumCategories() const { return Aggregation.size(); }
+  void Report(StringRef s, std::function<void()> detailCallback);
+  void EnumerateResults(std::function<void(StringRef, unsigned)> handleCounts);
+};
 
 /// A class that verifies DWARF debug information given a DWARF Context.
 class DWARFVerifier {
@@ -60,7 +73,7 @@ public:
     /// This is used for finding overlapping ranges in the DW_AT_ranges
     /// attribute of a DIE. It is also used as a set of address ranges that
     /// children address ranges must all be contained in.
-    Optional<DWARFAddressRange> insert(const DWARFAddressRange &R);
+    std::optional<DWARFAddressRange> insert(const DWARFAddressRange &R);
 
     /// Inserts the address range info. If any of its ranges overlaps with a
     /// range in an existing range info, the range info is *not* added and an
@@ -82,6 +95,7 @@ private:
   DWARFContext &DCtx;
   DIDumpOptions DumpOpts;
   uint32_t NumDebugLineErrors = 0;
+  OutputCategoryAggregator ErrorCategory;
   // Used to relax some checks that do not currently work portably
   bool IsObjectFile;
   bool IsMachOObject;
@@ -157,7 +171,6 @@ private:
   unsigned verifyUnitSection(const DWARFSection &S);
   unsigned verifyUnits(const DWARFUnitVector &Units);
 
-  unsigned verifyIndexes(const DWARFObject &DObj);
   unsigned verifyIndex(StringRef Name, DWARFSectionKind SectionKind,
                        StringRef Index);
 
@@ -339,6 +352,20 @@ public:
   /// \returns true if the existing Apple-style accelerator tables verify
   /// successfully, false otherwise.
   bool handleAccelTables();
+
+  /// Verify the information in the .debug_str_offsets[.dwo].
+  ///
+  /// Any errors are reported to the stream that was this object was
+  /// constructed with.
+  ///
+  /// \returns true if the .debug_line verifies successfully, false otherwise.
+  bool handleDebugStrOffsets();
+  bool verifyDebugStrOffsets(std::optional<dwarf::DwarfFormat> LegacyFormat,
+                             StringRef SectionName, const DWARFSection &Section,
+                             StringRef StrData);
+
+  /// Emits any aggregate information collected, depending on the dump options
+  void summarize();
 };
 
 static inline bool operator<(const DWARFVerifier::DieRangeInfo &LHS,

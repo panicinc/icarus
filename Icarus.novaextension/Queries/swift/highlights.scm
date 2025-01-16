@@ -77,7 +77,7 @@
 (metatype [ "Type" "Protocol" ] @keyword)
 
 ; Identifiers
-(attribute "@" @keyword (user_type) @keyword) ; Target inner nodes to avoid catching arguments
+(attribute "@" @identifier.decorator.prefix (user_type) @identifier.decorator) ; Target inner nodes to avoid catching arguments
 (self_expression) @keyword.self
 (inheritance_constraint (identifier (simple_identifier) @identifier.type))
 (equality_constraint (identifier (simple_identifier) @identifier.type))

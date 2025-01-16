@@ -42,12 +42,17 @@ template <typename B, typename S> struct Range {
     size = 0;
   }
 
-  // Set the start value for the range, and keep the same size
   BaseType GetRangeBase() const { return base; }
 
+  /// Set the start value for the range, and keep the same size
   void SetRangeBase(BaseType b) { base = b; }
 
   void Slide(BaseType slide) { base += slide; }
+
+  void ShrinkFront(S s) {
+    base += s;
+    size -= std::min(s, size);
+  }
 
   bool Union(const Range &rhs) {
     if (DoesAdjoinOrIntersect(rhs)) {
@@ -239,7 +244,7 @@ public:
     if (first_intersect == m_entries.end())
       return;
 
-    // We we can combine at least one entry, then we make a new collection and
+    // We can combine at least one entry, then we make a new collection and
     // populate it accordingly, and then swap it into place.
     auto pos = std::next(first_intersect);
     Collection minimal_ranges(m_entries.begin(), pos);
@@ -445,6 +450,13 @@ public:
 
   void Append(const Entry &entry) { m_entries.emplace_back(entry); }
 
+  bool Erase(uint32_t start, uint32_t end) {
+    if (start >= end || end > m_entries.size())
+      return false;
+    m_entries.erase(begin() + start, begin() + end);
+    return true;
+  }
+
   void Sort() {
     if (m_entries.size() > 1)
       std::stable_sort(m_entries.begin(), m_entries.end(),
@@ -489,7 +501,7 @@ public:
       }
     }
 
-    // We we can combine at least one entry, then we make a new collection and
+    // We can combine at least one entry, then we make a new collection and
     // populate it accordingly, and then swap it into place.
     if (can_combine) {
       Collection minimal_ranges;
@@ -606,11 +618,10 @@ public:
     if (!m_entries.empty()) {
       typename Collection::const_iterator begin = m_entries.begin();
       typename Collection::const_iterator end = m_entries.end();
-      typename Collection::const_iterator pos =
-          std::lower_bound(m_entries.begin(), end, addr,
-                           [](const Entry &lhs, B rhs_base) -> bool {
-                             return lhs.GetRangeEnd() <= rhs_base;
-                           });
+      typename Collection::const_iterator pos = llvm::lower_bound(
+          m_entries, addr, [](const Entry &lhs, B rhs_base) -> bool {
+            return lhs.GetRangeEnd() <= rhs_base;
+          });
 
       while (pos != begin && pos[-1].Contains(addr))
         --pos;
@@ -619,6 +630,17 @@ public:
         return &(*pos);
     }
     return nullptr;
+  }
+
+  uint32_t FindEntryIndexThatContainsOrFollows(B addr) const {
+#ifdef ASSERT_RANGEMAP_ARE_SORTED
+    assert(IsSorted());
+#endif
+    const AugmentedEntry *entry = static_cast<const AugmentedEntry *>(
+        FindEntryThatContainsOrFollows(addr));
+    if (entry)
+      return std::distance(m_entries.begin(), entry);
+    return UINT32_MAX;
   }
 
   Entry *Back() { return (m_entries.empty() ? nullptr : &m_entries.back()); }
@@ -771,7 +793,7 @@ public:
       typename Collection::iterator begin = m_entries.begin();
       typename Collection::iterator end = m_entries.end();
       typename Collection::iterator pos =
-          std::lower_bound(begin, end, entry, BaseLessThan);
+          llvm::lower_bound(m_entries, entry, BaseLessThan);
 
       while (pos != begin && pos[-1].addr == addr)
         --pos;

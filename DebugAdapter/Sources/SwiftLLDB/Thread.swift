@@ -1,82 +1,90 @@
 import CxxLLDB
 
-public struct Thread: Equatable, Identifiable {
+public struct Thread: Sendable {
     let lldbThread: lldb.SBThread
     
-    init(_ lldbThread: lldb.SBThread) {
+    init?(_ lldbThread: lldb.SBThread) {
+        guard lldbThread.IsValid() else {
+            return nil
+        }
         self.lldbThread = lldbThread
     }
     
+    init(unsafe lldbThread: lldb.SBThread) {
+        self.lldbThread = lldbThread
+    }
+}
+
+extension Thread: Equatable {
     public static func == (lhs: Thread, rhs: Thread) -> Bool {
         return lhs.lldbThread == rhs.lldbThread
     }
-    
-    public static let broadcasterClassName = String(cString: lldb.SBThread.GetBroadcasterClassName())
-    
+}
+
+extension Thread: Identifiable {
     public var id: Int {
-        Int(lldbThread.GetThreadID())
+        return Int(lldbThread.GetThreadID())
     }
-    
+}
+
+extension Thread {
     public var indexID: Int {
-        Int(lldbThread.GetIndexID())
+        return Int(lldbThread.GetIndexID())
     }
     
     public var name: String? {
-        if let str = lldbThread.GetName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbThread.GetName())
     }
     
     public var process: Process? {
         var lldbThread = lldbThread
-        let lldbProcess = lldbThread.GetProcess();
-        if lldbProcess.IsValid() {
-            return Process(lldbProcess)
-        }
-        else {
-            return nil
-        }
+        return Process(lldbThread.GetProcess())
     }
     
     public var queueName: String? {
-        if let str = lldbThread.GetQueueName() {
-            return String(cString: str)
-        }
-        else {
-            return nil
-        }
+        return String(optionalCString: lldbThread.GetQueueName())
     }
     
     public var queue: Queue? {
-        let lldbQueue = lldbThread.GetQueue();
-        if lldbQueue.IsValid() {
-            return Queue(lldbQueue)
-        }
-        else {
-            return nil
-        }
+        return Queue(lldbThread.GetQueue())
     }
     
+    public var displayName: String {
+        if let name {
+            return name
+        }
+        else if let queueName, let queue {
+            let queueKindLabel: String
+            switch queue.kind {
+            case .serial:
+                queueKindLabel = " (serial)"
+            case .concurrent:
+                queueKindLabel = " (concurrent)"
+            default:
+                queueKindLabel = ""
+            }
+            return "Thread \(indexID) Queue: \(queueName)\(queueKindLabel)"
+        }
+        else {
+            return "Thread \(indexID)"
+        }
+    }
+}
+
+extension Thread {
     public var isSuspended: Bool {
         var lldbThread = lldbThread
         return lldbThread.IsSuspended()
     }
     
-    public func suspend() throws {
+    public var currentException: Value? {
         var lldbThread = lldbThread
-        var error = lldb.SBError()
-        lldbThread.Suspend(&error)
-        try error.throwOnFail()
+        return Value(lldbThread.GetCurrentException())
     }
     
-    public func resume() throws {
+    public var isSafeToCallFunctions: Bool {
         var lldbThread = lldbThread
-        var error = lldb.SBError()
-        lldbThread.Resume(&error)
-        try error.throwOnFail()
+        return lldbThread.SafeToCallFunctions()
     }
     
     public var isStopped: Bool {
@@ -117,47 +125,41 @@ public struct Thread: Equatable, Identifiable {
         return StopReason(lldbThread.GetStopReason())
     }
     
-    public var stopReasonDataCount: Int {
-        var lldbThread = lldbThread
-        return Int(lldbThread.GetStopReasonDataCount())
-    }
-    
-    public func stopReasonData(at index: Int) -> UInt64 {
-        var lldbThread = lldbThread
-        return lldbThread.GetStopReasonDataAtIndex(UInt32(index))
-    }
-    
-    public var frameCount: Int {
-        var lldbThread = lldbThread
-        return Int(lldbThread.GetNumFrames())
-    }
-    
-    public func frame(at index: Int) -> Frame {
-        var lldbThread = lldbThread
-        return Frame(lldbThread.GetFrameAtIndex(UInt32(index)))
-    }
-    
-    public var frames: [Frame] {
-        var lldbThread = lldbThread
-        let count = lldbThread.GetNumFrames()
-        return (0 ..< count).map { Frame(lldbThread.GetFrameAtIndex($0)) }
-    }
-    
-    public var selectedFrame: Frame? {
-        var lldbThread = lldbThread
-        let lldbFrame = lldbThread.GetSelectedFrame()
-        if lldbFrame.IsValid() {
-            return Frame(lldbFrame)
+    public struct StopReasonData: Sendable, RandomAccessCollection {
+        let lldbThread: lldb.SBThread
+        
+        init(_ lldbThread: lldb.SBThread) {
+            self.lldbThread = lldbThread
         }
-        else {
-            return nil
+        
+        public var count: Int {
+            var lldbThread = lldbThread
+            return lldbThread.GetStopReasonDataCount()
+        }
+        
+        @inlinable public var startIndex: Int { 0 }
+        @inlinable public var endIndex: Int { count }
+        
+        public subscript(position: Int) -> UInt64 {
+            var lldbThread = lldbThread
+            return lldbThread.GetStopReasonDataAtIndex(UInt32(position))
         }
     }
     
-    @discardableResult
-    public func selectFrame(at index: Int) -> Frame {
+    public var stopReasonData: StopReasonData { StopReasonData(lldbThread) }
+    
+    public func suspend() throws {
         var lldbThread = lldbThread
-        return Frame(lldbThread.SetSelectedFrame(UInt32(index)))
+        var error = lldb.SBError()
+        lldbThread.Suspend(&error)
+        try error.throwOnFail()
+    }
+    
+    public func resume() throws {
+        var lldbThread = lldbThread
+        var error = lldb.SBError()
+        lldbThread.Resume(&error)
+        try error.throwOnFail()
     }
     
     public func stepOver() throws {
@@ -192,42 +194,58 @@ public struct Thread: Equatable, Identifiable {
         lldbThread.StepOut(&error)
         try error.throwOnFail()
     }
+}
+
+extension Thread {
+    public struct Frames: Sendable, RandomAccessCollection {
+        let lldbThread: lldb.SBThread
+        
+        init(_ lldbThread: lldb.SBThread) {
+            self.lldbThread = lldbThread
+        }
+        
+        public var count: Int {
+            var lldbThread = lldbThread
+            return Int(lldbThread.GetNumFrames())
+        }
+        
+        @inlinable public var startIndex: Int { 0 }
+        @inlinable public var endIndex: Int { count }
+        
+        public subscript(position: Int) -> Frame {
+            var lldbThread = lldbThread
+            return Frame(unsafe: lldbThread.GetFrameAtIndex(UInt32(position)))
+        }
+    }
     
-    public var currentException: Value? {
+    public var frames: Frames { Frames(lldbThread) }
+    
+    public var selectedFrame: Frame? {
         var lldbThread = lldbThread
-        var lldbValue = lldbThread.GetCurrentException()
-        if lldbValue.IsValid() {
-            return Value(lldbValue)
+        let lldbFrame = lldbThread.GetSelectedFrame()
+        if lldbFrame.IsValid() {
+            return Frame(lldbFrame)
         }
         else {
             return nil
         }
     }
     
-    public var isSafeToCallFunctions: Bool {
+    @discardableResult
+    public func selectFrame(at index: Int) -> Frame? {
         var lldbThread = lldbThread
-        return lldbThread.SafeToCallFunctions()
+        return Frame(lldbThread.SetSelectedFrame(UInt32(index)))
     }
 }
 
-public struct ThreadEvent {
+public struct ThreadEvent: Sendable {
     let lldbEvent: lldb.SBEvent
     
     init(_ lldbEvent: lldb.SBEvent) {
         self.lldbEvent = lldbEvent
     }
     
-    public init?(_ event: Event) {
-        let lldbEvent = event.lldbEvent
-        if lldb.SBThread.EventIsThreadEvent(lldbEvent) {
-            self.init(lldbEvent)
-        }
-        else {
-            return nil
-        }
-    }
-    
     public var thread: Thread {
-        Thread(lldb.SBThread.GetThreadFromEvent(lldbEvent))
+        return Thread(unsafe: lldb.SBThread.GetThreadFromEvent(lldbEvent))
     }
 }

@@ -9,6 +9,7 @@
 #ifndef LLDB_TARGET_DYNAMICLOADER_H
 #define LLDB_TARGET_DYNAMICLOADER_H
 
+#include "lldb/Core/Address.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Status.h"
@@ -210,6 +211,73 @@ public:
                                              lldb::addr_t base_addr,
                                              bool base_addr_is_offset);
 
+  /// Find/load a binary into lldb given a UUID and the address where it is
+  /// loaded in memory, or a slide to be applied to the file address.
+  /// May force an expensive search on the computer to find the binary by
+  /// UUID, should not be used for a large number of binaries - intended for
+  /// an environment where there may be one, or a few, binaries resident in
+  /// memory.
+  ///
+  /// Given a UUID, search for a binary and load it at the address provided,
+  /// or with the slide applied, or at the file address unslid.
+  ///
+  /// Given an address, try to read the binary out of memory, get the UUID,
+  /// find the file if possible and load it unslid, or add the memory module.
+  ///
+  /// \param[in] process
+  ///     The process to add this binary to.
+  ///
+  /// \param[in] name
+  ///     Name of the binary, if available.  If this method cannot find a
+  ///     matching binary on the debug host, it may create a memory module
+  ///     out of live memory, and the provided name will be used.  If an
+  ///     empty StringRef is provided, a name will be constructed for the module
+  ///     based on the address it is loaded at.
+  ///
+  /// \param[in] uuid
+  ///     UUID of the binary to be loaded.  UUID may be empty, and if a
+  ///     load address is supplied, will read the binary from memory, get
+  ///     a UUID and try to find a local binary.  There is a performance
+  ///     cost to doing this, it is not preferable.
+  ///
+  /// \param[in] value
+  ///     Address where the binary should be loaded, or read out of memory.
+  ///     Or a slide value, to be applied to the file addresses of the binary.
+  ///
+  /// \param[in] value_is_offset
+  ///     A flag indicating that \p value is an address, or an offset to
+  ///     be applied to the file addresses.
+  ///
+  /// \param[in] force_symbol_search
+  ///     Allow the search to do a possibly expensive external search for
+  ///     the ObjectFile and/or SymbolFile.
+  ///
+  /// \param[in] notify
+  ///     Whether ModulesDidLoad should be called when a binary has been added
+  ///     to the Target.  The caller may prefer to batch up these when loading
+  ///     multiple binaries.
+  ///
+  /// \param[in] set_address_in_target
+  ///     Whether the address of the binary should be set in the Target if it
+  ///     is added.  The caller may want to set the section addresses
+  ///     individually, instead of loading the binary the entire based on the
+  ///     start address or slide.  The caller is responsible for setting the
+  ///     load address for the binary or its segments in the Target if it passes
+  ///     true.
+  ///
+  /// \param[in] allow_memory_image_last_resort
+  ///     If no better binary image can be found, allow reading the binary
+  ///     out of memory, if possible, and create the Module based on that.
+  ///     May be slow to read a binary out of memory, and for unusual
+  ///     environments, may be no symbols mapped in memory at all.
+  ///
+  /// \return
+  ///     Returns a shared pointer for the Module that has been added.
+  static lldb::ModuleSP LoadBinaryWithUUIDAndAddress(
+      Process *process, llvm::StringRef name, UUID uuid, lldb::addr_t value,
+      bool value_is_offset, bool force_symbol_search, bool notify,
+      bool set_address_in_target, bool allow_memory_image_last_resort);
+
   /// Get information about the shared cache for a process, if possible.
   ///
   /// On some systems (e.g. Darwin based systems), a set of libraries that are
@@ -261,6 +329,13 @@ public:
   /// the dynamic loader before it itself finished initializing and it's not
   /// safe to call certain APIs or SPIs.
   virtual bool IsFullyInitialized() { return true; }
+
+  /// Return the `start` \b address in the dynamic loader module.
+  /// This is the address the process will begin executing with
+  /// `process launch --stop-at-entry`.
+  virtual std::optional<lldb_private::Address> GetStartAddress() {
+    return std::nullopt;
+  }
 
 protected:
   // Utility methods for derived classes

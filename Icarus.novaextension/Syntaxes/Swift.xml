@@ -7,7 +7,7 @@
     </meta>
     
     <detectors>
-        <extension>swift</extension>
+        <extension>swift,swiftinterface</extension>
     </detectors>
     
     <indentation>

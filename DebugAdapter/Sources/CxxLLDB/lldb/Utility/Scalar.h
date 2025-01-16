@@ -34,7 +34,7 @@ class Stream;
 class Scalar {
   template<typename T>
   static llvm::APSInt MakeAPSInt(T v) {
-    static_assert(std::is_integral<T>::value, "");
+    static_assert(std::is_integral<T>::value);
     static_assert(sizeof(T) <= sizeof(uint64_t), "Conversion loses precision!");
     return llvm::APSInt(
         llvm::APInt(sizeof(T) * 8, uint64_t(v), std::is_signed<T>::value),
@@ -71,6 +71,7 @@ public:
       : m_type(e_int), m_integer(std::move(v), false), m_float(0.0f) {}
   Scalar(llvm::APSInt v)
       : m_type(e_int), m_integer(std::move(v)), m_float(0.0f) {}
+  Scalar(llvm::APFloat v) : m_type(e_float), m_integer(0), m_float(v) {}
 
   bool SignExtend(uint32_t bit_pos);
 
@@ -101,7 +102,7 @@ public:
 
   const char *GetTypeAsCString() const { return GetValueTypeAsCString(m_type); }
 
-  void GetValue(Stream *s, bool show_type) const;
+  void GetValue(Stream &s, bool show_type) const;
 
   bool IsValid() const { return (m_type >= e_int) && (m_type <= e_float); }
 
@@ -180,11 +181,19 @@ public:
 
   long double LongDouble(long double fail_value = 0.0) const;
 
+  llvm::APSInt GetAPSInt() const { return m_integer; }
+
+  llvm::APFloat GetAPFloat() const { return m_float; }
+
   Status SetValueFromCString(const char *s, lldb::Encoding encoding,
                              size_t byte_size);
 
   Status SetValueFromData(const DataExtractor &data, lldb::Encoding encoding,
                           size_t byte_size);
+
+  llvm::APFloat CreateAPFloatFromAPSInt(lldb::BasicType basic_type);
+
+  llvm::APFloat CreateAPFloatFromAPFloat(lldb::BasicType basic_type);
 
 protected:
   Scalar::Type m_type = e_void;

@@ -11,17 +11,17 @@
 ATTRIBUTE_ENUM(AllocAlign,allocalign)
 ATTRIBUTE_ENUM(AllocatedPointer,allocptr)
 ATTRIBUTE_ENUM(AlwaysInline,alwaysinline)
-ATTRIBUTE_ENUM(ArgMemOnly,argmemonly)
 ATTRIBUTE_ENUM(Builtin,builtin)
 ATTRIBUTE_ENUM(Cold,cold)
 ATTRIBUTE_ENUM(Convergent,convergent)
+ATTRIBUTE_ENUM(CoroDestroyOnlyWhenComplete,coro_only_destroy_when_complete)
+ATTRIBUTE_ENUM(DeadOnUnwind,dead_on_unwind)
 ATTRIBUTE_ENUM(DisableSanitizerInstrumentation,disable_sanitizer_instrumentation)
 ATTRIBUTE_ENUM(FnRetThunkExtern,fn_ret_thunk_extern)
 ATTRIBUTE_ENUM(Hot,hot)
+ATTRIBUTE_ENUM(HybridPatchable,hybrid_patchable)
 ATTRIBUTE_ENUM(ImmArg,immarg)
 ATTRIBUTE_ENUM(InReg,inreg)
-ATTRIBUTE_ENUM(InaccessibleMemOnly,inaccessiblememonly)
-ATTRIBUTE_ENUM(InaccessibleMemOrArgMemOnly,inaccessiblemem_or_argmemonly)
 ATTRIBUTE_ENUM(InlineHint,inlinehint)
 ATTRIBUTE_ENUM(JumpTable,jumptable)
 ATTRIBUTE_ENUM(MinSize,minsize)
@@ -51,6 +51,7 @@ ATTRIBUTE_ENUM(NonLazyBind,nonlazybind)
 ATTRIBUTE_ENUM(NonNull,nonnull)
 ATTRIBUTE_ENUM(NullPointerIsValid,null_pointer_is_valid)
 ATTRIBUTE_ENUM(OptForFuzzing,optforfuzzing)
+ATTRIBUTE_ENUM(OptimizeForDebugging,optdebug)
 ATTRIBUTE_ENUM(OptimizeForSize,optsize)
 ATTRIBUTE_ENUM(OptimizeNone,optnone)
 ATTRIBUTE_ENUM(PresplitCoroutine,presplitcoroutine)
@@ -64,8 +65,10 @@ ATTRIBUTE_ENUM(SanitizeAddress,sanitize_address)
 ATTRIBUTE_ENUM(SanitizeHWAddress,sanitize_hwaddress)
 ATTRIBUTE_ENUM(SanitizeMemTag,sanitize_memtag)
 ATTRIBUTE_ENUM(SanitizeMemory,sanitize_memory)
+ATTRIBUTE_ENUM(SanitizeNumericalStability,sanitize_numerical_stability)
 ATTRIBUTE_ENUM(SanitizeThread,sanitize_thread)
 ATTRIBUTE_ENUM(ShadowCallStack,shadowcallstack)
+ATTRIBUTE_ENUM(SkipProfile,skipprofile)
 ATTRIBUTE_ENUM(Speculatable,speculatable)
 ATTRIBUTE_ENUM(SpeculativeLoadHardening,speculative_load_hardening)
 ATTRIBUTE_ENUM(StackProtect,ssp)
@@ -76,6 +79,7 @@ ATTRIBUTE_ENUM(SwiftAsync,swiftasync)
 ATTRIBUTE_ENUM(SwiftError,swifterror)
 ATTRIBUTE_ENUM(SwiftSelf,swiftself)
 ATTRIBUTE_ENUM(WillReturn,willreturn)
+ATTRIBUTE_ENUM(Writable,writable)
 ATTRIBUTE_ENUM(WriteOnly,writeonly)
 ATTRIBUTE_ENUM(ZExt,zeroext)
 ATTRIBUTE_ENUM(ByRef,byref)
@@ -89,9 +93,13 @@ ATTRIBUTE_ENUM(AllocKind,allockind)
 ATTRIBUTE_ENUM(AllocSize,allocsize)
 ATTRIBUTE_ENUM(Dereferenceable,dereferenceable)
 ATTRIBUTE_ENUM(DereferenceableOrNull,dereferenceable_or_null)
+ATTRIBUTE_ENUM(Memory,memory)
+ATTRIBUTE_ENUM(NoFPClass,nofpclass)
 ATTRIBUTE_ENUM(StackAlignment,alignstack)
 ATTRIBUTE_ENUM(UWTable,uwtable)
 ATTRIBUTE_ENUM(VScaleRange,vscale_range)
+ATTRIBUTE_ENUM(Range,range)
+ATTRIBUTE_ENUM(Initializes,initializes)
 #undef ATTRIBUTE_ENUM
 
 #ifndef ATTRIBUTE_STRBOOL
@@ -110,6 +118,14 @@ ATTRIBUTE_STRBOOL(UnsafeFPMath,unsafe-fp-math)
 ATTRIBUTE_STRBOOL(UseSampleProfile,use-sample-profile)
 #undef ATTRIBUTE_STRBOOL
 
+#ifndef ATTRIBUTE_COMPLEXSTR
+#define ATTRIBUTE_COMPLEXSTR(FIRST, SECOND) ATTRIBUTE_ALL(FIRST, SECOND)
+#endif
+
+ATTRIBUTE_COMPLEXSTR(DenormalFPMath,denormal-fp-math)
+ATTRIBUTE_COMPLEXSTR(DenormalFPMathF32,denormal-fp-math-f32)
+#undef ATTRIBUTE_COMPLEXSTR
+
 #undef ATTRIBUTE_ALL
 #endif
 
@@ -119,17 +135,17 @@ FirstEnumAttr = 1,
 AllocAlign = 1,
 AllocatedPointer = 2,
 AlwaysInline = 3,
-ArgMemOnly = 4,
-Builtin = 5,
-Cold = 6,
-Convergent = 7,
-DisableSanitizerInstrumentation = 8,
-FnRetThunkExtern = 9,
-Hot = 10,
-ImmArg = 11,
-InReg = 12,
-InaccessibleMemOnly = 13,
-InaccessibleMemOrArgMemOnly = 14,
+Builtin = 4,
+Cold = 5,
+Convergent = 6,
+CoroDestroyOnlyWhenComplete = 7,
+DeadOnUnwind = 8,
+DisableSanitizerInstrumentation = 9,
+FnRetThunkExtern = 10,
+Hot = 11,
+HybridPatchable = 12,
+ImmArg = 13,
+InReg = 14,
 InlineHint = 15,
 JumpTable = 16,
 MinSize = 17,
@@ -159,52 +175,64 @@ NonLazyBind = 40,
 NonNull = 41,
 NullPointerIsValid = 42,
 OptForFuzzing = 43,
-OptimizeForSize = 44,
-OptimizeNone = 45,
-PresplitCoroutine = 46,
-ReadNone = 47,
-ReadOnly = 48,
-Returned = 49,
-ReturnsTwice = 50,
-SExt = 51,
-SafeStack = 52,
-SanitizeAddress = 53,
-SanitizeHWAddress = 54,
-SanitizeMemTag = 55,
-SanitizeMemory = 56,
-SanitizeThread = 57,
-ShadowCallStack = 58,
-Speculatable = 59,
-SpeculativeLoadHardening = 60,
-StackProtect = 61,
-StackProtectReq = 62,
-StackProtectStrong = 63,
-StrictFP = 64,
-SwiftAsync = 65,
-SwiftError = 66,
-SwiftSelf = 67,
-WillReturn = 68,
-WriteOnly = 69,
-ZExt = 70,
-LastEnumAttr = 70,
-FirstTypeAttr = 71,
-ByRef = 71,
-ByVal = 72,
-ElementType = 73,
-InAlloca = 74,
-Preallocated = 75,
-StructRet = 76,
-LastTypeAttr = 76,
-FirstIntAttr = 77,
-Alignment = 77,
-AllocKind = 78,
-AllocSize = 79,
-Dereferenceable = 80,
-DereferenceableOrNull = 81,
-StackAlignment = 82,
-UWTable = 83,
-VScaleRange = 84,
-LastIntAttr = 84,
+OptimizeForDebugging = 44,
+OptimizeForSize = 45,
+OptimizeNone = 46,
+PresplitCoroutine = 47,
+ReadNone = 48,
+ReadOnly = 49,
+Returned = 50,
+ReturnsTwice = 51,
+SExt = 52,
+SafeStack = 53,
+SanitizeAddress = 54,
+SanitizeHWAddress = 55,
+SanitizeMemTag = 56,
+SanitizeMemory = 57,
+SanitizeNumericalStability = 58,
+SanitizeThread = 59,
+ShadowCallStack = 60,
+SkipProfile = 61,
+Speculatable = 62,
+SpeculativeLoadHardening = 63,
+StackProtect = 64,
+StackProtectReq = 65,
+StackProtectStrong = 66,
+StrictFP = 67,
+SwiftAsync = 68,
+SwiftError = 69,
+SwiftSelf = 70,
+WillReturn = 71,
+Writable = 72,
+WriteOnly = 73,
+ZExt = 74,
+LastEnumAttr = 74,
+FirstTypeAttr = 75,
+ByRef = 75,
+ByVal = 76,
+ElementType = 77,
+InAlloca = 78,
+Preallocated = 79,
+StructRet = 80,
+LastTypeAttr = 80,
+FirstIntAttr = 81,
+Alignment = 81,
+AllocKind = 82,
+AllocSize = 83,
+Dereferenceable = 84,
+DereferenceableOrNull = 85,
+Memory = 86,
+NoFPClass = 87,
+StackAlignment = 88,
+UWTable = 89,
+VScaleRange = 90,
+LastIntAttr = 90,
+FirstConstantRangeAttr = 91,
+Range = 91,
+LastConstantRangeAttr = 91,
+FirstConstantRangeListAttr = 92,
+Initializes = 92,
+LastConstantRangeListAttr = 92,
 #endif
 
 #ifdef GET_ATTR_COMPAT_FUNC
@@ -218,16 +246,23 @@ static inline bool hasCompatibleFnAttrs(const Function &Caller,
   Ret &= isEqual<SanitizeMemoryAttr>(Caller, Callee);
   Ret &= isEqual<SanitizeHWAddressAttr>(Caller, Callee);
   Ret &= isEqual<SanitizeMemTagAttr>(Caller, Callee);
+  Ret &= isEqual<SanitizeNumericalStabilityAttr>(Caller, Callee);
   Ret &= isEqual<SafeStackAttr>(Caller, Callee);
   Ret &= isEqual<ShadowCallStackAttr>(Caller, Callee);
   Ret &= isEqual<UseSampleProfileAttr>(Caller, Callee);
   Ret &= isEqual<NoProfileAttr>(Caller, Callee);
+  Ret &= checkDenormMode(Caller, Callee);
+  Ret &= checkStrictFP(Caller, Callee);
+  Ret &= isEqual(Caller, Callee, "sign-return-address");
+  Ret &= isEqual(Caller, Callee, "sign-return-address-key");
+  Ret &= isEqual(Caller, Callee, "branch-protection-pauth-lr");
 
   return Ret;
 }
 
 static inline void mergeFnAttrs(Function &Caller,
                                 const Function &Callee) {
+  setAND<LessPreciseFPMADAttr>(Caller, Callee);
   setAND<NoInfsFPMathAttr>(Caller, Callee);
   setAND<NoNansFPMathAttr>(Caller, Callee);
   setAND<ApproxFuncFPMathAttr>(Caller, Callee);
@@ -243,7 +278,6 @@ static inline void mergeFnAttrs(Function &Caller,
   adjustMinLegalVectorWidth(Caller, Callee);
   adjustNullPointerValidAttr(Caller, Callee);
   setAND<MustProgressAttr>(Caller, Callee);
-  setAND<LessPreciseFPMADAttr>(Caller, Callee);
 }
 
 #endif
@@ -257,13 +291,13 @@ static const uint8_t AttrPropTable[] = {
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
+0 | AttributeProperty::ParamAttr,
+0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::ParamAttr,
 0 | AttributeProperty::ParamAttr | AttributeProperty::RetAttr,
-0 | AttributeProperty::FnAttr,
-0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
@@ -296,8 +330,9 @@ static const uint8_t AttrPropTable[] = {
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
-0 | AttributeProperty::FnAttr | AttributeProperty::ParamAttr,
-0 | AttributeProperty::FnAttr | AttributeProperty::ParamAttr,
+0 | AttributeProperty::FnAttr,
+0 | AttributeProperty::ParamAttr,
+0 | AttributeProperty::ParamAttr,
 0 | AttributeProperty::ParamAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::ParamAttr | AttributeProperty::RetAttr,
@@ -314,11 +349,14 @@ static const uint8_t AttrPropTable[] = {
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
+0 | AttributeProperty::FnAttr,
+0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::ParamAttr,
 0 | AttributeProperty::ParamAttr,
 0 | AttributeProperty::ParamAttr,
 0 | AttributeProperty::FnAttr,
-0 | AttributeProperty::FnAttr | AttributeProperty::ParamAttr,
+0 | AttributeProperty::ParamAttr,
+0 | AttributeProperty::ParamAttr,
 0 | AttributeProperty::ParamAttr | AttributeProperty::RetAttr,
 0 | AttributeProperty::ParamAttr,
 0 | AttributeProperty::ParamAttr,
@@ -331,8 +369,12 @@ static const uint8_t AttrPropTable[] = {
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::ParamAttr | AttributeProperty::RetAttr,
 0 | AttributeProperty::ParamAttr | AttributeProperty::RetAttr,
+0 | AttributeProperty::FnAttr,
+0 | AttributeProperty::ParamAttr | AttributeProperty::RetAttr,
 0 | AttributeProperty::FnAttr | AttributeProperty::ParamAttr,
 0 | AttributeProperty::FnAttr,
 0 | AttributeProperty::FnAttr,
+0 | AttributeProperty::ParamAttr | AttributeProperty::RetAttr,
+0 | AttributeProperty::ParamAttr,
 };
 #endif
