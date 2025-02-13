@@ -14,6 +14,8 @@
 #include "lldb/API/SBInstructionList.h"
 #include "lldb/API/SBTarget.h"
 
+#include <swift/bridging>
+
 namespace lldb {
 
 class LLDB_API SBSymbol {
@@ -30,11 +32,11 @@ public:
 
   bool IsValid() const;
 
-  const char *GetName() const;
+  const char *GetName() const SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-  const char *GetDisplayName() const;
+  const char *GetDisplayName() const SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-  const char *GetMangledName() const;
+  const char *GetMangledName() const SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   lldb::SBInstructionList GetInstructions(lldb::SBTarget target);
 

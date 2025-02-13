@@ -13,6 +13,7 @@
 #include "lldb/API/SBDefines.h"
 
 #include <cstdio>
+#include <swift/bridging>
 
 // There's a lot to be fixed here, but need to wait for underlying insn
 // implementation to be revised & settle down first.
@@ -37,11 +38,11 @@ public:
 
   SBAddress GetAddress();
 
-  const char *GetMnemonic(lldb::SBTarget target);
+  const char *GetMnemonic(lldb::SBTarget target) SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-  const char *GetOperands(lldb::SBTarget target);
+  const char *GetOperands(lldb::SBTarget target) SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-  const char *GetComment(lldb::SBTarget target);
+  const char *GetComment(lldb::SBTarget target) SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   lldb::InstructionControlFlowKind GetControlFlowKind(lldb::SBTarget target);
 

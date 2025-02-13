@@ -10,6 +10,7 @@
 #define LLDB_API_SBSTREAM_H
 
 #include <cstdio>
+#include <swift/bridging>
 
 #include "lldb/API/SBDefines.h"
 
@@ -35,7 +36,7 @@ public:
 
   // If this stream is not redirected to a file, it will maintain a local cache
   // for the stream data which can be accessed using this accessor.
-  const char *GetData();
+  const char *GetData() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   // If this stream is not redirected to a file, it will maintain a local cache
   // for the stream output whose length can be accessed using this accessor.

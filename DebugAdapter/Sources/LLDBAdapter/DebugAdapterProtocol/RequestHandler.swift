@@ -25,6 +25,7 @@ public protocol DebugAdapterServerRequestHandler: DebugAdapterRequestHandler {
     associatedtype LaunchParameters: Codable & Sendable = JSONValue
     func launch(_ request: DebugAdapter.LaunchRequest<LaunchParameters>, replyHandler: @escaping (Result<(), Error>) -> Void)
     func loadedSources(_ request: DebugAdapter.LoadedSourcesRequest, replyHandler: @escaping (Result<DebugAdapter.LoadedSourcesRequest.Result, Error>) -> Void)
+    func locations(_ request: DebugAdapter.LocationsRequest, replyHandler: @escaping (Result<DebugAdapter.LocationsRequest.Result, Error>) -> Void)
     func next(_ request: DebugAdapter.NextRequest, replyHandler: @escaping (Result<(), Error>) -> Void)
     func pause(_ request: DebugAdapter.PauseRequest, replyHandler: @escaping (Result<(), Error>) -> Void)
     func readMemory(_ request: DebugAdapter.ReadMemoryRequest, replyHandler: @escaping (Result<DebugAdapter.ReadMemoryRequest.Result?, Error>) -> Void)
@@ -131,6 +132,10 @@ public extension DebugAdapterServerRequestHandler {
         case DebugAdapter.LoadedSourcesRequest.command:
             let (request, replyHandler) = try request.decodeForReply(DebugAdapter.LoadedSourcesRequest.self)
             loadedSources(request, replyHandler: replyHandler)
+            
+        case DebugAdapter.LocationsRequest.command:
+            let (request, replyHandler) = try request.decodeForReply(DebugAdapter.LocationsRequest.self)
+            locations(request, replyHandler: replyHandler)
             
         case DebugAdapter.NextRequest.command:
             let (request, replyHandler) = try request.decodeForReply(DebugAdapter.NextRequest.self)
@@ -293,6 +298,10 @@ public extension DebugAdapterServerRequestHandler {
     }
     
     func loadedSources(_ request: DebugAdapter.LoadedSourcesRequest, replyHandler: @escaping (Result<DebugAdapter.LoadedSourcesRequest.Result, Error>) -> Void) {
+        replyHandler(.failure(DebugAdapterConnection.ResponseError.unsupportedRequest(request)))
+    }
+    
+    func locations(_ request: DebugAdapter.LocationsRequest, replyHandler: @escaping (Result<DebugAdapter.LocationsRequest.Result, Error>) -> Void) {
         replyHandler(.failure(DebugAdapterConnection.ResponseError.unsupportedRequest(request)))
     }
     

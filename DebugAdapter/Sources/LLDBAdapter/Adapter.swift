@@ -1,5 +1,6 @@
 import Darwin
 import Dispatch
+import RegexBuilder
 import Foundation
 import SwiftLLDB
 
@@ -8,7 +9,11 @@ final class Adapter: DebugAdapterServerRequestHandler {
     
     let connection = DebugAdapterConnection(transport: DebugAdapterFileHandleTransport())
     
-    private(set) var isRunning = false
+    // MARK: - Lifecycle
+    
+    private var isRunning = false
+    private var debugger: Debugger?
+    private var eventsTask: Task<(), Never>?
     
     func resume() {
         guard !isRunning else {
@@ -16,13 +21,13 @@ final class Adapter: DebugAdapterServerRequestHandler {
         }
         isRunning = true
         
-        signal(SIGINT) { _ in Adapter.shared.cancel() }
-        signal(SIGTERM) { _ in Adapter.shared.cancel() }
+        signal(SIGINT) { _ in Adapter.shared.shutdown() }
+        signal(SIGTERM) { _ in Adapter.shared.shutdown() }
         
         var configuration = DebugAdapterConnection.Configuration()
         configuration.messageQueue = .main
         configuration.invalidationHandler = { [weak self] error in
-            self?.cancel(error: error)
+            self?.shutdown(error: error)
         }
         configuration.requestHandler = self
         
@@ -32,42 +37,35 @@ final class Adapter: DebugAdapterServerRequestHandler {
         dispatchMain()
     }
     
-    func cancel(error: Error? = nil) {
+    func shutdown(error: Error? = nil) {
         guard isRunning else {
             return
         }
         isRunning = false
+        
+        eventsTask?.cancel()
+        eventsTask = nil
+        
+        target = nil
+        debugger = nil
         
         connection.stop()
         
         exit(error != nil ? EXIT_FAILURE : EXIT_SUCCESS)
     }
     
-    enum AdapterError: LocalizedError {
-        case notDebugging
-        case invalidated
-        case invalidParameter(String)
-        
-        var errorDescription: String? {
-            switch self {
-            case .notDebugging:
-                return "No debuggee is running."
-            case .invalidated:
-                return "The session has ended."
-            case let .invalidParameter(reason):
-                return "Invalid parameter: \(reason)"
+    func handleRequest(_ request: DebugAdapterConnection.IncomingRequest) {
+        do {
+            switch request.command {
+                
+            default:
+                try performDefaultHandling(for: request)
             }
         }
+        catch {
+            request.reject(throwing: error)
+        }
     }
-    
-    private func output(_ message: @autoclosure () -> String, category: DebugAdapter.OutputEvent.Category = .console) {
-        connection.send(DebugAdapter.OutputEvent(output: message(), category: category))
-    }
-    
-    // MARK: - Lifecycle
-    
-    private var debugger: Debugger?
-    private var eventsTask: Task<(), Never>?
     
     private struct ClientOptions: Sendable {
         var clientID: String?
@@ -86,7 +84,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
         case swiftCatch = "swift_catch"
         case swiftThrow = "swift_throw"
         
-        var name: String {
+        var label: String {
             switch self {
             case .cxxCatch:
                 return "C++ Catch"
@@ -119,7 +117,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
         var isThrow: Bool { rawValue.hasSuffix("_throw") }
         
         var filter: DebugAdapter.ExceptionBreakpointFilter {
-            var filter = DebugAdapter.ExceptionBreakpointFilter(filter: rawValue, label: name)
+            var filter = DebugAdapter.ExceptionBreakpointFilter(filter: rawValue, label: label)
             filter.supportsCondition = true
             return filter
         }
@@ -159,20 +157,27 @@ final class Adapter: DebugAdapterServerRequestHandler {
         
         capabilities.supportsFunctionBreakpoints = true
         capabilities.supportsConditionalBreakpoints = true
+        capabilities.supportsDataBreakpoints = true
+        capabilities.supportsDataBreakpointBytes = true
+        capabilities.supportsInstructionBreakpoints = true
         
         capabilities.exceptionBreakpointFilters = ExceptionFilter.allCases.map { $0.filter }
         capabilities.supportsExceptionFilterOptions = true
         
-        capabilities.supportsEvaluateForHovers = true
-        capabilities.supportsSetVariable = true
-        
-        capabilities.supportsCompletionsRequest = true
-        capabilities.completionTriggerCharacters = [".", " ", "\t"]
-        
+        capabilities.supportsSteppingGranularity = true
         capabilities.supportsRestartRequest = true
         capabilities.supportsExceptionInfoRequest = true
         capabilities.supportTerminateDebuggee = true
         capabilities.supportsTerminateRequest = true
+        capabilities.supportsReadMemoryRequest = true
+        capabilities.supportsWriteMemoryRequest = true
+        
+        capabilities.supportsCompletionsRequest = true
+        capabilities.completionTriggerCharacters = [".", " ", "\t"]
+        
+        capabilities.supportsEvaluateForHovers = true
+        capabilities.supportsSetVariable = true
+        capabilities.supportsANSIStyling = true
         
         replyHandler(.success(capabilities))
     }
@@ -223,9 +228,8 @@ final class Adapter: DebugAdapterServerRequestHandler {
     
     private func localPath(forRemotePath path: String) -> String {
         for mapping in pathMappings {
-            if path.hasPrefix(mapping.remote) {
-                let substring = path[path.index(path.startIndex, offsetBy: mapping.remote.count) ..< path.endIndex]
-                return mapping.local.appending(substring)
+            if let r = path.range(of: mapping.remote, options: [.anchored]) {
+                return mapping.local.appending(path[r.upperBound...])
             }
         }
         return path
@@ -233,9 +237,8 @@ final class Adapter: DebugAdapterServerRequestHandler {
     
     private func remotePath(forLocalPath path: String) -> String {
         for mapping in pathMappings {
-            if path.hasPrefix(mapping.local) {
-                let substring = path[path.index(path.startIndex, offsetBy: mapping.local.count) ..< path.endIndex]
-                return mapping.remote.appending(substring)
+            if let r = path.range(of: mapping.local, options: [.anchored]) {
+                return mapping.remote.appending(path[r.upperBound...])
             }
         }
         return path
@@ -480,7 +483,6 @@ final class Adapter: DebugAdapterServerRequestHandler {
                     sendProcessEvent(process, startMethod: .attach)
                 }
             }
-            
             startReplyHandler?(.success(()))
         }
         catch {
@@ -489,34 +491,24 @@ final class Adapter: DebugAdapterServerRequestHandler {
         startReplyHandler = nil
     }
     
-    private func stopDebuggee(terminate: Bool? = nil) {
-        guard let process = target?.process else {
-            return
-        }
-        
-        if isWaitingForAttach {
-            try? process.stop()
-            isWaitingForAttach = false
-        }
-        else if terminate ?? terminateDebuggee {
-            try? process.kill()
-        }
-        else {
-            try? process.detach()
-        }
-    }
-    
     func restart(_ request: DebugAdapter.IncomingRestartRequest<LaunchParameters, AttachParameters>) {
-        guard let target else {
-            request.reject(throwing: AdapterError.invalidParameter("No `launch` or `attach` request was sent before `configurationDone`."))
-            return
-        }
-        
-        restartingProcessID = target.process?.processID
-        
-        stopDebuggee()
-        
         do {
+            guard let target else {
+                throw AdapterError.notDebugging
+            }
+            
+            // Stop the current process if necessary.
+            if let process = target.process {
+                restartingProcessID = process.processID
+                
+                if process.state != .connected {
+                    try? process.kill()
+                }
+            }
+            else {
+                restartingProcessID = nil
+            }
+            
             switch debugRequest {
             case .launch:
                 let (request, replyHandler) = try request.decodeForReplyAsLaunch()
@@ -548,19 +540,39 @@ final class Adapter: DebugAdapterServerRequestHandler {
     }
     
     func disconnect(_ request: DebugAdapter.DisconnectRequest, replyHandler: @escaping (Result<(), Error>) -> Void) {
-        stopDebuggee(terminate: request.terminateDebuggee)
-        
-        // Clear all breakpoint callbacks.
-        Breakpoint.clearAllCallbacks()
-        
-        if let startReplyHandler {
-            self.startReplyHandler = nil
-            startReplyHandler(.failure(AdapterError.invalidated))
+        if let process = target?.process {
+            switch process.state {
+            case .invalid,
+                .unloaded,
+                .detached,
+                .exited:
+                break
+            case .connected,
+                .attaching,
+                .launching,
+                .stepping,
+                .crashed,
+                .suspended,
+                .stopped,
+                .running:
+                if isWaitingForAttach {
+                    try? process.stop()
+                }
+                
+                if request.terminateDebuggee ?? terminateDebuggee {
+                    try? process.kill()
+                }
+                else {
+                    try? process.detach()
+                }
+            default:
+                break
+            }
         }
         
-        target = nil
-        
         replyHandler(.success(()))
+        
+        shutdown()
     }
     
     // MARK: - Breakpoints
@@ -583,41 +595,42 @@ final class Adapter: DebugAdapterServerRequestHandler {
      */
     private static var breakpointLabel = "dap"
     
-    private(set) var sourceBreakpoints: [String: [Int: DebugAdapter.SourceBreakpoint]] = [:]
-    private(set) var functionBreakpoints: [Int: DebugAdapter.FunctionBreakpoint] = [:]
-    private(set) var exceptionFilters: [Int: String] = [:]
+    private var sourceBreakpoints: [SourceReference: [Int: DebugAdapter.SourceBreakpoint]] = [:]
+    private var functionBreakpoints: [Int: DebugAdapter.FunctionBreakpoint] = [:]
+    private var instructionBreakpoints: [Int: DebugAdapter.InstructionBreakpoint] = [:]
+    private var dataBreakpoints: [Int: DebugAdapter.DataBreakpoint] = [:]
+    private var exceptionBreakpoints: [Int: ExceptionFilter] = [:]
+    
+    private func adapterBreakpoint(for breakpoint: SwiftLLDB.Breakpoint) -> DebugAdapter.Breakpoint {
+        var result = DebugAdapter.Breakpoint(id: breakpoint.id)
+        
+        result.verified = breakpoint.resolvedLocationsCount > 0
+        
+        if let location = breakpoint.locations.first(where: { $0.isResolved }) ?? breakpoint.locations.first,
+           let address = location.address,
+           let lineEntry = address.lineEntry,
+           let fileSpec = lineEntry.fileSpec,
+           let line = lineEntry.line, line > 0 {
+               // A zero-value line means the source is compiler generated.
+            result.instructionReference = formatAddress(address.loadAddress(for: breakpoint.target))
+            
+            result.source = adapterSource(for: fileSpec)
+            result.line = clientOptions.linesStartAt1 ? line : line - 1
+            if let column = lineEntry.column {
+                result.column = clientOptions.columnsStartAt1 ? column : column - 1
+            }
+        }
+        
+        return result
+    }
     
     @MainActor
     private func handleBreakpointEvent(_ event: BreakpointEvent) {
         switch event.eventType {
         case .locationsAdded, .locationsResolved:
-            let bp = event.breakpoint
-            if bp.matchesName(Self.breakpointLabel) {
-                var breakpoint = DebugAdapter.Breakpoint()
-                breakpoint.id = bp.id
-                breakpoint.verified = bp.resolvedLocationsCount > 0
-                
-                if let location = bp.locations.first(where: { $0.isResolved }) ?? bp.locations.first,
-                   let address = location.address  {
-                    if let lineEntry = address.lineEntry {
-                        breakpoint.line = lineEntry.line
-                        breakpoint.column = lineEntry.column
-                        
-                        if let fileSpec = lineEntry.fileSpec,
-                           let line = lineEntry.line, line != 0 {
-                            // A line entry of 0 indicates the line is compiler generated,
-                            // e.g. no source file is associated with the frame.
-                            let localPath = localPath(forRemotePath: fileSpec.path)
-                            
-                            var source = DebugAdapter.Source()
-                            source.name = fileSpec.filename
-                            source.path = localPath
-                            breakpoint.source = source
-                        }
-                    }
-                }
-                
-                connection.send(DebugAdapter.BreakpointEvent(reason: .changed, breakpoint: breakpoint))
+            let breakpoint = event.breakpoint
+            if breakpoint.matchesName(Self.breakpointLabel) {
+                connection.send(DebugAdapter.BreakpointEvent(reason: .changed, breakpoint: adapterBreakpoint(for: breakpoint)))
             }
             
         default:
@@ -632,58 +645,67 @@ final class Adapter: DebugAdapterServerRequestHandler {
         }
         
         let source = request.source
-        guard let path = source.path else {
-            replyHandler(.failure(AdapterError.invalidParameter("Breakpoint source path is missing.")))
+        
+        let ref: SourceReference
+        if let path = source.path {
+            ref = .path(path)
+        }
+        else if let reference = source.sourceReference {
+            ref = .ref(reference)
+        }
+        else {
+            replyHandler(.failure(AdapterError.invalidParameter("Missing required parameter “source.path” or “source.sourceReference”.")))
             return
         }
         
-        // Create new breakpoints
-        var breakpoints: [DebugAdapter.Breakpoint] = []
+        var results: [DebugAdapter.Breakpoint] = []
         var newBreakpoints: [Int: DebugAdapter.SourceBreakpoint] = [:]
-        var previousBreakpoints = sourceBreakpoints[path] ?? [:]
+        var previousBreakpoints = sourceBreakpoints[ref] ?? [:]
         
         for sourceBreakpoint in request.breakpoints ?? [] {
             let line = sourceBreakpoint.line
             let column = sourceBreakpoint.column
             
-            let matchingBP = previousBreakpoints.first(where: { $0.value.line == line && $0.value.column == column })
-            
-            let bp: Breakpoint
-            if let matchingBP, let breakpoint = target.findBreakpoint(id: matchingBP.key) {
-                bp = breakpoint
-                previousBreakpoints[matchingBP.key] = nil
-            }
-            else {
-                let resolvedPath = remotePath(forLocalPath: path)
-                bp = target.createBreakpoint(path: resolvedPath, line: line, column: column)
+            do {
+                let breakpoint: Breakpoint
+                if let match = previousBreakpoints.first(where: { $0.value.line == line && $0.value.column == column }),
+                let bp = target.findBreakpoint(id: match.key) {
+                    breakpoint = bp
+                    previousBreakpoints[match.key] = nil
+                }
+                else {
+                    switch ref {
+                    case .path(let path):
+                        let resolvedPath = remotePath(forLocalPath: path)
+                        breakpoint = target.createBreakpoint(path: resolvedPath, line: line, column: column)
+                    case .ref(let reference):
+                        throw AdapterError.invalidParameter("Invalid source reference: “\(reference)”.")
+                    }
+                    
+                    // See comments for `Self.breakpointLabel` for details of why we add a label to our breakpoints.
+                    try? breakpoint.addName(Self.breakpointLabel)
+                }
                 
-                // See comments for `Self.breakpointLabel` for details of why we add a label to our breakpoints.
-                try? bp.addName(Self.breakpointLabel)
+                breakpoint.condition = sourceBreakpoint.condition
+                
+                let result = adapterBreakpoint(for: breakpoint)
+                
+                newBreakpoints[breakpoint.id] = sourceBreakpoint
+                results.append(result)
             }
-            
-            if let condition = sourceBreakpoint.condition {
-                bp.condition = condition
+            catch {
+                let result = DebugAdapter.Breakpoint(verified: false, reason: .failed)
+                results.append(result)
             }
-            
-            var breakpoint = DebugAdapter.Breakpoint()
-            breakpoint.id = bp.id
-            
-            breakpoint.line = line
-            breakpoint.column = column
-            breakpoint.source = source
-            
-            breakpoints.append(breakpoint)
-            newBreakpoints[bp.id] = sourceBreakpoint
         }
         
-        // Update active session
         for (id, _) in previousBreakpoints {
            target.removeBreakpoint(id: id)
         }
         
-        sourceBreakpoints[path] = newBreakpoints.count > 0 ? newBreakpoints : nil
+        sourceBreakpoints[ref] = newBreakpoints.count > 0 ? newBreakpoints : nil
         
-        replyHandler(.success(.init(breakpoints: breakpoints)))
+        replyHandler(.success(.init(breakpoints: results)))
     }
     
     func setFunctionBreakpoints(_ request: DebugAdapter.SetFunctionBreakpointsRequest, replyHandler: @escaping (Result<DebugAdapter.SetFunctionBreakpointsRequest.Result, Error>) -> Void) {
@@ -692,47 +714,242 @@ final class Adapter: DebugAdapterServerRequestHandler {
             return
         }
         
-        // Create new breakpoints
-        var breakpoints: [DebugAdapter.Breakpoint] = []
-        var newFunctionBreakpoints: [Int: DebugAdapter.FunctionBreakpoint] = [:]
+        var results: [DebugAdapter.Breakpoint] = []
+        var newBreakpoints: [Int: DebugAdapter.FunctionBreakpoint] = [:]
         var previousBreakpoints = functionBreakpoints
         
         for functionBreakpoint in request.breakpoints {
             let name = functionBreakpoint.name
             
-            let matchingBP = previousBreakpoints.first(where: { $0.value.name == name })
-            
-            let bp: Breakpoint
-            if let matchingBP, let breakpoint = target.findBreakpoint(id: matchingBP.key) {
-                bp = breakpoint
-                previousBreakpoints[matchingBP.key] = nil
+            let breakpoint: Breakpoint
+            if let match = previousBreakpoints.first(where: { $0.value.name == name }),
+                let bp = target.findBreakpoint(id: match.key) {
+                breakpoint = bp
+                previousBreakpoints[match.key] = nil
             }
             else {
-                bp = target.createBreakpoint(name: name)
+                breakpoint = target.createBreakpoint(name: name)
                 
                 // See comments for `Self.breakpointLabel` for details of why we add a label to our breakpoints.
-                try? bp.addName(Self.breakpointLabel)
+                try? breakpoint.addName(Self.breakpointLabel)
             }
             
-            if let condition = functionBreakpoint.condition {
-                bp.condition = condition
-            }
+            breakpoint.condition = functionBreakpoint.condition
             
-            var breakpoint = DebugAdapter.Breakpoint()
-            breakpoint.id = bp.id
+            let result = adapterBreakpoint(for: breakpoint)
             
-            breakpoints.append(breakpoint)
-            newFunctionBreakpoints[bp.id] = functionBreakpoint
+            newBreakpoints[breakpoint.id] = functionBreakpoint
+            results.append(result)
         }
         
-        // Update active session
         for (id, _) in previousBreakpoints {
             target.removeBreakpoint(id: id)
         }
         
-        functionBreakpoints = newFunctionBreakpoints
+        functionBreakpoints = newBreakpoints
         
-        replyHandler(.success(.init(breakpoints: breakpoints)))
+        replyHandler(.success(.init(breakpoints: results)))
+    }
+    
+    func setInstructionBreakpoints(_ request: DebugAdapter.SetInstructionBreakpointsRequest, replyHandler: @escaping (Result<DebugAdapter.SetInstructionBreakpointsRequest.Result, Error>) -> Void) {
+        guard let target else {
+            replyHandler(.failure(AdapterError.notDebugging))
+            return
+        }
+        
+        var results: [DebugAdapter.Breakpoint] = []
+        var newBreakpoints: [Int: DebugAdapter.InstructionBreakpoint] = [:]
+        var previousBreakpoints = instructionBreakpoints
+        
+        for instructionBreakpoint in request.breakpoints {
+            do {
+                let ref = instructionBreakpoint.instructionReference
+                guard let addr = self.parseAddress(from: ref) else {
+                    throw AdapterError.invalidParameter("Invalid memory reference “\(instructionBreakpoint.instructionReference)”.")
+                }
+                
+                let breakpoint: Breakpoint
+                if let match = previousBreakpoints.first(where: { $0.value.instructionReference == ref }),
+                   let bp = target.findBreakpoint(id: match.key) {
+                    breakpoint = bp
+                    previousBreakpoints[match.key] = nil
+                }
+                else {
+                    breakpoint = target.createBreakpoint(address: addr)
+                    
+                    // See comments for `Self.breakpointLabel` for details of why we add a label to our breakpoints.
+                    try? breakpoint.addName(Self.breakpointLabel)
+                }
+                
+                breakpoint.condition = instructionBreakpoint.condition
+                
+                let result = adapterBreakpoint(for: breakpoint)
+                
+                newBreakpoints[breakpoint.id] = instructionBreakpoint
+                results.append(result)
+            }
+            catch {
+                let result = DebugAdapter.Breakpoint(verified: false, reason: .failed)
+                results.append(result)
+            }
+        }
+        
+        for (id, _) in previousBreakpoints {
+            target.removeBreakpoint(id: id)
+        }
+        
+        instructionBreakpoints = newBreakpoints
+        
+        replyHandler(.success(.init(breakpoints: results)))
+    }
+    
+    func dataBreakpointInfo(_ request: DebugAdapter.DataBreakpointInfoRequest, replyHandler: @escaping (Result<DebugAdapter.DataBreakpointInfoRequest.Result, Error>) -> Void) {
+        do {
+            let name = request.name
+            
+            if request.asAddress ?? false {
+                // Address
+                guard let addr = self.parseAddress(from: name) else {
+                    throw AdapterError.invalidParameter("Invalid memory reference “\(name)”.")
+                }
+                guard let bytes = request.bytes else {
+                    throw AdapterError.invalidParameter("Missing required parameter “bytes”.")
+                }
+                
+                let addrStr = String(addr, radix: 16, uppercase: true)
+                let bytesStr = String(bytes)
+                let dataId = "\(addrStr)/\(bytesStr)"
+                let desc = "\(bytesStr) bytes at \(addrStr)"
+                
+                var result = DebugAdapter.DataBreakpointInfoRequest.Result(dataId: dataId, description: desc)
+                result.accessTypes = [.read, .write, .readWrite]
+                
+                replyHandler(.success(result))
+            }
+            else if let ref = request.variablesReference {
+                // Variable reference
+                guard let value = try findVariableValue(named: name, in: ref) else {
+                    throw AdapterError.invalidParameter("Value “\(name)” not found.")
+                }
+                guard let addr = value.loadAddress else {
+                    throw AdapterError.invalidParameter("Value “\(name)” does not exist in memory; its location is “\(String(describing: value.location))”.")
+                }
+                
+                let bytes = request.bytes ?? value.byteSize
+                if bytes == 0 {
+                    throw AdapterError.invalidParameter("Value “\(name)” has zero-size in memory.")
+                }
+                
+                let addrStr = String(addr, radix: 16, uppercase: true)
+                let bytesStr = String(bytes)
+                let dataId = "\(addrStr)/\(bytesStr)"
+                let desc = "\(bytesStr) bytes at \(addrStr)"
+                
+                var result = DebugAdapter.DataBreakpointInfoRequest.Result(dataId: dataId, description: desc)
+                result.accessTypes = [.read, .write, .readWrite]
+                
+                replyHandler(.success(result))
+            }
+            else {
+                // Expression
+                guard let target, let process = target.process else {
+                    throw AdapterError.notDebugging
+                }
+                let frame = try request.frameId.flatMap { try self.frame(withID: $0) }
+                
+                let value: Value
+                if let frame {
+                    value = try frame.evaluate(expression: name)
+                }
+                else {
+                    value = try target.evaluate(expression: name)
+                }
+                
+                guard let addr = value.valueAsAddress else {
+                    throw AdapterError.invalidParameter("Value “\(name)” does not exist in memory; its location is “\(String(describing: value.location))”.")
+                }
+                guard let data = value.pointeeData() else {
+                    throw AdapterError.invalidParameter("Value “\(name)” has zero-size in memory.")
+                }
+                
+                let bytes = request.bytes ?? data.byteSize
+                
+                if let region = try? process.memoryRegionInfo(at: addr),
+                    !region.isReadable || !region.isWritable {
+                    throw AdapterError.invalidParameter("Memory region for “\(name)” has no read or write access.")
+                }
+                
+                let addrStr = String(addr, radix: 16, uppercase: true)
+                let bytesStr = String(bytes)
+                let dataId = "\(addrStr)/\(bytesStr)"
+                let desc = "\(bytesStr) bytes at \(addrStr)"
+                
+                var result = DebugAdapter.DataBreakpointInfoRequest.Result(dataId: dataId, description: desc)
+                result.accessTypes = [.read, .write, .readWrite]
+                
+                replyHandler(.success(result))
+            }
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
+    }
+    
+    func setDataBreakpoints(_ request: DebugAdapter.SetDataBreakpointsRequest, replyHandler: @escaping (Result<DebugAdapter.SetDataBreakpointsRequest.Result, Error>) -> Void) {
+        guard let target else {
+            replyHandler(.failure(AdapterError.notDebugging))
+            return
+        }
+        
+        var results: [DebugAdapter.Breakpoint] = []
+        var newBreakpoints: [Int: DebugAdapter.DataBreakpoint] = [:]
+        var previousBreakpoints = dataBreakpoints
+        
+        for dataBreakpoint in request.breakpoints {
+            let dataId = dataBreakpoint.dataId
+            let accessType = dataBreakpoint.accessType
+            
+            do {
+                let watchpoint: Watchpoint
+                if let match = previousBreakpoints.first(where: { $0.value.dataId == dataId && $0.value.accessType == accessType }),
+                   let wp = target.findWatchpoint(id: match.key) {
+                    watchpoint = wp
+                    previousBreakpoints[match.key] = nil
+                }
+                else {
+                    let comps = dataId.split(separator: "/", maxSplits: 1)
+                    guard comps.count == 2,
+                        let addr = UInt64(comps[0], radix: 16),
+                        let size = Int(comps[1]) else {
+                        throw AdapterError.invalidParameter("Invalid data breakpoint dataId “\(dataId)”.")
+                    }
+                    
+                    let onRead = accessType != .write
+                    let onWrite = accessType != .read
+                    
+                    watchpoint = try target.createWatchpoint(at: addr, count: size, onRead: onRead, onWrite: onWrite)
+                }
+                
+                watchpoint.condition = dataBreakpoint.condition
+                
+                let result = DebugAdapter.Breakpoint(id: watchpoint.id, verified: true)
+                
+                newBreakpoints[watchpoint.id] = dataBreakpoint
+                results.append(result)
+            }
+            catch {
+                let result = DebugAdapter.Breakpoint(verified: false, reason: .failed)
+                results.append(result)
+            }
+        }
+        
+        for (id, _) in previousBreakpoints {
+            target.removeWatchpoint(id: id)
+        }
+        
+        dataBreakpoints = newBreakpoints
+        
+        replyHandler(.success(.init(breakpoints: results)))
     }
     
     func setExceptionBreakpoints(_ request: DebugAdapter.SetExceptionBreakpointsRequest, replyHandler: @escaping (Result<DebugAdapter.SetExceptionBreakpointsRequest.Result?, Error>) -> Void) {
@@ -741,51 +958,177 @@ final class Adapter: DebugAdapterServerRequestHandler {
             return
         }
         
-        var newExceptionFilters: [Int: String] = [:]
-        var breakpoints: [DebugAdapter.Breakpoint] = []
-        var previousFilters = exceptionFilters
+        var results: [DebugAdapter.Breakpoint] = []
+        var newBreakpoints: [Int: ExceptionFilter] = [:]
+        var previousBreakpoints = exceptionBreakpoints
         
         var filterOptions: [DebugAdapter.ExceptionFilterOptions] = []
         filterOptions.append(contentsOf: (request.filters ?? []).map { .init(filterId: $0) })
         filterOptions.append(contentsOf: request.filterOptions ?? [])
         
-        for filter in filterOptions {
-            let matchingBP = previousFilters.first(where: { $0.value == filter.filterId })
-            
-            let bp: Breakpoint
-            if let matchingBP, let breakpoint = target.findBreakpoint(id: matchingBP.key) {
-                bp = breakpoint
-                previousFilters[matchingBP.key] = nil
+        for options in filterOptions {
+            let filter: ExceptionFilter
+            let breakpoint: Breakpoint
+            if let match = previousBreakpoints.first(where: { $0.value.rawValue == options.filterId }),
+               let bp = target.findBreakpoint(id: match.key) {
+                filter = match.value
+                breakpoint = bp
+                previousBreakpoints[match.key] = nil
             }
-            else if let filter = ExceptionFilter(rawValue: filter.filterId) {
-                bp = target.createBreakpoint(forExceptionIn: filter.language, onCatch: filter.isCatch, onThrow: filter.isThrow)
+            else if let f = ExceptionFilter(rawValue: options.filterId) {
+                filter = f
+                breakpoint = target.createBreakpoint(forExceptionIn: filter.language, onCatch: filter.isCatch, onThrow: filter.isThrow)
                 
                 // See comments for `Self.breakpointLabel` for details of why we add a label to our breakpoints.
-                try? bp.addName(Self.breakpointLabel)
+                try? breakpoint.addName(Self.breakpointLabel)
             }
             else {
-                replyHandler(.failure(AdapterError.invalidParameter("Unsupported exception filter: \(filter.filterId).")))
+                replyHandler(.failure(AdapterError.invalidParameter("Unsupported exception filter “\(options.filterId)”.")))
                 return
             }
             
-            if let condition = filter.condition {
-                bp.condition = condition
-            }
+            breakpoint.condition = options.condition
             
-            var breakpoint = DebugAdapter.Breakpoint()
-            breakpoint.id = bp.id
+            let result = adapterBreakpoint(for: breakpoint)
             
-            breakpoints.append(breakpoint)
-            newExceptionFilters[bp.id] = filter.filterId
+            newBreakpoints[breakpoint.id] = filter
+            results.append(result)
         }
         
-        exceptionFilters = newExceptionFilters
+        exceptionBreakpoints = newBreakpoints
         
-        for (id, _) in previousFilters {
+        for (id, _) in previousBreakpoints {
             target.removeBreakpoint(id: id)
         }
         
-        replyHandler(.success(.init(breakpoints: breakpoints)))
+        replyHandler(.success(.init(breakpoints: results)))
+    }
+    
+    // MARK: - Sources and Variables
+    
+    enum SourceReference: Hashable {
+        case path(String)
+        case ref(Int)
+    }
+    
+    private func adapterSource(for fileSpec: FileSpec) -> DebugAdapter.Source {
+        var source = DebugAdapter.Source()
+        source.name = fileSpec.filename
+        source.path = localPath(forRemotePath: fileSpec.path)
+        return source
+    }
+    
+    private enum VariableContainer {
+        case stackFrame(Frame)
+        case locals(Frame)
+        case globals(Frame)
+        case registers(Frame)
+        case value(Value)
+    }
+    private var variables = ReferenceTree<Int, VariableContainer>()
+    
+    private func findVariableValue(named name: String, in ref: Int) throws -> Value? {
+        guard let container = variables[ref] else {
+            throw AdapterError.invalidParameter("Invalid variable reference “\(ref)”.")
+        }
+        
+        switch container {
+            case let .locals(frame),
+                let .globals(frame),
+                let .registers(frame):
+                return frame.findVariable(named: name)
+                
+            case let .value(value):
+                return value.childMember(named: name)
+            
+            case .stackFrame(_):
+                return nil
+        }
+    }
+    
+    private func variables(for ref: Int) throws -> [DebugAdapter.Variable] {
+        guard let container = variables[ref] else {
+            throw AdapterError.invalidParameter("Invalid variable reference “\(ref)”.")
+        }
+        
+        switch container {
+            case let .locals(frame):
+                let values = frame.variables(for: [.arguments, .locals], inScopeOnly: true)
+                return self.variables(for: values, containerRef: ref, uniquing: true)
+                
+            case let .globals(frame):
+                let values = frame.variables(for: [.statics], inScopeOnly: true)
+                return self.variables(for: values, types: [.global], containerRef: ref, uniquing: false)
+                
+            case let .registers(frame):
+                let values = frame.registers
+                return self.variables(for: values, containerRef: ref, uniquing: false)
+                
+            case let .value(value):
+                return self.variables(for: value.children, containerRef: ref, uniquing: false)
+            
+            case .stackFrame(_):
+                return []
+        }
+    }
+    
+    private func variables<S>(for values: S, types: Set<Value.ValueType>? = nil, containerRef: Int, uniquing: Bool) -> [DebugAdapter.Variable] where S: Sequence, S.Element == Value {
+        var variables: [DebugAdapter.Variable] = []
+        var variablesIndexesByName: [String: Int] = [:]
+        
+        for value in values {
+            guard let name = value.name else {
+                continue
+            }
+            
+            if !(types?.contains(value.valueType) ?? true) {
+                continue
+            }
+            
+            let summary = value.summary ?? value.value ?? ""
+            
+            var variable = DebugAdapter.Variable(name: name, value: summary)
+            
+            variable.type = value.displayTypeName
+            variable.variablesReference = variableReference(for: value, key: name, parent: containerRef)
+            
+            if uniquing {
+                if let index = variablesIndexesByName[name] {
+                    variables[index] = variable
+                }
+                else {
+                    variablesIndexesByName[name] = variables.count
+                    variables.append(variable)
+                }
+            }
+            else {
+                variables.append(variable)
+            }
+        }
+        
+        return variables;
+    }
+    
+    private func variableReference(for value: Value, key: String, parent: Int?) -> Int? {
+        guard !value.children.isEmpty && !value.isSynthetic else {
+            return nil
+        }
+        return variables.insert(parent: parent, key: key, value: .value(value))
+    }
+    
+    private func parseAddress(from string: String) -> UInt64? {
+        if let r = string.range(of: "0x", options: [.anchored]) {
+            // Hexadecimal
+            return UInt64(string[r.upperBound...], radix: 16)
+        }
+        else {
+            // Decimal
+            return UInt64(string)
+        }
+    }
+    
+    private func formatAddress(_ address: UInt64) -> String {
+        return String(address, radix: 16, uppercase: true)
     }
     
     // MARK: - Execution
@@ -810,7 +1153,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
                 
                 if !event.isRestarted {
                     sendStandardOutAndError(process)
-                    sendStoppedEvent()
+                    sendThreadStoppedEvent()
                 }
                 
             case .exited:
@@ -819,7 +1162,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
                     restartingProcessID = nil
                 }
                 else {
-                    sendExitedEvent(process)
+                    sendProcessExitedEvent(process)
                     sendTerminatedEvent()
                 }
                 
@@ -833,16 +1176,17 @@ final class Adapter: DebugAdapterServerRequestHandler {
     }
     
     private func sendStandardOutAndError(_ process: SwiftLLDB.Process) {
-        withUnsafeTemporaryAllocation(of: UInt8.self, capacity: 4096) { buffer in
+        withUnsafeTemporaryAllocation(of: CChar.self, capacity: 4096) { buffer in
             while true {
                 let count = process.readStandardOut(buffer)
                 guard count > 0 else {
                     break
                 }
                 
-                if let string = String(bytes: buffer, encoding: .ascii) {
-                    output(string, category: .standardOut)
+                let string = buffer[0 ..< count].withMemoryRebound(to: UInt8.self) { asciiBuffer in
+                    String(decoding: asciiBuffer, as: Unicode.ASCII.self)
                 }
+                output(string, category: .standardOutput)
             }
             
             while true {
@@ -851,9 +1195,10 @@ final class Adapter: DebugAdapterServerRequestHandler {
                     break
                 }
                 
-                if let string = String(bytes: buffer, encoding: .ascii) {
-                    output(string, category: .standardError)
+                let string = buffer[0 ..< count].withMemoryRebound(to: UInt8.self) { asciiBuffer in
+                    String(decoding: asciiBuffer, as: Unicode.ASCII.self)
                 }
+                output(string, category: .standardError)
             }
         }
     }
@@ -868,89 +1213,70 @@ final class Adapter: DebugAdapterServerRequestHandler {
         connection.send(event)
     }
     
-    private func sendExitedEvent(_ process: SwiftLLDB.Process) {
-        let exitCode = Int(process.exitStatus)
-        output("Process exited: \(exitCode).")
-        connection.send(DebugAdapter.ExitedEvent(exitCode: exitCode))
+    private func sendProcessExitedEvent(_ process: SwiftLLDB.Process) {
+        connection.send(DebugAdapter.ExitedEvent(exitCode: Int(process.exitStatus)))
     }
     
-    private func sendContinuedEvent() {
-        var event = DebugAdapter.ContinuedEvent(threadId: 0)
-        event.allThreadsContinued = true
-        connection.send(event)
+    private func sendThreadExitedEvent(_ thread: SwiftLLDB.Thread) {
+        connection.send(DebugAdapter.ThreadEvent(threadId: thread.id, reason: .exited))
     }
     
-    private func sendStoppedEvent() {
+    private func sendThreadStoppedEvent() {
         guard let process = target?.process else {
             return
         }
         
         var thread: SwiftLLDB.Thread?
         
-        if let selectedThread = process.selectedThread {
-            let stopReason = selectedThread.stopReason
-            if stopReason != .invalid && stopReason != .none {
-                thread = selectedThread
-            }
+        if let selectedThread = process.selectedThread, selectedThread.hasValidStopReason {
+            thread = selectedThread
         }
         
         if thread == nil {
-            thread = process.threads.first { thread in
-                let stopReason = thread.stopReason
-                if stopReason != .invalid && stopReason != .none {
-                    process.setSelectedThread(thread)
-                    return true
-                }
-                else {
-                    return false
-                }
-            }
+            thread = process.threads.first { $0.hasValidStopReason }
         }
         
         let reason: DebugAdapter.StoppedEvent.Reason
-        var hitBreakpointIDs: [Int] = []
         
+        var hitBreakpointIDs: [Int]?
         if let thread {
             switch thread.stopReason {
-                case .breakpoint:
-                    reason = .breakpoint
-                    
-                    let dataCount = thread.stopReasonData.count
-                    if dataCount >= 2 {
-                        // Breakpoint reason data consists of pairs of [breakpointID, breakpointLocationID].
-                        for i in 0 ..< (dataCount / 2) {
-                            let id = thread.stopReasonData[i]
-                            hitBreakpointIDs.append(Int(id))
-                        }
+                case .breakpoint(let ids):
+                    if ids.first(where: { instructionBreakpoints[$0] != nil }) != nil {
+                        reason = .instructionBreakpoint
                     }
-                    
+                    else {
+                        reason = .breakpoint
+                    }
+                    hitBreakpointIDs = ids
+                case .watchpoint(let id):
+                    reason = .dataBreakpoint
+                    hitBreakpointIDs = [id]
                 case .exception:
                     reason = .exception
-                    
+                case .signal:
+                    reason = "signal"
                 case .trace, .planComplete:
                     reason = .step
-                    
-                case .signal:
-                    reason = .init(rawValue: "signal")
-                    
-                case .watchpoint:
-                    reason = .dataBreakpoint
-                    
                 default:
-                    reason = .init(rawValue: "unknown")
+                    reason = "unknown"
             }
         }
         else {
-            reason = .init(rawValue: "unknown")
+            reason = "unknown"
         }
         
         var event = DebugAdapter.StoppedEvent(reason: reason)
         event.allThreadsStopped = true
         event.threadId = thread?.id
-        if !hitBreakpointIDs.isEmpty {
-            event.hitBreakpointIds = hitBreakpointIDs
-        }
+        event.hitBreakpointIds = hitBreakpointIDs
         
+        connection.send(event)
+    }
+    
+    private func sendContinuedEvent() {
+        var event = DebugAdapter.ContinuedEvent(threadId: 0)
+        event.allThreadsContinued = true
         connection.send(event)
     }
     
@@ -1004,7 +1330,12 @@ final class Adapter: DebugAdapterServerRequestHandler {
                 throw AdapterError.invalidParameter("Invalid thread ID “\(threadID)”.")
             }
             
-            try thread.stepOver()
+            if request.granularity == .instruction {
+                try thread.stepOverInstruction()
+            }
+            else {
+                try thread.stepOver()
+            }
             
             replyHandler(.success(()))
         }
@@ -1024,7 +1355,12 @@ final class Adapter: DebugAdapterServerRequestHandler {
                 throw AdapterError.invalidParameter("Invalid thread ID “\(threadID)”.")
             }
             
-            try thread.stepInto()
+            if request.granularity == .instruction {
+                try thread.stepIntoInstruction()
+            }
+            else {
+                try thread.stepInto()
+            }
             
             replyHandler(.success(()))
         }
@@ -1069,22 +1405,13 @@ final class Adapter: DebugAdapterServerRequestHandler {
     
     // MARK: - Threads
     
-    private enum VariableContainer {
-        case stackFrame(Frame)
-        case locals(Frame)
-        case globals(Frame)
-        case registers(Frame)
-        case value(Value)
-    }
-    private var variables = ReferenceTree<Int, VariableContainer>()
-    
     func threads(_ request: DebugAdapter.ThreadsRequest, replyHandler: @escaping (Result<DebugAdapter.ThreadsRequest.Result, Error>) -> Void) {
         guard let process = target?.process else {
             replyHandler(.failure(AdapterError.notDebugging))
             return
         }
         
-        let threads = process.threads.map { DebugAdapter.Thread(id: $0.id, name: $0.displayName) }
+        let threads = process.threads.map { DebugAdapter.Thread(id: $0.id, name: $0.displayName, description: $0.queueDisplayName) }
         
         replyHandler(.success(.init(threads: threads)))
     }
@@ -1112,7 +1439,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
                 name = displayName
             }
             else if let pc = frame.programCounter {
-                name = "0x\(String(pc, radix: 16, uppercase: true))"
+                name = formatAddress(pc)
             }
             else {
                 name = "<unknown>"
@@ -1127,17 +1454,14 @@ final class Adapter: DebugAdapterServerRequestHandler {
             if let lineEntry = frame.lineEntry,
                let fileSpec = lineEntry.fileSpec,
                let line = lineEntry.line, line != 0 {
-                // A line entry of 0 indicates the line is compiler generated,
-                // e.g. no source file is associated with the frame.
-                let localPath = localPath(forRemotePath: fileSpec.path)
+                // A zero-value line means the source is compiler generated.
+                debugFrame.source = adapterSource(for: fileSpec)
                 
-                var source = DebugAdapter.Source()
-                source.name = fileSpec.filename
-                source.path = localPath
-                debugFrame.source = source
+                debugFrame.line = clientOptions.linesStartAt1 ? line : line - 1
                 
-                debugFrame.line = line
-                debugFrame.column = lineEntry.column
+                if let column = lineEntry.column {
+                    debugFrame.column = clientOptions.columnsStartAt1 ? column : column - 1
+                }
             }
             
             if frame.isArtificial {
@@ -1145,8 +1469,18 @@ final class Adapter: DebugAdapterServerRequestHandler {
             }
             
             if let pc = frame.programCounter {
-                debugFrame.instructionPointerReference = "0x\(String(pc, radix: 16, uppercase: true))"
+                debugFrame.instructionPointerReference = formatAddress(pc)
             }
+            
+            var attributes: [DebugAdapter.StackFrame.Attribute] = []
+            
+            if let data = frame.languageSpecificData {
+                if data["IsSwiftAsyncFunction"]?.asBool() ?? false {
+                    attributes.append(.async)
+                }
+            }
+            
+            debugFrame.attributes = attributes
             
             return debugFrame
         }
@@ -1154,108 +1488,102 @@ final class Adapter: DebugAdapterServerRequestHandler {
         replyHandler(.success(.init(stackFrames: frames)))
     }
     
-    func scopes(_ request: DebugAdapter.ScopesRequest, replyHandler: @escaping (Result<DebugAdapter.ScopesRequest.Result, Error>) -> Void) {
-        let frameID = request.frameId
+    private func frame(withID id: Int) throws -> Frame {
+        guard case let .stackFrame(frame) = variables[id] else {
+            throw AdapterError.invalidParameter("Invalid stack frame ID “\(id)”.")
+        }
+        return frame
+    }
+    
+    func exceptionInfo(_ request: DebugAdapter.ExceptionInfoRequest, replyHandler: @escaping (Result<DebugAdapter.ExceptionInfoRequest.Result, Error>) -> Void) {
+        guard let process = target?.process else {
+            replyHandler(.failure(AdapterError.notDebugging))
+            return
+        }
         
-        switch variables[frameID] {
-            case let .stackFrame(frame):
-                let localsRef = variables.insert(parent: frameID, key: "._locals", value: .locals(frame))
-                var localsScope = DebugAdapter.Scope(name: "Locals", variablesReference: localsRef)
-                localsScope.presentationHint = .locals
-                
-                let globalsRef = variables.insert(parent: frameID, key: "._globals", value: .globals(frame))
-                var globalsScope = DebugAdapter.Scope(name: "Globals", variablesReference: globalsRef)
-                globalsScope.presentationHint = .globals
-                
-                let registersRef = variables.insert(parent: frameID, key: "._registers", value: .registers(frame))
-                var registersScope = DebugAdapter.Scope(name: "Registers", variablesReference: registersRef)
-                registersScope.presentationHint = .registers
-                
-                let scopes = [localsScope, globalsScope, registersScope]
-                
-                replyHandler(.success(.init(scopes: scopes)))
+        let threadID = request.threadId
+        guard let thread = process.thread(withID: threadID) else {
+            replyHandler(.failure(AdapterError.invalidParameter("Invalid thread ID “\(threadID)”.")))
+            return
+        }
+        
+        let exceptionID: String
+        var description: String?
+        
+        switch thread.stopReason {
+        case .signal:
+            exceptionID = "signal"
             
-            default:
-                replyHandler(.failure(AdapterError.invalidParameter("Invalid stack frame ID \(frameID).")))
-                return
+        case .breakpoint(let ids):
+            if let id = ids.first(where: { exceptionBreakpoints[$0] != nil }),
+               let breakpoint = exceptionBreakpoints[id] {
+                exceptionID = breakpoint.rawValue
+                description = breakpoint.label
+            }
+            else {
+                exceptionID = "exception"
+            }
+            
+        default:
+            exceptionID = "exception"
+        }
+        
+        var result = DebugAdapter.ExceptionInfoRequest.Result(exceptionId: exceptionID, breakMode: .always)
+        result.description = description
+        
+        if let exception = thread.currentException {
+            var details = DebugAdapter.ExceptionDetails()
+            
+            details.message = exception.description
+            
+            if let backtrace = thread.currentExceptionBacktrace {
+                var stackTrace = backtrace.description ?? ""
+                for frame in backtrace.frames {
+                    stackTrace.append(frame.description ?? "")
+                }
+                details.stackTrace = stackTrace
+            }
+            
+            result.details = details
+        }
+        
+        replyHandler(.success(result))
+    }
+    
+    func scopes(_ request: DebugAdapter.ScopesRequest, replyHandler: @escaping (Result<DebugAdapter.ScopesRequest.Result, Error>) -> Void) {
+        do {
+            let frameID = request.frameId
+            let frame = try self.frame(withID: frameID)
+            
+            let localsRef = variables.insert(parent: frameID, key: "._locals", value: .locals(frame))
+            var localsScope = DebugAdapter.Scope(name: "Locals", variablesReference: localsRef)
+            localsScope.presentationHint = .locals
+            
+            let globalsRef = variables.insert(parent: frameID, key: "._globals", value: .globals(frame))
+            var globalsScope = DebugAdapter.Scope(name: "Globals", variablesReference: globalsRef)
+            globalsScope.presentationHint = .globals
+            
+            let registersRef = variables.insert(parent: frameID, key: "._registers", value: .registers(frame))
+            var registersScope = DebugAdapter.Scope(name: "Registers", variablesReference: registersRef)
+            registersScope.presentationHint = .registers
+            
+            let scopes = [localsScope, globalsScope, registersScope]
+            
+            replyHandler(.success(.init(scopes: scopes)))
+        }
+        catch {
+            replyHandler(.failure(error))
         }
     }
     
     func variables(_ request: DebugAdapter.VariablesRequest, replyHandler: @escaping (Result<DebugAdapter.VariablesRequest.Result, Error>) -> Void) {
-        let ref = request.variablesReference
-        
-        if let container = variables[ref] {
-            switch container {
-                case let .locals(frame):
-                    let values = frame.variables(for: [.arguments, .locals], inScopeOnly: true)
-                    let variables = self.variables(for: values, containerRef: ref, uniquing: true)
-                    replyHandler(.success(.init(variables: variables)))
-                    
-                case let .globals(frame):
-                    let values = frame.variables(for: [.statics], inScopeOnly: true)
-                    let variables = self.variables(for: values, types: [.global], containerRef: ref, uniquing: false)
-                    replyHandler(.success(.init(variables: variables)))
-                    
-                case let .registers(frame):
-                    let values = frame.registers
-                    let variables = self.variables(for: values, containerRef: ref, uniquing: false)
-                    replyHandler(.success(.init(variables: variables)))
-                    
-                case let .value(value):
-                    let variables = self.variables(for: value.children, containerRef: ref, uniquing: false)
-                    replyHandler(.success(.init(variables: variables)))
-                
-                case .stackFrame(_):
-                    replyHandler(.success(.init(variables: [])))
-            }
+        do {
+            let variables = try self.variables(for: request.variablesReference)
+            replyHandler(.success(.init(variables: variables)))
         }
-        else {
-            replyHandler(.failure(AdapterError.invalidParameter("Invalid variables reference: \(ref).")))
+        catch {
+            replyHandler(.failure(error))
         }
-    }
-    
-    private func variables<S>(for values: S, types: Set<Value.ValueType>? = nil, containerRef: Int, uniquing: Bool) -> [DebugAdapter.Variable] where S: Sequence, S.Element == Value {
-        var variables: [DebugAdapter.Variable] = []
-        var variablesIndexesByName: [String: Int] = [:]
-        
-        for value in values {
-            guard let name = value.name else {
-                continue
-            }
-            
-            if !(types?.contains(value.valueType) ?? true) {
-                continue
-            }
-            
-            let summary = value.summary ?? value.value ?? ""
-            
-            var variable = DebugAdapter.Variable(name: name, value: summary)
-            
-            variable.type = value.displayTypeName
-            variable.variablesReference = variableReference(for: value, key: name, parent: containerRef)
-            
-            if uniquing {
-                if let index = variablesIndexesByName[name] {
-                    variables[index] = variable
-                }
-                else {
-                    variablesIndexesByName[name] = variables.count
-                    variables.append(variable)
-                }
-            }
-            else {
-                variables.append(variable)
-            }
-        }
-        
-        return variables;
-    }
-    
-    private func variableReference(for value: Value, key: String, parent: Int?) -> Int? {
-        guard !value.children.isEmpty && !value.isSynthetic else {
-            return nil
-        }
-        return variables.insert(parent: parent, key: key, value: .value(value))
     }
     
     func completions(_ request: DebugAdapter.CompletionsRequest, replyHandler: @escaping (Result<DebugAdapter.CompletionsRequest.Result, Error>) -> Void) {
@@ -1264,28 +1592,42 @@ final class Adapter: DebugAdapterServerRequestHandler {
                 throw AdapterError.notDebugging
             }
             
-            let text = request.text
-            
-            if let first = text.first, !first.isLetter && !first.isNumber {
-                // LLDB can crash if the first character of the expression is non-alphanumeric.
-                replyHandler(.success(.init(targets: [])))
-                return
+            let frame = try request.frameId.flatMap { try self.frame(withID: $0) }
+            if let frame {
+                let thread = frame.thread
+                let process = thread.process
+                process.setSelectedThread(thread)
+                thread.setSelectedFrame(at: frame.id)
             }
             
-            var column = request.column
-            if clientOptions.columnsStartAt1, column > 0 {
-                column -= 1
+            let text = request.text
+            
+            let line = max(clientOptions.linesStartAt1 ? (request.line ?? 1) - 1 : request.line ?? 0, 0)
+            let column = max(clientOptions.columnsStartAt1 ? request.column - 1 : request.column, 0)
+            
+            if line > 0 {
+                
             }
             
             // Translate the UTF-16 offset to UTF-8 byte offset
-            let cursorIndex = text.utf16.index(text.startIndex, offsetBy: column)
-            let cursorPosition = text.unicodeScalars.distance(from: text.startIndex, to: cursorIndex)
+            let cursorIndex = String.Index(utf16Offset: column, in: text)
+            let cursorPosition = text.utf8.distance(from: text.startIndex, to: cursorIndex)
             
-            let interpreter = debugger.commandInterpreter
-            let strings = interpreter.handleCompletions(text, cursorPosition: cursorPosition, matchStart: 0)
+            let (matches, descriptions) = debugger.commandInterpreter.handleCompletions(text, cursorPosition: cursorPosition, matchStart: 0)
             
-            let targets: [DebugAdapter.CompletionItem] = strings.compactMap { string in
-                return nil
+            // The first string is the prefix common to all matches, so ignore it.
+            let targets = zip(matches, descriptions).dropFirst().compactMap { match, description in
+                let comps = match.split(separator: Regex {
+                    ChoiceOf {
+                        "."
+                        "->"
+                    }
+                })
+                let last = comps.last ?? ""
+                
+                var item = DebugAdapter.CompletionItem(label: String(last))
+                item.detail = !description.isEmpty ? description : nil
+                return item
             }
             
             replyHandler(.success(.init(targets: targets)))
@@ -1297,12 +1639,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
     
     func evaluate(_ request: DebugAdapter.EvaluateRequest, replyHandler: @escaping (Result<DebugAdapter.EvaluateRequest.Result, Error>) -> Void) {
         do {
-            var frame: Frame?
-            if let frameID = request.frameId,
-               case let .stackFrame(f) = variables[frameID] {
-                frame = f
-            }
-            
+            let frame = try request.frameId.flatMap { try self.frame(withID: $0) }
             let expression = request.expression
             
             let result: DebugAdapter.EvaluateRequest.Result
@@ -1332,9 +1669,14 @@ final class Adapter: DebugAdapterServerRequestHandler {
         }
     }
     
-    private func executionContext(for frame: Frame?) throws -> ExecutionContext {
+    private func executeCommand(_ expression: String, frame: Frame?) throws -> DebugAdapter.EvaluateRequest.Result {
+        guard let debugger else {
+            throw AdapterError.notDebugging
+        }
+        
+        let context: ExecutionContext
         if let frame {
-            return ExecutionContext(from: frame)
+            context = ExecutionContext(from: frame)
         }
         else {
             guard let process = target?.process else {
@@ -1342,22 +1684,14 @@ final class Adapter: DebugAdapterServerRequestHandler {
             }
             
             if let thread = process.selectedThread {
-                return ExecutionContext(from: thread)
+                context = ExecutionContext(from: thread)
             }
             else {
-                return ExecutionContext(from: process)
+                context = ExecutionContext(from: process)
             }
         }
-    }
-    
-    private func executeCommand(_ expression: String, frame: Frame?) throws -> DebugAdapter.EvaluateRequest.Result {
-        guard let debugger else {
-            throw AdapterError.notDebugging
-        }
         
-        let interpreter = debugger.commandInterpreter
-        let context = try executionContext(for: frame)
-        let result = try interpreter.handleCommand(expression, context: context, addToHistory: false)
+        let result = try debugger.commandInterpreter.handleCommand(expression, context: context, addToHistory: false)
         
         return .init(result: result.output ?? "")
     }
@@ -1416,5 +1750,191 @@ final class Adapter: DebugAdapterServerRequestHandler {
         catch {
             replyHandler(.failure(error))
         }
+    }
+    
+    func disassemble(_ request: DebugAdapter.DisassembleRequest, replyHandler: @escaping (Result<DebugAdapter.DisassembleRequest.Result?, Error>) -> Void) {
+        do {
+            guard let target else {
+                throw AdapterError.notDebugging
+            }
+            
+            guard var addr = self.parseAddress(from: request.memoryReference) else {
+                throw AdapterError.invalidParameter("Invalid memory reference “\(request.memoryReference)”.")
+            }
+            
+            let offset = request.offset ?? 0
+            if offset < 0 {
+                addr -= UInt64(abs(offset))
+            }
+            else if offset > 0 {
+                addr += UInt64(offset)
+            }
+            
+            guard let address = Address(at: addr, in: target) else {
+                throw AdapterError.invalidParameter("Memory reference not valid for the target binary.")
+            }
+            
+            let instructionOffset = request.instructionOffset ?? 0
+            let instructionCount = request.instructionCount
+            let resolveSymbols = request.resolveSymbols ?? false
+            
+            guard let instructions = target.readInstructions(at: address, count: instructionOffset + instructionCount) else {
+                throw AdapterError.invalidParameter("Could not read instructions for memory reference “\(request.memoryReference)”.")
+            }
+            
+            let disassembledInstructions = instructions.dropFirst(instructionOffset).map { instruction in
+                let instAddr = instruction.address
+                let loadAddr = instAddr?.loadAddress(for: target)
+                
+                let addrStr = formatAddress(loadAddr ?? 0)
+                
+                var instStr = ""
+                var symbolStr: String?
+                
+                if let symbol = instAddr?.symbol, symbol.startAddress == instAddr {
+                    // Prepend the symbol name to the first line.
+                    instStr += symbol.mangledName ?? symbol.name ?? "" + ": "
+                    symbolStr = symbol.displayName
+                }
+                
+                let mnemonic = instruction.mnemonic(for: target) ?? ""
+                if mnemonic.count < 7 {
+                    // Pad
+                    instStr += String(repeating: " ", count: 7 - mnemonic.count) + mnemonic
+                }
+                else {
+                    instStr += mnemonic
+                }
+                
+                let operands = instruction.operands(for: target) ?? ""
+                if mnemonic.count < 12 {
+                    // Pad
+                    instStr += String(repeating: " ", count: 12 - operands.count) + operands
+                }
+                else {
+                    instStr += operands
+                }
+                
+                if let comment = instruction.comment(for: target), !comment.isEmpty {
+                    instStr += " ; \(comment)"
+                }
+                
+                var disassembledInstruction = DebugAdapter.DisassembledInstruction(address: addrStr, instruction: instStr)
+                
+                if let data = instruction.data(for: target) {
+                    disassembledInstruction.instructionBytes = data.reduce(into: "") { partialResult, byte in
+                        partialResult.append(String(format: "%2.2x", byte))
+                    }
+                }
+                
+                if resolveSymbols {
+                    disassembledInstruction.symbol = symbolStr
+                }
+                
+                return disassembledInstruction
+            }
+            
+            let result = DebugAdapter.DisassembleRequest.Result(instructions: disassembledInstructions)
+            replyHandler(.success(result))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
+    }
+    
+    func readMemory(_ request: DebugAdapter.ReadMemoryRequest, replyHandler: @escaping (Result<DebugAdapter.ReadMemoryRequest.Result?, Error>) -> Void) {
+        do {
+            guard let target, let process = target.process else {
+                throw AdapterError.notDebugging
+            }
+            
+            guard var addr = self.parseAddress(from: request.memoryReference) else {
+                throw AdapterError.invalidParameter("Invalid memory reference “\(request.memoryReference)”.")
+            }
+            
+            let offset = request.offset ?? 0
+            if offset < 0 {
+                addr -= UInt64(abs(offset))
+            }
+            else if offset > 0 {
+                addr += UInt64(offset)
+            }
+            
+            let count = request.count
+            
+            let result = try withUnsafeTemporaryAllocation(byteCount: count, alignment: 8) { buffer in
+                let read = try process.readMemory(buffer, at: addr)
+                
+                let addrStr = String(addr, radix: 16, uppercase: true)
+                
+                var result = DebugAdapter.ReadMemoryRequest.Result(address: addrStr)
+                result.unreadableBytes = count - read
+                result.data = Data(bytesNoCopy: buffer.baseAddress!, count: read, deallocator: .none).base64EncodedString()
+                return result
+            }
+            replyHandler(.success(result))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
+    }
+    
+    func writeMemory(_ request: DebugAdapter.WriteMemoryRequest, replyHandler: @escaping (Result<DebugAdapter.WriteMemoryRequest.Result?, Error>) -> Void) {
+        do {
+            guard let target, let process = target.process else {
+                throw AdapterError.notDebugging
+            }
+            
+            guard var addr = self.parseAddress(from: request.memoryReference) else {
+                throw AdapterError.invalidParameter("Invalid memory reference “\(request.memoryReference)”.")
+            }
+            
+            let offset = request.offset ?? 0
+            if offset < 0 {
+                addr -= UInt64(abs(offset))
+            }
+            else if offset > 0 {
+                addr += UInt64(offset)
+            }
+            
+            guard let data = Data(base64Encoded: request.data) else {
+                throw AdapterError.invalidParameter("Invalid base64-encoded data.")
+            }
+            
+            let result = try data.withUnsafeBytes { bytes in
+                let written = try process.writeMemory(bytes, at: addr)
+                
+                var result = DebugAdapter.WriteMemoryRequest.Result()
+                result.bytesWritten = written
+                return result
+            }
+            replyHandler(.success(result))
+        }
+        catch {
+            replyHandler(.failure(error))
+        }
+    }
+    
+    // MARK: - Errors
+    
+    enum AdapterError: LocalizedError {
+        case notDebugging
+        case invalidated
+        case invalidParameter(String)
+        
+        var errorDescription: String? {
+            switch self {
+            case .notDebugging:
+                return "No debuggee is running."
+            case .invalidated:
+                return "The session has ended."
+            case let .invalidParameter(reason):
+                return reason
+            }
+        }
+    }
+    
+    private func output(_ message: @autoclosure () -> String, category: DebugAdapter.OutputEvent.Category = .console) {
+        connection.send(DebugAdapter.OutputEvent(output: message(), category: category))
     }
 }

@@ -109,7 +109,7 @@ public:
 
   void SetSyntheticChildrenGenerated(bool);
 
-  const char *GetLocation();
+  const char *GetLocation() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   LLDB_DEPRECATED_FIXME("Use the variant that takes an SBError &",
                         "SetValueFromCString(const char *, SBError &)")

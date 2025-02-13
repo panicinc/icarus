@@ -186,21 +186,29 @@ extension Process {
 }
 
 extension Process {
-    public func writeStandardIn(_ buffer: UnsafeBufferPointer<UInt8>) -> Int {
+    public func writeStandardIn(_ buffer: UnsafeBufferPointer<CChar>) -> Int {
         var lldbProcess = lldbProcess
         return lldbProcess.PutSTDIN(buffer.baseAddress, buffer.count)
     }
     
-    public func readStandardOut(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> Int {
+    public func readStandardOut(_ buffer: UnsafeMutableBufferPointer<CChar>) -> Int {
         return lldbProcess.GetSTDOUT(buffer.baseAddress, buffer.count)
     }
     
-    public func readStandardError(_ buffer: UnsafeMutableBufferPointer<UInt8>) -> Int {
-        return lldbProcess.GetSTDOUT(buffer.baseAddress, buffer.count)
+    public func readStandardError(_ buffer: UnsafeMutableBufferPointer<CChar>) -> Int {
+        return lldbProcess.GetSTDERR(buffer.baseAddress, buffer.count)
     }
 }
 
 extension Process {
+    public func memoryRegionInfo(at address: UInt64) throws -> MemoryRegionInfo {
+        var lldbProcess = lldbProcess
+        var region = lldb.SBMemoryRegionInfo()
+        let error = lldbProcess.GetMemoryRegionInfo(address, &region)
+        try error.throwOnFail()
+        return MemoryRegionInfo(region)
+    }
+    
     public func readMemory(_ buffer: UnsafeMutableBufferPointer<UInt8>, at address: UInt64) throws -> Int {
         var lldbProcess = lldbProcess
         var error = lldb.SBError()
@@ -209,7 +217,23 @@ extension Process {
         return bytesRead
     }
     
+    public func readMemory(_ buffer: UnsafeMutableRawBufferPointer, at address: UInt64) throws -> Int {
+        var lldbProcess = lldbProcess
+        var error = lldb.SBError()
+        let bytesRead = lldbProcess.ReadMemory(address, buffer.baseAddress, buffer.count, &error)
+        try error.throwOnFail()
+        return bytesRead
+    }
+    
     public func writeMemory(_ buffer: UnsafeBufferPointer<UInt8>, at address: UInt64) throws -> Int {
+        var lldbProcess = lldbProcess
+        var error = lldb.SBError()
+        let bytesWritten = lldbProcess.WriteMemory(address, buffer.baseAddress, buffer.count, &error)
+        try error.throwOnFail()
+        return bytesWritten
+    }
+    
+    public func writeMemory(_ buffer: UnsafeRawBufferPointer, at address: UInt64) throws -> Int {
         var lldbProcess = lldbProcess
         var error = lldb.SBError()
         let bytesWritten = lldbProcess.WriteMemory(address, buffer.baseAddress, buffer.count, &error)

@@ -9,6 +9,8 @@
 #ifndef LLDB_API_SBWATCHPOINT_H
 #define LLDB_API_SBWATCHPOINT_H
 
+#include <swift/bridging>
+
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBType.h"
 
@@ -62,7 +64,7 @@ public:
 
   void SetIgnoreCount(uint32_t n);
 
-  const char *GetCondition();
+  const char *GetCondition() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   void SetCondition(const char *condition);
 
@@ -81,7 +83,7 @@ public:
 
   WatchpointValueKind GetWatchValueKind();
 
-  const char *GetWatchSpec();
+  const char *GetWatchSpec() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   bool IsWatchingReads();
 

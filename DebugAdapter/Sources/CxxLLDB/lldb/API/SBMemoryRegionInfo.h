@@ -12,6 +12,8 @@
 #include "lldb/API/SBData.h"
 #include "lldb/API/SBDefines.h"
 
+#include <swift/bridging>
+
 namespace lldb {
 
 class LLDB_API SBMemoryRegionInfo {
@@ -75,7 +77,7 @@ public:
   ///     In case of memory mapped files it is the absolute path of
   ///     the file otherwise it is a name associated with the memory
   ///     region. If no name can be determined the returns nullptr.
-  const char *GetName();
+  const char *GetName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   /// Returns whether this memory region has a list of memory pages
   /// that have been modified -- that are dirty.

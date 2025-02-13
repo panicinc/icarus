@@ -120,6 +120,14 @@ public:
   lldb::SBValue EvaluateExpression(const char *expr,
                                    const SBExpressionOptions &options);
 
+  /// !!!Panic: This is an extension from the Swift project's fork of LLVM/LLDB.
+  /// It's documented by LLDB but as of Jan-2025 has not appeared in releases.
+  ///
+  /// Language plugins can use this API to report language-specific
+  /// runtime information about this compile unit, such as additional
+  /// language version details or feature flags.
+  lldb::SBStructuredData GetLanguageSpecificData() const;
+
   /// Gets the lexical block that defines the stack frame. Another way to think
   /// of this is it will return the block that contains all of the variables
   /// for a stack frame. Inlined functions are represented as SBBlock objects

@@ -1,5 +1,4 @@
 import CxxLLDB
-import os
 
 public struct Breakpoint: Sendable {
     let lldbBreakpoint: lldb.SBBreakpoint
@@ -86,46 +85,10 @@ extension Breakpoint {
             lldbBreakpoint.SetAutoContinue(newValue)
         }
     }
-}
-
-extension Breakpoint {
-    fileprivate final class CallbackInfo: Sendable {
-        let callback: @Sendable (Process, Thread, Breakpoint.Location) -> Bool
-        
-        init(_ callback: @Sendable @escaping (Process, Thread, Breakpoint.Location) -> Bool) {
-            self.callback = callback
-        }
-    }
     
-    private static let callbacks = OSAllocatedUnfairLock<[Int: CallbackInfo]>(initialState: [:])
-    
-    public func setCallback(_ callback: (@Sendable (Process, Thread, Breakpoint.Location) -> Bool)?) {
-        Self.callbacks.withLock { state in
-            var lldbBreakpoint = lldbBreakpoint
-            if let callback {
-                let info = CallbackInfo(callback)
-                state[id] = info
-                let baton = Unmanaged.passUnretained(info).toOpaque()
-                lldbBreakpoint.SetCallback(breakpointThunk, baton)
-            }
-            else {
-                lldbBreakpoint.SetCallback(nil, nil)
-                state[id] = nil
-            }
-        }
+    public var target: Target {
+        return Target(unsafe: lldbBreakpoint.GetTarget())
     }
-    
-    public static func clearAllCallbacks() {
-        Self.callbacks.withLock { state in
-            state.removeAll()
-        }
-    }
-}
-
-private func breakpointThunk(baton: UnsafeMutableRawPointer?, process: UnsafeMutablePointer<lldb.SBProcess>, thread: UnsafeMutablePointer<lldb.SBThread>, location: UnsafeMutablePointer<lldb.SBBreakpointLocation>) -> Bool {
-    guard let baton else { return true }
-    let info = Unmanaged<Breakpoint.CallbackInfo>.fromOpaque(baton).takeUnretainedValue()
-    return info.callback(Process(unsafe: process.pointee), Thread(unsafe: thread.pointee), Breakpoint.Location(unsafe: location.pointee))
 }
 
 extension Breakpoint {
@@ -210,6 +173,11 @@ extension Breakpoint.Location {
         return lldbLocation.GetLoadAddress()
     }
     
+    public var isResolved: Bool {
+        var lldbLocation = lldbLocation
+        return lldbLocation.IsResolved()
+    }
+    
     public var isEnabled: Bool {
         get {
             var lldbLocation = lldbLocation
@@ -259,9 +227,24 @@ extension Breakpoint.Location {
         }
     }
     
-    public var isResolved: Bool {
-        var lldbLocation = lldbLocation
-        return lldbLocation.IsResolved()
+    public var threadName: String? {
+        get {
+            String(optionalCString: lldbLocation.GetThreadName())
+        }
+        set {
+            var lldbLocation = lldbLocation
+            lldbLocation.SetThreadName(newValue)
+        }
+    }
+    
+    public var queueName: String? {
+        get {
+            String(optionalCString: lldbLocation.GetQueueName())
+        }
+        set {
+            var lldbLocation = lldbLocation
+            lldbLocation.SetQueueName(threadName)
+        }
     }
 }
 

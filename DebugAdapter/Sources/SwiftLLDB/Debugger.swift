@@ -52,8 +52,8 @@ extension Debugger {
             var lldbDebugger = lldbDebugger
             let info = StructuredData(unsafe: lldbDebugger.GetAvailablePlatformInfoAtIndex(UInt32(position)))
             
-            let name = info["name"]?.stringValue ?? "<unknown>"
-            let caption = info["description"]?.stringValue
+            let name = info["name"]?.asString() ?? "<unknown>"
+            let caption = info["description"]?.asString()
             
             return AvailablePlatform(name: name, caption: caption)
         }

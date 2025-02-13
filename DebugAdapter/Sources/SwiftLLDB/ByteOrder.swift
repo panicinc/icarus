@@ -17,4 +17,8 @@ public struct ByteOrder: RawRepresentable, Sendable, Hashable {
     init(_ value: lldb.ByteOrder) {
         self.rawValue = Int(value.rawValue)
     }
+    
+    var lldbByteOrder: lldb.ByteOrder {
+        return .init(rawValue: UInt32(rawValue))
+    }
 }

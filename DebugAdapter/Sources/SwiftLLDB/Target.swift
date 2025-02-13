@@ -147,6 +147,11 @@ extension Target {
         return Breakpoint(unsafe: lldbTarget.BreakpointCreateByName(name, nil))
     }
     
+    public func createBreakpoint(address: UInt64) -> Breakpoint {
+        var lldbTarget = lldbTarget
+        return Breakpoint(unsafe: lldbTarget.BreakpointCreateByAddress(address))
+    }
+    
     public func createBreakpoint(forExceptionIn language: Language, onCatch: Bool, onThrow: Bool) -> Breakpoint {
         var lldbTarget = lldbTarget
         return Breakpoint(unsafe: lldbTarget.BreakpointCreateForException(language.lldbLanguageType, onCatch, onThrow))
@@ -162,6 +167,52 @@ extension Target {
     public func removeBreakpoint(id: Int) -> Bool {
         var lldbTarget = lldbTarget
         return lldbTarget.BreakpointDelete(lldb.break_id_t(id))
+    }
+    
+    @discardableResult
+    public func removeAllBreakpoints() -> Bool {
+        var lldbTarget = lldbTarget
+        return lldbTarget.DeleteAllBreakpoints()
+    }
+}
+
+extension Target {
+    public func createWatchpoint(at address: UInt64, count: Int, onRead: Bool, onWrite: Bool) throws -> Watchpoint {
+        var options = lldb.SBWatchpointOptions()
+        options.SetWatchpointTypeRead(onRead)
+        options.SetWatchpointTypeWrite(onWrite ? lldb.eWatchpointWriteTypeOnModify : lldb.eWatchpointWriteTypeDisabled)
+        
+        var lldbTarget = lldbTarget
+        var error = lldb.SBError()
+        let lldbWatchpoint = lldbTarget.WatchpointCreateByAddress(address, count, options, &error)
+        try error.throwOnFail()
+        return Watchpoint(unsafe: lldbWatchpoint)
+    }
+    
+    public func findWatchpoint(id: Int) -> Watchpoint? {
+        var lldbTarget = lldbTarget
+        let lldbWatchpoint = lldbTarget.FindWatchpointByID(lldb.watch_id_t(id))
+        return Watchpoint(lldbWatchpoint)
+    }
+    
+    @discardableResult
+    public func removeWatchpoint(id: Int) -> Bool {
+        var lldbTarget = lldbTarget
+        return lldbTarget.DeleteWatchpoint(lldb.watch_id_t(id))
+    }
+    
+    @discardableResult
+    public func removeAllWatchpoints() -> Bool {
+        var lldbTarget = lldbTarget
+        return lldbTarget.DeleteAllWatchpoints()
+    }
+}
+
+extension Target {
+    public func readInstructions(at address: Address, count: Int) -> InstructionList? {
+        var lldbTarget = lldbTarget
+        let lldbInstructionList = lldbTarget.ReadInstructions(address.lldbAddress, UInt32(count))
+        return InstructionList(lldbInstructionList)
     }
 }
 

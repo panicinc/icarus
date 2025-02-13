@@ -24,12 +24,12 @@ public struct CommandInterpreter: Sendable {
         }
     }
     
-    public func handleCompletions(_ text: String, cursorPosition: Int, matchStart: Int, maxResults: Int? = nil) -> StringList {
+    public func handleCompletions(_ text: String, cursorPosition: Int, matchStart: Int = 0, maxResults: Int = 100) -> (matches: StringList, descriptions: StringList) {
         var lldbCommandInterpreter = lldbCommandInterpreter
-        let maxCount = maxResults != nil ? Int32(maxResults!) : Int32.max
         var matches = lldb.SBStringList()
-        _ = lldbCommandInterpreter.HandleCompletion(text, UInt32(cursorPosition), Int32(matchStart), maxCount, &matches)
-        return StringList(matches)
+        var descriptions = lldb.SBStringList()
+        _ = lldbCommandInterpreter.HandleCompletionWithDescriptions(text, UInt32(cursorPosition), Int32(matchStart), Int32(maxResults), &matches, &descriptions)
+        return (StringList(matches), StringList(descriptions))
     }
 }
 

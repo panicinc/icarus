@@ -55,23 +55,35 @@ extension StructuredData {
 }
 
 extension StructuredData {
-    public var booleanValue: Bool {
+    public func asBool() -> Bool? {
+        guard case .boolean = dataType else {
+            return nil
+        }
         return lldbStructuredData.GetBooleanValue()
     }
     
-    public var doubleValue: Double {
+    public func asDouble() -> Double? {
+        guard case .float = dataType else {
+            return nil
+        }
         return lldbStructuredData.GetFloatValue()
     }
     
-    public var signedIntegerValue: Int64 {
+    public func asSignedInteger() -> Int64? {
+        guard case .signedInteger = dataType else {
+            return nil
+        }
         return lldbStructuredData.GetSignedIntegerValue()
     }
     
-    public var unsignedIntegerValue: UInt64 {
+    public func asUnsignedInteger() -> UInt64? {
+        guard case .unsignedInteger = dataType else {
+            return nil
+        }
         return lldbStructuredData.GetUnsignedIntegerValue()
     }
     
-    public var stringValue: String? {
+    public func asString() -> String? {
         withUnsafeTemporaryAllocation(of: CChar.self, capacity: 255) { buffer in
             guard lldbStructuredData.GetStringValue(buffer.baseAddress, 255) > 0 else {
                 return nil

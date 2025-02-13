@@ -10,8 +10,8 @@ public struct Platform: Sendable {
         self.lldbPlatform = lldbPlatform
     }
     
-    public init?(named: String) {
-        self.init(lldb.SBPlatform(named))
+    public init?(named name: String) {
+        self.init(lldb.SBPlatform(name))
     }
 }
 

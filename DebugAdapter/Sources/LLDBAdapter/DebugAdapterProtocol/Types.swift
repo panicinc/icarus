@@ -1,6 +1,6 @@
 import Foundation
 
-// These types are up-to-date as of Debug Adapter Protocol v1.69.
+// These types are up-to-date as of Debug Adapter Protocol v1.70.
 // https://microsoft.github.io/debug-adapter-protocol/changelog
 
 public protocol DebugAdapterRequest: Sendable, Codable {
@@ -102,7 +102,7 @@ public enum DebugAdapter {
     
     public struct Breakpoint: Sendable, Hashable, Codable {
         public var id: Int?
-        public var verified: Bool?
+        public var verified: Bool
         public var message: String?
         public var source: Source?
         public var line: Int?
@@ -127,20 +127,15 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
         public var reason: Reason?
         
-        public init() {}
+        public init(id: Int? = nil, verified: Bool = false, message: String? = nil, reason: Reason? = nil) {
+            self.id = id
+            self.verified = verified
+            self.message = message
+            self.reason = reason
+        }
     }
     
     public struct BreakpointLocation: Sendable, Hashable, Codable {
@@ -270,27 +265,16 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
-        public var type: Kind
+        public var type: Kind?
         
         public var start: Int?
         public var length: Int?
         public var selectionStart: Int?
         public var selectionLength: Int?
         
-        public init(label: String, type: Kind) {
+        public init(label: String) {
             self.label = label
-            self.type = type
         }
     }
     
@@ -349,16 +333,6 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
         public var presentationHint: PresentationHint?
         
@@ -371,23 +345,16 @@ public enum DebugAdapter {
     public struct ExceptionBreakpointFilter: Sendable, Hashable, Codable {
         public var filter: String
         public var label: String
-        public var descriptiveText: String?
-        public var defaultValue: Bool?
+        public var description: String?
+        public var `default`: Bool?
         public var supportsCondition: Bool?
         public var conditionDescription: String?
         
-        public enum CodingKeys: String, CodingKey {
-            case filter
-            case label
-            case descriptiveText = "description"
-            case defaultValue = "default"
-            case supportsCondition
-            case conditionDescription
-        }
-        
-        public init(filter: String, label: String) {
+        public init(filter: String, label: String, description: String? = nil, default: Bool? = nil) {
             self.filter = filter
             self.label = label
+            self.description = description
+            self.default = `default`
         }
     }
     
@@ -526,16 +493,6 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
         public var presentationHint: PresentationHint?
         
@@ -567,10 +524,20 @@ public enum DebugAdapter {
         
         public var checksums: [Checksum]?
         
-        public enum PresentationHint: String, Sendable, Hashable, Codable {
-            case normal
-            case emphasize
-            case deemphasize
+        public struct PresentationHint: RawRepresentable, Sendable, ExpressibleByStringLiteral, Hashable, Codable {
+            public static let normal: PresentationHint = "normal"
+            public static let emphasize: PresentationHint = "emphasize"
+            public static let deemphasize: PresentationHint = "deemphasize"
+            
+            public let rawValue: String
+            
+            public init(rawValue: String) {
+                self.rawValue = rawValue
+            }
+            
+            public init(stringLiteral value: StringLiteralType) {
+                self.rawValue = value
+            }
         }
         public var presentationHint: PresentationHint?
         
@@ -619,6 +586,24 @@ public enum DebugAdapter {
         }
         public var presentationHint: PresentationHint?
         
+        /// !!! Panic Extension
+        public struct Attribute: RawRepresentable, Sendable, ExpressibleByStringLiteral, Hashable, Codable {
+            public typealias RawValue = String
+            
+            public static let async: Attribute = "async"
+            
+            public let rawValue: String
+            
+            public init(rawValue: String) {
+                self.rawValue = rawValue
+            }
+            
+            public init(stringLiteral value: StringLiteralType) {
+                self.rawValue = value
+            }
+        }
+        public var attributes: [Attribute]?
+        
         public init(id: Int, line: Int = 0, column: Int = 0) {
             self.id = id
             self.line = line
@@ -658,9 +643,13 @@ public enum DebugAdapter {
         public var id: Int
         public var name: String
         
-        public init(id: Int, name: String) {
+        /// !!! Panic Extension
+        public var description: String?
+        
+        public init(id: Int, name: String, description: String? = nil) {
             self.id = id
             self.name = name
+            self.description = description
         }
     }
     
@@ -700,16 +689,6 @@ public enum DebugAdapter {
                 public init(stringLiteral value: StringLiteralType) {
                     self.rawValue = value
                 }
-                
-                public init(from decoder: Decoder) throws {
-                    let container = try decoder.singleValueContainer()
-                    rawValue = try container.decode(String.self)
-                }
-                
-                public func encode(to encoder: Encoder) throws {
-                    var container = encoder.singleValueContainer()
-                    try container.encode(rawValue)
-                }
             }
             public var kind: Kind?
             
@@ -734,16 +713,6 @@ public enum DebugAdapter {
                 public init(stringLiteral value: StringLiteralType) {
                     self.rawValue = value
                 }
-                
-                public init(from decoder: Decoder) throws {
-                    let container = try decoder.singleValueContainer()
-                    rawValue = try container.decode(String.self)
-                }
-                
-                public func encode(to encoder: Encoder) throws {
-                    var container = encoder.singleValueContainer()
-                    try container.encode(rawValue)
-                }
             }
             public var attributes: [Attribute]?
             
@@ -764,16 +733,6 @@ public enum DebugAdapter {
                 
                 public init(stringLiteral value: StringLiteralType) {
                     self.rawValue = value
-                }
-                
-                public init(from decoder: Decoder) throws {
-                    let container = try decoder.singleValueContainer()
-                    rawValue = try container.decode(String.self)
-                }
-                
-                public func encode(to encoder: Encoder) throws {
-                    var container = encoder.singleValueContainer()
-                    try container.encode(rawValue)
                 }
             }
             public var visibility: Visibility?
@@ -846,7 +805,7 @@ public enum DebugAdapter {
     public struct CompletionsRequest: DebugAdapterRequestWithRequiredResult {
         public static var command: String { "completions" }
         
-        public var frameId: Int
+        public var frameId: Int?
         public var text: String
         public var column: Int
         public var line: Int?
@@ -859,7 +818,7 @@ public enum DebugAdapter {
             }
         }
         
-        public init(frameId: Int, text: String, column: Int) {
+        public init(frameId: Int? = nil, text: String, column: Int) {
             self.frameId = frameId
             self.text = text
             self.column = column
@@ -977,16 +936,6 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
         public var context: Context?
         
@@ -1019,16 +968,9 @@ public enum DebugAdapter {
         
         public struct Result: Sendable, Hashable, Codable {
             public var exceptionId: String
-            public var descriptiveText: String?
+            public var description: String?
             public var breakMode: ExceptionBreakMode
             public var details: ExceptionDetails?
-            
-            public enum CodingKeys: String, CodingKey {
-                case exceptionId
-                case descriptiveText = "description"
-                case breakMode
-                case details
-            }
             
             public init(exceptionId: String, breakMode: ExceptionBreakMode) {
                 self.exceptionId = exceptionId
@@ -1100,16 +1042,6 @@ public enum DebugAdapter {
             
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
-            }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
             }
         }
         public var pathFormat: PathFormat?
@@ -1202,8 +1134,9 @@ public enum DebugAdapter {
         
         public typealias Result = Void
         
-        public init(threadId: Int) {
+        public init(threadId: Int, granularity: SteppingGranularity? = nil) {
             self.threadId = threadId
+            self.granularity = granularity
         }
     }
     
@@ -1553,8 +1486,9 @@ public enum DebugAdapter {
         
         public typealias Result = Void
         
-        public init(threadId: Int) {
+        public init(threadId: Int, granularity: SteppingGranularity? = nil) {
             self.threadId = threadId
+            self.granularity = granularity
         }
     }
     
@@ -1568,8 +1502,10 @@ public enum DebugAdapter {
         
         public typealias Result = Void
         
-        public init(threadId: Int) {
+        public init(threadId: Int, targetId: Int? = nil, granularity: SteppingGranularity? = nil) {
             self.threadId = threadId
+            self.targetId = targetId
+            self.granularity = granularity
         }
     }
     
@@ -1600,8 +1536,9 @@ public enum DebugAdapter {
         
         public typealias Result = Void
         
-        public init(threadId: Int) {
+        public init(threadId: Int, granularity: SteppingGranularity? = nil) {
             self.threadId = threadId
+            self.granularity = granularity
         }
     }
     
@@ -1690,7 +1627,7 @@ public enum DebugAdapter {
     
     
     public struct BreakpointEvent: DebugAdapterEvent {
-        public static let event = "breakpoint"
+        public static var event: String { "breakpoint" }
         
         public struct Reason: RawRepresentable, Sendable, ExpressibleByStringLiteral, Hashable, Codable {
             public typealias RawValue = String
@@ -1708,16 +1645,6 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
         public var reason: Reason
         
@@ -1730,7 +1657,7 @@ public enum DebugAdapter {
     }
     
     public struct CapabilitiesEvent: DebugAdapterEvent {
-        public static let event = "capabilities"
+        public static var event: String { "capabilities" }
         
         public var capabilities: Capabilities
         
@@ -1740,7 +1667,7 @@ public enum DebugAdapter {
     }
     
     public struct ContinuedEvent: DebugAdapterEvent {
-        public static let event = "continued"
+        public static var event: String { "continued" }
         
         public var threadId: Int
         public var allThreadsContinued: Bool?
@@ -1751,7 +1678,7 @@ public enum DebugAdapter {
     }
     
     public struct ExitedEvent: DebugAdapterEvent {
-        public static let event = "exited"
+        public static var event: String { "exited" }
         
         public var exitCode: Int
         
@@ -1761,13 +1688,13 @@ public enum DebugAdapter {
     }
     
     public struct InitializedEvent: DebugAdapterEvent {
-        public static let event = "initialized"
+        public static var event: String { "initialized" }
         
         public init() {}
     }
     
     public struct InvalidatedEvent: DebugAdapterEvent {
-        public static let event = "invalidated"
+        public static var event: String { "invalidated" }
         
         public struct Area: RawRepresentable, Sendable, ExpressibleByStringLiteral, Hashable, Codable {
             public typealias RawValue = String
@@ -1786,16 +1713,6 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
         public var areas: [Area]?
         public var threadId: Int?
@@ -1805,7 +1722,7 @@ public enum DebugAdapter {
     }
     
     public struct LoadedSourceEvent: DebugAdapterEvent {
-        public static let event = "loadedSource"
+        public static var event: String { "loadedSource" }
         
         public struct Reason: RawRepresentable, Sendable, ExpressibleByStringLiteral, Hashable, Codable {
             public typealias RawValue = String
@@ -1822,16 +1739,6 @@ public enum DebugAdapter {
             
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
-            }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
             }
         }
         public var reason: Reason
@@ -1845,7 +1752,7 @@ public enum DebugAdapter {
     }
     
     public struct MemoryEvent: DebugAdapterEvent {
-        public static let event = "memory"
+        public static var event: String { "memory" }
         
         public var memoryReference: String
         public var offset: Int
@@ -1859,7 +1766,7 @@ public enum DebugAdapter {
     }
     
     public struct ModuleEvent: DebugAdapterEvent {
-        public static let event = "module"
+        public static var event: String { "module" }
         
         public struct Reason: RawRepresentable, Sendable, ExpressibleByStringLiteral, Hashable, Codable {
             public typealias RawValue = String
@@ -1877,16 +1784,6 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
         public var reason: Reason
         
@@ -1899,14 +1796,14 @@ public enum DebugAdapter {
     }
     
     public struct OutputEvent: DebugAdapterEvent {
-        public static let event = "output"
+        public static var event: String { "output" }
         
         public struct Category: RawRepresentable, Sendable, ExpressibleByStringLiteral, Hashable, Codable {
             public typealias RawValue = String
             
             public static let console: Category = "console"
             public static let important: Category = "important"
-            public static let standardOut: Category = "stdout"
+            public static let standardOutput: Category = "stdout"
             public static let standardError: Category = "stderr"
             public static let telemetry: Category = "telemetry"
             
@@ -1918,16 +1815,6 @@ public enum DebugAdapter {
             
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
-            }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
             }
         }
         public var category: Category?
@@ -1955,7 +1842,7 @@ public enum DebugAdapter {
     }
     
     public struct ProcessEvent: DebugAdapterEvent {
-        public static let event = "process"
+        public static var event: String { "process" }
         
         public var name: String
         public var systemProcessId: Int?
@@ -1976,7 +1863,7 @@ public enum DebugAdapter {
     }
     
     public struct ProgressEndEvent: DebugAdapterEvent {
-        public static let event = "progressEnd"
+        public static var event: String { "progressEnd" }
         
         public var progressId: String
         public var message: String?
@@ -1987,7 +1874,7 @@ public enum DebugAdapter {
     }
     
     public struct ProgressStartEvent: DebugAdapterEvent {
-        public static let event = "progressStart"
+        public static var event: String { "progressStart" }
         
         public var progressId: String
         public var title: String
@@ -2003,7 +1890,7 @@ public enum DebugAdapter {
     }
     
     public struct ProgressUpdateEvent: DebugAdapterEvent {
-        public static let event = "progressUpdate"
+        public static var event: String { "progressUpdate" }
         
         public var progressId: String
         public var message: String?
@@ -2015,7 +1902,7 @@ public enum DebugAdapter {
     }
     
     public struct StoppedEvent: DebugAdapterEvent {
-        public static let event = "stopped"
+        public static var event: String { "stopped" }
         
         public struct Reason: RawRepresentable, Sendable, ExpressibleByStringLiteral, Hashable, Codable {
             public typealias RawValue = String
@@ -2039,35 +1926,15 @@ public enum DebugAdapter {
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
             }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
-            }
         }
         public var reason: Reason
         
-        public var descriptiveText: String?
+        public var description: String?
         public var threadId: Int?
         public var preserveFocusHint: Bool?
         public var text: String?
         public var allThreadsStopped: Bool?
         public var hitBreakpointIds: [Int]?
-        
-        public enum CodingKeys: String, CodingKey {
-            case reason
-            case descriptiveText = "description"
-            case threadId
-            case preserveFocusHint
-            case text
-            case allThreadsStopped
-            case hitBreakpointIds
-        }
         
         public init(reason: Reason) {
             self.reason = reason
@@ -2075,7 +1942,7 @@ public enum DebugAdapter {
     }
     
     public struct TerminatedEvent: DebugAdapterEvent {
-        public static let event = "terminated"
+        public static var event: String { "terminated" }
         
         public var restart: JSONValue?
         
@@ -2083,7 +1950,7 @@ public enum DebugAdapter {
     }
     
     public struct ThreadEvent: DebugAdapterEvent {
-        public static let event = "thread"
+        public static var event: String { "thread" }
         
         public var threadId: Int
         
@@ -2101,16 +1968,6 @@ public enum DebugAdapter {
             
             public init(stringLiteral value: StringLiteralType) {
                 self.rawValue = value
-            }
-            
-            public init(from decoder: Decoder) throws {
-                let container = try decoder.singleValueContainer()
-                rawValue = try container.decode(String.self)
-            }
-            
-            public func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(rawValue)
             }
         }
         public var reason: Reason

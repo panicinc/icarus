@@ -45,6 +45,10 @@ extension Frame {
         return pc
     }
     
+    public var programCounterAddress: Address? {
+        return Address(lldbFrame.GetPCAddress())
+    }
+    
     public var stackPointer: UInt64 {
         return lldbFrame.GetSP()
     }
@@ -64,6 +68,21 @@ extension Frame {
     public var isArtificial: Bool {
         return lldbFrame.IsArtificial()
     }
+    
+    public var description: String? {
+        var lldbFrame = lldbFrame
+        var stream = lldb.SBStream()
+        lldbFrame.GetDescription(&stream)
+        return String(optionalCString: stream.GetData())
+    }
+    
+    public var languageSpecificData: StructuredData? {
+        return StructuredData(lldbFrame.GetLanguageSpecificData())
+    }
+    
+    public var thread: Thread {
+        return Thread(unsafe: lldbFrame.GetThread())
+    }
 }
 
 extension Frame {
@@ -81,7 +100,7 @@ extension Frame {
         return ValueList(lldbFrame.GetRegisters())
     }
     
-    public func findRegister(withName name: String) -> Value? {
+    public func findRegister(named name: String) -> Value? {
         var lldbFrame = lldbFrame
         let lldbValue = lldbFrame.FindRegister(name)
         return Value(lldbValue)

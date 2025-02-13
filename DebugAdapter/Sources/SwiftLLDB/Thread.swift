@@ -36,9 +36,13 @@ extension Thread {
         return String(optionalCString: lldbThread.GetName())
     }
     
-    public var process: Process? {
-        var lldbThread = lldbThread
-        return Process(lldbThread.GetProcess())
+    public var displayName: String {
+        if let name {
+            return "\(name) (\(indexID))"
+        }
+        else {
+            return "Thread \(indexID)"
+        }
     }
     
     public var queueName: String? {
@@ -49,25 +53,32 @@ extension Thread {
         return Queue(lldbThread.GetQueue())
     }
     
-    public var displayName: String {
-        if let name {
-            return name
+    public var queueDisplayName: String? {
+        guard let queueName, let queue else {
+            return nil
         }
-        else if let queueName, let queue {
-            let queueKindLabel: String
-            switch queue.kind {
-            case .serial:
-                queueKindLabel = " (serial)"
-            case .concurrent:
-                queueKindLabel = " (concurrent)"
-            default:
-                queueKindLabel = ""
-            }
-            return "Thread \(indexID) Queue: \(queueName)\(queueKindLabel)"
+        
+        let queueKindLabel: String
+        switch queue.kind {
+        case .serial:
+            queueKindLabel = " (serial)"
+        case .concurrent:
+            queueKindLabel = " (concurrent)"
+        default:
+            queueKindLabel = ""
         }
-        else {
-            return "Thread \(indexID)"
-        }
+        return "Queue: \(queueName)\(queueKindLabel)"
+    }
+    
+    public var description: String? {
+        var stream = lldb.SBStream()
+        lldbThread.GetDescription(&stream)
+        return String(optionalCString: stream.GetData())
+    }
+    
+    public var process: Process {
+        var lldbThread = lldbThread
+        return Process(unsafe: lldbThread.GetProcess())
     }
 }
 
@@ -77,52 +88,89 @@ extension Thread {
         return lldbThread.IsSuspended()
     }
     
-    public var currentException: Value? {
-        var lldbThread = lldbThread
-        return Value(lldbThread.GetCurrentException())
-    }
-    
-    public var isSafeToCallFunctions: Bool {
-        var lldbThread = lldbThread
-        return lldbThread.SafeToCallFunctions()
-    }
-    
     public var isStopped: Bool {
         var lldbThread = lldbThread
         return lldbThread.IsStopped()
     }
     
-    public struct StopReason: RawRepresentable, Hashable {
-        public static let invalid = Self(lldb.eStopReasonInvalid)
-        public static let none = Self(lldb.eStopReasonNone)
-        public static let trace = Self(lldb.eStopReasonTrace)
-        public static let breakpoint = Self(lldb.eStopReasonBreakpoint)
-        public static let watchpoint = Self(lldb.eStopReasonWatchpoint)
-        public static let signal = Self(lldb.eStopReasonSignal)
-        public static let exception = Self(lldb.eStopReasonException)
-        public static let exec = Self(lldb.eStopReasonExec)
-        public static let planComplete = Self(lldb.eStopReasonPlanComplete)
-        public static let threadExiting = Self(lldb.eStopReasonThreadExiting)
-        public static let instrumentation = Self(lldb.eStopReasonInstrumentation)
-        public static let processorTrace = Self(lldb.eStopReasonProcessorTrace)
-        public static let fork = Self(lldb.eStopReasonFork)
-        public static let vFork = Self(lldb.eStopReasonVFork)
-        public static let vForkDone = Self(lldb.eStopReasonVForkDone)
-        
-        public let rawValue: Int
-        
-        public init(rawValue: Int) {
-            self.rawValue = rawValue
-        }
-        
-        init(_ lldbStopReason: lldb.StopReason) {
-            self.rawValue = Int(lldbStopReason.rawValue)
+    public enum StopReason: Equatable {
+        case trace
+        case breakpoint([Int])
+        case watchpoint(Int)
+        case signal(Int)
+        case exception
+        case exec
+        case planComplete
+        case threadExiting
+        case instrumentation
+        case processorTrace
+        case fork(Int)
+        case vFork(Int)
+        case vForkDone
+    }
+    
+    public var stopReason: StopReason? {
+        var lldbThread = lldbThread
+        switch lldbThread.GetStopReason() {
+        case lldb.eStopReasonInvalid,
+            lldb.eStopReasonNone:
+            return nil
+        case lldb.eStopReasonTrace:
+            return .trace
+        case lldb.eStopReasonBreakpoint:
+            let data = StopReasonData(lldbThread)
+            return .breakpoint(stride(from: 0, to: data.count, by: 2).map({ Int(data[$0]) }))
+        case lldb.eStopReasonWatchpoint:
+            let data = StopReasonData(lldbThread)
+            return .watchpoint(Int(data[0]))
+        case lldb.eStopReasonSignal:
+            let data = StopReasonData(lldbThread)
+            return .signal(Int(data[0]))
+        case lldb.eStopReasonException:
+            return .exception
+        case lldb.eStopReasonExec:
+            return .exec
+        case lldb.eStopReasonPlanComplete:
+            return .planComplete
+        case lldb.eStopReasonThreadExiting:
+            return .threadExiting
+        case lldb.eStopReasonInstrumentation:
+            return .instrumentation
+        case lldb.eStopReasonProcessorTrace:
+            return .processorTrace
+        case lldb.eStopReasonFork:
+            let data = StopReasonData(lldbThread)
+            return .fork(Int(data[0]))
+        case lldb.eStopReasonVFork:
+            let data = StopReasonData(lldbThread)
+            return .vFork(Int(data[0]))
+        case lldb.eStopReasonVForkDone:
+            return .vForkDone
+        default:
+            return nil
         }
     }
     
-    public var stopReason: StopReason {
+    public var hasValidStopReason: Bool {
         var lldbThread = lldbThread
-        return StopReason(lldbThread.GetStopReason())
+        switch lldbThread.GetStopReason() {
+        case lldb.eStopReasonTrace,
+            lldb.eStopReasonBreakpoint,
+            lldb.eStopReasonWatchpoint,
+            lldb.eStopReasonSignal,
+            lldb.eStopReasonException,
+            lldb.eStopReasonExec,
+            lldb.eStopReasonPlanComplete,
+            lldb.eStopReasonThreadExiting,
+            lldb.eStopReasonInstrumentation,
+            lldb.eStopReasonProcessorTrace,
+            lldb.eStopReasonFork,
+            lldb.eStopReasonVFork,
+            lldb.eStopReasonVForkDone:
+            return true
+        default:
+            return false
+        }
     }
     
     public struct StopReasonData: Sendable, RandomAccessCollection {
@@ -147,6 +195,33 @@ extension Thread {
     }
     
     public var stopReasonData: StopReasonData { StopReasonData(lldbThread) }
+    
+    public var stopDescription: String? {
+        var lldbThread = lldbThread
+        return withUnsafeTemporaryAllocation(of: CChar.self, capacity: 1024) { buffer in
+            if lldbThread.GetStopDescription(buffer.baseAddress!, buffer.count) > 0 {
+                return String(cString: buffer.baseAddress!)
+            }
+            else {
+                return nil
+            }
+        }
+    }
+    
+    public var currentException: Value? {
+        var lldbThread = lldbThread
+        return Value(lldbThread.GetCurrentException())
+    }
+    
+    public var currentExceptionBacktrace: Thread? {
+        var lldbThread = lldbThread
+        return Thread(lldbThread.GetCurrentExceptionBacktrace())
+    }
+    
+    public var isSafeToCallFunctions: Bool {
+        var lldbThread = lldbThread
+        return lldbThread.SafeToCallFunctions()
+    }
     
     public func suspend() throws {
         var lldbThread = lldbThread
@@ -232,7 +307,7 @@ extension Thread {
     }
     
     @discardableResult
-    public func selectFrame(at index: Int) -> Frame? {
+    public func setSelectedFrame(at index: Int) -> Frame? {
         var lldbThread = lldbThread
         return Frame(lldbThread.SetSelectedFrame(UInt32(index)))
     }

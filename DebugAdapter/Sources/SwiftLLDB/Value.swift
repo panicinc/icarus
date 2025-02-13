@@ -91,9 +91,41 @@ extension Value {
         try error.throwOnFail()
     }
     
+    public func valueAsSigned() throws -> Int64 {
+        var lldbValue = lldbValue
+        var error = lldb.SBError()
+        let value = lldbValue.GetValueAsSigned(&error)
+        try error.throwOnFail()
+        return value
+    }
+    
+    public func valueAsUnsigned() throws -> UInt64 {
+        var lldbValue = lldbValue
+        var error = lldb.SBError()
+        let value = lldbValue.GetValueAsUnsigned(&error)
+        try error.throwOnFail()
+        return value
+    }
+    
+    public var valueAsAddress: UInt64? {
+        var lldbValue = lldbValue
+        let addr = lldbValue.GetValueAsAddress()
+        guard addr != LLDB_INVALID_ADDRESS else {
+            return nil
+        }
+        return addr
+    }
+    
     public var summary: String? {
         var lldbValue = lldbValue
         return String(optionalCString: lldbValue.GetSummary())
+    }
+    
+    public var description: String? {
+        var lldbValue = lldbValue
+        var stream = lldb.SBStream()
+        lldbValue.GetDescription(&stream)
+        return String(optionalCString: stream.GetData())
     }
     
     public var objectDescription: String? {
@@ -104,6 +136,11 @@ extension Value {
     public var isSynthetic: Bool {
         var lldbValue = lldbValue
         return lldbValue.IsSynthetic()
+    }
+    
+    public var location: String? {
+        var lldbValue = lldbValue
+        return String(optionalCString: lldbValue.GetLocation())
     }
     
     public struct Children: Sendable, RandomAccessCollection {
@@ -132,5 +169,20 @@ extension Value {
     public func childMember(named name: String) -> Value? {
         var lldbValue = lldbValue
         return Value(lldbValue.GetChildMemberWithName(name))
+    }
+    
+    public var loadAddress: UInt64? {
+        var lldbValue = lldbValue
+        let addr = lldbValue.GetLoadAddress()
+        guard addr != LLDB_INVALID_ADDRESS else {
+            return nil
+        }
+        return addr
+    }
+    
+    public func pointeeData(at index: Int = 0, count: Int = 1) -> DataBuffer? {
+        var lldbValue = lldbValue
+        let data = lldbValue.GetPointeeData(UInt32(index), UInt32(count))
+        return DataBuffer(data)
     }
 }
