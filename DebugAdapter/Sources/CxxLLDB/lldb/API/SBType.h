@@ -9,6 +9,8 @@
 #ifndef LLDB_API_SBTYPE_H
 #define LLDB_API_SBTYPE_H
 
+#include <swift/bridging>
+
 #include "lldb/API/SBDefines.h"
 
 namespace lldb_private {
@@ -35,7 +37,7 @@ public:
 
   bool IsValid() const;
 
-  const char *GetName();
+  const char *GetName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   lldb::SBType GetType();
 
@@ -76,11 +78,11 @@ public:
 
   bool IsValid() const;
 
-  const char *GetName();
+  const char *GetName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-  const char *GetDemangledName();
+  const char *GetDemangledName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-  const char *GetMangledName();
+  const char *GetMangledName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   lldb::SBType GetType();
 
@@ -120,9 +122,9 @@ public:
 
   bool IsValid() const;
 
-  const char *GetName();
+  const char *GetName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-  const char *GetMangledName();
+  const char *GetMangledName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   lldb::SBType GetType();
 
@@ -235,9 +237,9 @@ public:
 
   lldb::SBModule GetModule();
 
-  const char *GetName();
+  const char *GetName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
-  const char *GetDisplayTypeName();
+  const char *GetDisplayTypeName() SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   lldb::TypeClass GetTypeClass();
 

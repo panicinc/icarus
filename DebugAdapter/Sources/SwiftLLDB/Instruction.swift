@@ -42,7 +42,7 @@ public struct Instruction: Sendable {
     
     public var byteSize: Int {
         var lldbInstruction = lldbInstruction
-        return Int(lldbInstruction.GetByteSize())
+        return lldbInstruction.GetByteSize()
     }
     
     public var isBranch: Bool {

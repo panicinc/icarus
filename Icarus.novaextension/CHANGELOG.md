@@ -1,3 +1,8 @@
+## Version 3.0
+
+- Resolved issues debugging with LLDB versions included as part of Xcode 16.2+ and the Swift 6 toolchain.
+- Improved debug adapter implementation by moving LLDB API bindings from Objective-C++ to Swift/C++ interop.
+
 ## Version 2.0
 
 - Added remote debugging support with LLDB, for debugging targets running on another computer, in a Docker container, etc. ([https://github.com/panicinc/icarus/issues/4](#4))

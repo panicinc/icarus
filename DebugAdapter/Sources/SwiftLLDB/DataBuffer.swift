@@ -28,7 +28,7 @@ public struct DataBuffer: Sendable {
     
     public var byteSize: Int {
         var lldbData = lldbData
-        return Int(lldbData.GetByteSize())
+        return lldbData.GetByteSize()
     }
 }
 

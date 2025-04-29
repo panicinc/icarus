@@ -816,7 +816,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
                     throw AdapterError.invalidParameter("Missing required parameter “bytes”.")
                 }
                 
-                let addrStr = String(addr, radix: 16, uppercase: true)
+                let addrStr = formatAddress(addr)
                 let bytesStr = String(bytes)
                 let dataId = "\(addrStr)/\(bytesStr)"
                 let desc = "\(bytesStr) bytes at \(addrStr)"
@@ -840,7 +840,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
                     throw AdapterError.invalidParameter("Value “\(name)” has zero-size in memory.")
                 }
                 
-                let addrStr = String(addr, radix: 16, uppercase: true)
+                let addrStr = formatAddress(addr)
                 let bytesStr = String(bytes)
                 let dataId = "\(addrStr)/\(bytesStr)"
                 let desc = "\(bytesStr) bytes at \(addrStr)"
@@ -879,7 +879,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
                     throw AdapterError.invalidParameter("Memory region for “\(name)” has no read or write access.")
                 }
                 
-                let addrStr = String(addr, radix: 16, uppercase: true)
+                let addrStr = formatAddress(addr)
                 let bytesStr = String(bytes)
                 let dataId = "\(addrStr)/\(bytesStr)"
                 let desc = "\(bytesStr) bytes at \(addrStr)"
@@ -919,9 +919,9 @@ final class Adapter: DebugAdapterServerRequestHandler {
                 else {
                     let comps = dataId.split(separator: "/", maxSplits: 1)
                     guard comps.count == 2,
-                        let addr = UInt64(comps[0], radix: 16),
+                        let addr = parseAddress(from: comps[0]),
                         let size = Int(comps[1]) else {
-                        throw AdapterError.invalidParameter("Invalid data breakpoint dataId “\(dataId)”.")
+                        throw AdapterError.invalidParameter("Invalid memory reference “\(dataId)”.")
                     }
                     
                     let onRead = accessType != .write
@@ -1046,77 +1046,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
         }
     }
     
-    private func variables(for ref: Int) throws -> [DebugAdapter.Variable] {
-        guard let container = variables[ref] else {
-            throw AdapterError.invalidParameter("Invalid variable reference “\(ref)”.")
-        }
-        
-        switch container {
-            case let .locals(frame):
-                let values = frame.variables(for: [.arguments, .locals], inScopeOnly: true)
-                return self.variables(for: values, containerRef: ref, uniquing: true)
-                
-            case let .globals(frame):
-                let values = frame.variables(for: [.statics], inScopeOnly: true)
-                return self.variables(for: values, types: [.global], containerRef: ref, uniquing: false)
-                
-            case let .registers(frame):
-                let values = frame.registers
-                return self.variables(for: values, containerRef: ref, uniquing: false)
-                
-            case let .value(value):
-                return self.variables(for: value.children, containerRef: ref, uniquing: false)
-            
-            case .stackFrame(_):
-                return []
-        }
-    }
-    
-    private func variables<S>(for values: S, types: Set<Value.ValueType>? = nil, containerRef: Int, uniquing: Bool) -> [DebugAdapter.Variable] where S: Sequence, S.Element == Value {
-        var variables: [DebugAdapter.Variable] = []
-        var variablesIndexesByName: [String: Int] = [:]
-        
-        for value in values {
-            guard let name = value.name else {
-                continue
-            }
-            
-            if !(types?.contains(value.valueType) ?? true) {
-                continue
-            }
-            
-            let summary = value.summary ?? value.value ?? ""
-            
-            var variable = DebugAdapter.Variable(name: name, value: summary)
-            
-            variable.type = value.displayTypeName
-            variable.variablesReference = variableReference(for: value, key: name, parent: containerRef)
-            
-            if uniquing {
-                if let index = variablesIndexesByName[name] {
-                    variables[index] = variable
-                }
-                else {
-                    variablesIndexesByName[name] = variables.count
-                    variables.append(variable)
-                }
-            }
-            else {
-                variables.append(variable)
-            }
-        }
-        
-        return variables;
-    }
-    
-    private func variableReference(for value: Value, key: String, parent: Int?) -> Int? {
-        guard !value.children.isEmpty && !value.isSynthetic else {
-            return nil
-        }
-        return variables.insert(parent: parent, key: key, value: .value(value))
-    }
-    
-    private func parseAddress(from string: String) -> UInt64? {
+    private func parseAddress<S: StringProtocol>(from string: S) -> UInt64? {
         if let r = string.range(of: "0x", options: [.anchored]) {
             // Hexadecimal
             return UInt64(string[r.upperBound...], radix: 16)
@@ -1128,7 +1058,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
     }
     
     private func formatAddress(_ address: UInt64) -> String {
-        return String(address, radix: 16, uppercase: true)
+        return "0x\(String(address, radix: 16))"
     }
     
     // MARK: - Execution
@@ -1578,11 +1508,135 @@ final class Adapter: DebugAdapterServerRequestHandler {
     
     func variables(_ request: DebugAdapter.VariablesRequest, replyHandler: @escaping (Result<DebugAdapter.VariablesRequest.Result, Error>) -> Void) {
         do {
-            let variables = try self.variables(for: request.variablesReference)
+            guard let process = target?.process else {
+                throw AdapterError.notDebugging
+            }
+            
+            let ref = request.variablesReference
+            guard let container = variables[ref] else {
+                throw AdapterError.invalidParameter("Invalid variable reference “\(ref)”.")
+            }
+            
+            let format = request.format
+            
+            let variables: [DebugAdapter.Variable]
+            switch container {
+                case let .locals(frame):
+                    variables = self.variables(for: frame.variables(for: [.arguments, .locals], inScopeOnly: true), in: ref, format: format)
+                    
+                case let .globals(frame):
+                    variables = self.variables(for: frame.variables(for: [.statics], inScopeOnly: true), in: ref, format: format)
+                    
+                case let .registers(frame):
+                    let registers = frame.registers
+                    let addrSize = process.addressByteSize
+                    
+                    if let registerSet = registers.first {
+                        // Set an explicit format for the first register set
+                        // to allow for resolution of pointer value summaries.
+                        for register in registerSet.children {
+                            switch register.format {
+                            case .default, .hex:
+                                if register.byteSize == addrSize {
+                                    register.format = .addressInfo
+                                }
+                            default:
+                                break
+                            }
+                        }
+                    }
+                    
+                    variables = self.variables(for: registers, in: ref, format: format)
+                    
+                case let .value(value):
+                    variables = self.variables(for: value.children, in: ref, format: format)
+                
+                case .stackFrame(_):
+                    variables = []
+            }
+            
             replyHandler(.success(.init(variables: variables)))
         }
         catch {
             replyHandler(.failure(error))
+        }
+    }
+    
+    private func variables<S>(for values: S, in containerRef: Int, format: DebugAdapter.ValueFormat?) -> [DebugAdapter.Variable] where S: Sequence, S.Element == Value {
+        var nameCounts: [String: Int] = [:]
+        
+        for value in values {
+            let name = value.name ?? "<null>"
+            nameCounts[name, default: 0] += 1
+        }
+        
+        return values.map { v in
+            var name = v.name ?? "<null>"
+            
+            // If the same name is used multiple times, provide more information.
+            if nameCounts[name] ?? 0 > 1 {
+                if let declaration = v.declaration {
+                    if let filename = declaration.fileSpec?.filename,
+                       let line = declaration.line {
+                        name += " @ \(filename):\(line)"
+                    }
+                    else if let location = v.location {
+                        name += " @ \(location)"
+                    }
+                }
+            }
+            
+            // Swap the default format to hex if requested (and vice-versa).
+            switch v.format {
+            case .default where format?.hex ?? false:
+                v.format = .hex
+            case .hex where !(format?.hex ?? false):
+                v.format = .default
+            default:
+                break
+            }
+            
+            let displayTypeName = v.displayTypeName
+            
+            var displayValue = ""
+            if let error = v.error {
+                displayValue += "<error: \(error)>"
+            }
+            else {
+                let value = v.value
+                let summary = v.summary
+                
+                if let value, !value.isEmpty {
+                    displayValue += value
+                    if let summary, !summary.isEmpty {
+                        displayValue += " \(summary)"
+                    }
+                }
+                else if let summary, !summary.isEmpty {
+                    displayValue += summary
+                }
+                else if let displayTypeName, !displayTypeName.isEmpty {
+                    displayValue += displayTypeName
+                    if let loadAddr = v.loadAddress {
+                        displayValue += " @ \(formatAddress(loadAddr))"
+                    }
+                }
+            }
+            
+            var variable = DebugAdapter.Variable(name: name, value: displayValue)
+            
+            variable.type = displayTypeName.flatMap { !$0.isEmpty ? $0 : nil } ?? "<no-type>"
+            variable.evaluateName = v.expressionPath
+            
+            if v.mightHaveChildren {
+                variable.variablesReference = variables.insert(parent: containerRef, key: name, value: .value(v))
+            }
+            
+            if let loadAddr = v.loadAddress {
+                variable.memoryReference = formatAddress(loadAddr)
+            }
+            
+            return variable
         }
     }
     
@@ -1697,24 +1751,26 @@ final class Adapter: DebugAdapterServerRequestHandler {
     }
     
     private func evaluateExpression(_ expression: String, frame: Frame?) throws -> DebugAdapter.EvaluateRequest.Result {
-        let result: Value
+        let v: Value
         if let frame {
-            result = try frame.evaluate(expression: expression)
+            v = try frame.evaluate(expression: expression)
         }
         else {
             guard let target else {
                 throw AdapterError.notDebugging
             }
-            result = try target.evaluate(expression: expression)
+            v = try target.evaluate(expression: expression)
         }
         
-        let summary = result.summary ?? result.value ?? ""
+        let summary = v.summary ?? v.value ?? ""
         
-        var requestResult = DebugAdapter.EvaluateRequest.Result(result: summary)
-        requestResult.type = result.displayTypeName
-        requestResult.variablesReference = variableReference(for: result, key: expression, parent: nil) ?? 0
+        var result = DebugAdapter.EvaluateRequest.Result(result: summary)
+        result.type = v.displayTypeName
+        if v.mightHaveChildren {
+            result.variablesReference = variables.insert(parent: nil, key: expression, value: .value(v))
+        }
         
-        return requestResult
+        return result
     }
     
     func setVariable(_ request: DebugAdapter.SetVariableRequest, replyHandler: @escaping (Result<DebugAdapter.SetVariableRequest.Result, Error>) -> Void) {
@@ -1722,28 +1778,30 @@ final class Adapter: DebugAdapterServerRequestHandler {
             let name = request.name
             let ref = request.variablesReference
             
-            let child: Value?
+            let v: Value?
             switch variables[ref] {
             case let .value(value):
-                child = value.childMember(named: name)
+                v = value.childMember(named: name)
             case let .locals(frame), let .globals(frame):
-                child = frame.findVariable(named: name)
+                v = frame.findVariable(named: name)
             default:
-                child = nil
+                v = nil
             }
             
-            guard let child, let childName = child.name else {
+            guard let v, let childName = v.name else {
                 throw AdapterError.invalidParameter("Unable to set variable value “\(name)”.")
             }
             
             let value = request.value
-            try child.setValue(value)
+            try v.setValue(value)
             
-            let summary = child.summary ?? child.value ?? ""
+            let summary = v.summary ?? v.value ?? ""
             
             var result = DebugAdapter.SetVariableRequest.Result(value: summary)
-            result.type = child.displayTypeName
-            result.variablesReference = variableReference(for: child, key: childName, parent: ref)
+            result.type = v.displayTypeName
+            if v.mightHaveChildren {
+                result.variablesReference = variables.insert(parent: ref, key: childName, value: .value(v))
+            }
             
             replyHandler(.success(result))
         }
@@ -1865,9 +1923,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
             let result = try withUnsafeTemporaryAllocation(byteCount: count, alignment: 8) { buffer in
                 let read = try process.readMemory(buffer, at: addr)
                 
-                let addrStr = String(addr, radix: 16, uppercase: true)
-                
-                var result = DebugAdapter.ReadMemoryRequest.Result(address: addrStr)
+                var result = DebugAdapter.ReadMemoryRequest.Result(address: formatAddress(addr))
                 result.unreadableBytes = count - read
                 result.data = Data(bytesNoCopy: buffer.baseAddress!, count: read, deallocator: .none).base64EncodedString()
                 return result

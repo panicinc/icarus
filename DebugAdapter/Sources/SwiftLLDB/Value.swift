@@ -29,6 +29,11 @@ extension Value {
         return String(optionalCString: lldbValue.GetName())
     }
     
+    public var dataType: DataType? {
+        var lldbValue = lldbValue
+        return DataType(lldbValue.GetType())
+    }
+    
     public var typeName: String? {
         var lldbValue = lldbValue
         return String(optionalCString: lldbValue.GetTypeName())
@@ -41,12 +46,39 @@ extension Value {
     
     public var byteSize: Int {
         var lldbValue = lldbValue
-        return Int(lldbValue.GetByteSize())
+        return lldbValue.GetByteSize()
     }
     
     public var isInScope: Bool {
         var lldbValue = lldbValue
         return lldbValue.IsInScope()
+    }
+    
+    public var error: String? {
+        var lldbValue = lldbValue
+        let error = lldbValue.GetError()
+        guard error.Fail() else {
+            return nil
+        }
+        return String(optionalCString: error.GetCString())
+    }
+    
+    public var expressionPath: String? {
+        var lldbValue = lldbValue
+        var stream = lldb.SBStream()
+        lldbValue.GetExpressionPath(&stream)
+        return String(optionalCString: stream.GetData())
+    }
+    
+    public var format: Format {
+        get {
+            var lldbValue = lldbValue
+            return Format(lldbValue.GetFormat())
+        }
+        nonmutating set {
+            var lldbValue = lldbValue
+            lldbValue.SetFormat(newValue.lldbFormat)
+        }
     }
     
     /// Equivalent to lldb::ValueType.
@@ -143,6 +175,11 @@ extension Value {
         return String(optionalCString: lldbValue.GetLocation())
     }
     
+    public var mightHaveChildren: Bool {
+        var lldbValue = lldbValue
+        return lldbValue.MightHaveChildren()
+    }
+    
     public struct Children: Sendable, RandomAccessCollection {
         let lldbValue: lldb.SBValue
         
@@ -184,5 +221,10 @@ extension Value {
         var lldbValue = lldbValue
         let data = lldbValue.GetPointeeData(UInt32(index), UInt32(count))
         return DataBuffer(data)
+    }
+    
+    public var declaration: Declaration? {
+        var lldbValue = lldbValue
+        return Declaration(lldbValue.GetDeclaration())
     }
 }

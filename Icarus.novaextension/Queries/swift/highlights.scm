@@ -103,6 +103,8 @@
 (deinit_declaration "deinit" @keyword)
 (class_declaration
   name: (type_identifier) @identifier.type.declare)
+(protocol_declaration
+  name: (type_identifier) @identifier.type.declare)
 (operator_declaration (simple_identifier) @identifier.type)
 
 ; Macros
@@ -183,6 +185,8 @@
 ] @value.number
 (boolean_literal) @value.boolean
 "nil" @value.null
+
+(key_path_expression "\\" @operator)
 
 ; Operators
 (custom_operator) @operator

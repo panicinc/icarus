@@ -1591,6 +1591,11 @@ public enum DebugAdapter {
         }
         public var filter: Filter?
         
+        public var start: Int?
+        public var count: Int?
+        
+        public var format: ValueFormat?
+        
         public struct Result: Sendable, Hashable, Codable {
             public var variables: [Variable]
             

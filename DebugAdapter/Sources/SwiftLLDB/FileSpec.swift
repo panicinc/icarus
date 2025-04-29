@@ -1,6 +1,6 @@
 import CxxLLDB
 
-public struct FileSpec: Sendable, Equatable {
+public struct FileSpec: Sendable {
     let lldbFileSpec: lldb.SBFileSpec
     
     init?(_ lldbFileSpec: lldb.SBFileSpec) {
@@ -8,10 +8,6 @@ public struct FileSpec: Sendable, Equatable {
             return nil
         }
         self.lldbFileSpec = lldbFileSpec
-    }
-    
-    public static func == (lhs: FileSpec, rhs: FileSpec) -> Bool {
-        return lhs.lldbFileSpec == rhs.lldbFileSpec
     }
     
     public var directory: String {
@@ -24,5 +20,11 @@ public struct FileSpec: Sendable, Equatable {
     
     public var path: String {
         return "\(directory)/\(filename)"
+    }
+}
+
+extension FileSpec: Equatable {
+    public static func == (lhs: FileSpec, rhs: FileSpec) -> Bool {
+        return lhs.lldbFileSpec == rhs.lldbFileSpec
     }
 }

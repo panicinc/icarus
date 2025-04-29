@@ -9,6 +9,8 @@
 #ifndef LLDB_API_SBERROR_H
 #define LLDB_API_SBERROR_H
 
+#include <swift/bridging>
+
 #include "lldb/API/SBDefines.h"
 
 namespace lldb_private {
@@ -36,7 +38,7 @@ public:
   ///
   /// This SBError object owns the returned string and this object must be kept
   /// around long enough to use the returned string.
-  const char *GetCString() const;
+  const char *GetCString() const SWIFT_RETURNS_INDEPENDENT_VALUE;
 
   void Clear();
 
