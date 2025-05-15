@@ -16,6 +16,7 @@
 ] @operator
 
 [
+  "$"
   "@"
   "%"
   "<"
@@ -33,13 +34,22 @@
   "}"
 ] @punctuation.bracket
 
+[
+  ","
+] @punctuation.delimiter
+
 (include_directive "include" @keyword)
+(include_directive "-include" @keyword)
+(export_directive "export" @keyword)
+(define_directive "define" @keyword)
+(define_directive "endef" @keyword)
 (override_directive "override" @keyword)
 
 (ifeq_directive "ifeq" @keyword)
 (ifneq_directive "ifneq" @keyword)
 (ifdef_directive "ifdef" @keyword)
 (ifndef_directive "ifndef" @keyword)
+(elsif_directive "else" @keyword)
 (else_directive "else" @keyword)
 (conditional "endif" @keyword)
 

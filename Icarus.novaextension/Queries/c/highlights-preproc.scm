@@ -49,6 +49,9 @@
 (preproc_defined
   "defined" @processing.directive)
 
+((preproc_arg) @processing.argument.string
+ (#match? @processing.argument.string "^\".*?\"$"))
+
 ; Parsing C literals using regex... longest sigh ever...
 ((preproc_arg) @value.number
   (#match? @value.number "(?x)^\
