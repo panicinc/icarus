@@ -1,0 +1,5 @@
+module CxxLLDB [system] {
+  requires cplusplus
+  umbrella header "lldb/API/LLDB.h"
+  export *
+}

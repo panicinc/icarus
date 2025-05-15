@@ -1,7 +1,6 @@
 {
   "editor.default_syntax" : "swift",
   "index.ignored_file_patterns" : [
-    "ExternalHeaders\/",
     ".build\/",
     ".swiftpm\/"
   ]

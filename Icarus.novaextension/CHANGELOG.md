@@ -1,6 +1,8 @@
-## Version 2.0.1
 
-- Fixed an issue preventing some header files from opening with the C syntax.
+## Version 3.0
+
+- Resolved issues debugging with LLDB versions included as part of Xcode 16.2+ and the Swift 6 toolchain.
+- Improved debug adapter implementation by moving LLDB API bindings from Objective-C++ to Swift/C++ interop.
 
 ## Version 2.0
 

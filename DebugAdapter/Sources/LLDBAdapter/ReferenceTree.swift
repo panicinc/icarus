@@ -1,5 +1,5 @@
-public struct ReferenceTree<Reference: BinaryInteger, Value> {
-    public struct Entry {
+struct ReferenceTree<Reference: BinaryInteger, Value> {
+    private struct Entry {
         var parent: Reference?
         var key: String
         var value: Value
@@ -15,22 +15,18 @@ public struct ReferenceTree<Reference: BinaryInteger, Value> {
     private var previousReferences: [ReferenceKey: Reference] = [:]
     private var nextReference: Reference = 1
     
-    public init(startingAt reference: Reference = 1) {
+    init(startingAt reference: Reference = 1) {
         nextReference = reference
     }
     
-    public enum ReferenceMapError: Error {
-        case parentNotFound
-    }
-    
-    public mutating func removeAll() {
+    mutating func removeAll() {
         entries.removeAll()
         previousReferences = references
         references.removeAll()
     }
     
     @discardableResult
-    public mutating func insert(parent: Reference?, key: String, value: Value) -> Reference {
+    mutating func insert(parent: Reference?, key: String, value: Value) -> Reference {
         let newReference = previousReferences[.init(reference: parent, key: key)] ?? nextReference
         nextReference += 1
         
@@ -40,11 +36,7 @@ public struct ReferenceTree<Reference: BinaryInteger, Value> {
         return newReference
     }
     
-    public func entry(for reference: Reference) -> Entry? {
-        return entries[reference]
-    }
-    
-    public subscript(_ reference: Reference) -> Value? {
+    subscript(_ reference: Reference) -> Value? {
         return entries[reference]?.value
     }
 }

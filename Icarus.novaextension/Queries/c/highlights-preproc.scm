@@ -46,3 +46,43 @@
   argument: (preproc_arg) @_argument @comment.doctag
   (#eq? @_directive "#pragma")
   (#match? @_argument "^\\s+mark\\s+")) @comment
+(preproc_defined
+  "defined" @processing.directive)
+
+((preproc_arg) @processing.argument.string
+ (#match? @processing.argument.string "^\".*?\"$"))
+
+; Parsing C literals using regex... longest sigh ever...
+((preproc_arg) @value.number
+  (#match? @value.number "(?x)^\
+    \\s* \
+    -? #negate \
+    ( \
+      # Integers \
+      ( \
+        ( \
+          (0[0-7]*) #oct \
+          | (0[bB][01]+) #bin \
+          | (0[xX][0-9a-fA-F]+) #hex \
+          | ([1-9][0-9]*) #dec \
+        ) \
+        ( \
+          ([uU]([lLzZ]|ll|LL)?) \
+          | (([lLzZ]|ll|LL)[uU]?) \
+        )? \
+      ) \
+      # Floats \
+      | \
+      ( \
+        ( \
+          [0-9]+[eE](\\+|\\-)?[0-9]* #1e10 \
+          | [0-9]+\.[0-9]*([eE](\\+|\\-)?[0-9]+)? #1.0e10 \
+          | 0[xX][0-9]+[eE](\\+|\\-)?[0-9]* #1e10 \
+          | 0[xX][0-9a-fA-F]+\.[0-9a-fA-F]*([pP](\\+|\\-)?[0-9]+)? #0x1.0e10 \
+        ) \
+        [fFlL]? \
+      ) \
+    ) \
+    \\s* \
+  $")
+)

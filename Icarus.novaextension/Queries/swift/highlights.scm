@@ -77,7 +77,7 @@
 (metatype [ "Type" "Protocol" ] @keyword)
 
 ; Identifiers
-(attribute "@" @keyword (user_type) @keyword) ; Target inner nodes to avoid catching arguments
+(attribute "@" @identifier.decorator.prefix (user_type) @identifier.decorator) ; Target inner nodes to avoid catching arguments
 (self_expression) @keyword.self
 (inheritance_constraint (identifier (simple_identifier) @identifier.type))
 (equality_constraint (identifier (simple_identifier) @identifier.type))
@@ -95,12 +95,15 @@
   (#eq? @keyword "Any" "AnyActor" "AnyClass" "AnyObject" "Type" "Protocol"))
 
 ; Declarations
+(init_declaration "init" @keyword)
 (protocol_function_declaration "init" @keyword)
 (function_declaration "init" @keyword)
 (parameter
   name: (simple_identifier) @identifier.argument)
 (deinit_declaration "deinit" @keyword)
 (class_declaration
+  name: (type_identifier) @identifier.type.declare)
+(protocol_declaration
   name: (type_identifier) @identifier.type.declare)
 (operator_declaration (simple_identifier) @identifier.type)
 
@@ -182,6 +185,8 @@
 ] @value.number
 (boolean_literal) @value.boolean
 "nil" @value.null
+
+(key_path_expression "\\" @operator)
 
 ; Operators
 (custom_operator) @operator

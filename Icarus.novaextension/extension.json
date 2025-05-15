@@ -3,7 +3,7 @@
     "name": "Icarus",
     "organization": "Panic",
     "description": "Swift, C, C++, & Objective-C language support and intelligence.",
-    "version": "2.0.1",
+    "version": "3.0",
     "categories": ["languages"],
     "keywords": ["swift", "c", "c++", "cpp", "objective-c", "objc", "objective-c++", "objc++", "objcpp", "llvm", "clang", "lldb", "xcode"],
     "repository": "https://github.com/panicinc/icarus",
@@ -99,7 +99,7 @@
                     "key": "launchPath",
                     "title": "Executable",
                     "type": "path",
-                    "description": "The application bundle or command line tool to debug.",
+                    "description": "The application bundle or command line tool path to debug.",
                     "relative": true
                 },
                 {
@@ -121,7 +121,7 @@
                     "key": "cwd",
                     "title": "Working Directory",
                     "type": "path",
-                    "description": "The current working directory to set when launching the executable.",
+                    "description": "The current working directory to set when launching.",
                     "placeholder": "Parent Directory",
                     "allowFiles": false,
                     "allowFolders": true,
@@ -132,7 +132,7 @@
                     "title": "Stop at Entry",
                     "type": "boolean",
                     "default": false,
-                    "description": "Stop at the program entry point when launching."
+                    "description": "Stop at the program entry point after launching."
                 },
                 {
                     "key": "runInRosetta",

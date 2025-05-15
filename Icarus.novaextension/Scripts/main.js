@@ -54,8 +54,10 @@ class IcarusTaskProvider {
                 debugArgs.args = config.get("launchArgs", "array");
                 debugArgs.cwd = config.get("cwd", "string");
                 debugArgs.runInRosetta = config.get("runInRosetta", "boolean");
-                debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
-                debugArgs.wait = request == "attach";
+                debugArgs.stopOnEntry = config.get("stopAtEntry", "boolean");
+                if (request == "attach") {
+                    debugArgs.waitFor = true;
+                }
                 
                 action.debugArgs = debugArgs;
             }
@@ -75,12 +77,14 @@ class IcarusTaskProvider {
                 debugArgs.program = config.get("launchPath", "string");
                 debugArgs.args = config.get("launchArgs", "array");
                 debugArgs.cwd = config.get("cwd", "string");
-                debugArgs.stopAtEntry = config.get("stopAtEntry", "boolean");
-                debugArgs.wait = request == "attach";
+                debugArgs.stopOnEntry = config.get("stopAtEntry", "boolean");
+                if (request == "attach") {
+                    debugArgs.waitFor = true;
+                }
                 
                 let pathMappings = config.get("pathMappings");
                 if (pathMappings) {
-                    // Ensure the local part of path mappings are absolute
+                    // Ensure the local half of mappings are absolute paths.
                     let basePath = nova.workspace.path;
                     debugArgs.pathMappings = pathMappings.map(mapping => {
                         let local = mapping.localRoot;
@@ -88,7 +92,7 @@ class IcarusTaskProvider {
                         if (!nova.path.isAbsolute(local)) {
                             local = nova.path.normalize(nova.path.join(basePath, local));
                         }
-                        return {"localRoot": local, "remoteRoot": remote};
+                        return {"local": local, "remote": remote};
                     });
                 }
                 
