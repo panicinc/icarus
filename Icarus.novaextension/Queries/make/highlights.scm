@@ -43,15 +43,15 @@
 (export_directive "export" @keyword)
 (define_directive "define" @keyword)
 (define_directive "endef" @keyword)
-(override_directive "override" @keyword)
+(override_directive "override" @keyword.modifier)
 
-(ifeq_directive "ifeq" @keyword)
-(ifneq_directive "ifneq" @keyword)
-(ifdef_directive "ifdef" @keyword)
-(ifndef_directive "ifndef" @keyword)
-(elsif_directive "else" @keyword)
-(else_directive "else" @keyword)
-(conditional "endif" @keyword)
+(ifeq_directive "ifeq" @keyword.condition)
+(ifneq_directive "ifneq" @keyword.condition)
+(ifdef_directive "ifdef" @keyword.condition)
+(ifndef_directive "ifndef" @keyword.condition)
+(elsif_directive "else" @keyword.condition)
+(else_directive "else" @keyword.condition)
+(conditional "endif" @keyword.condition)
 
 (variable_assignment
   name: (word) @identifier.key)
@@ -110,3 +110,6 @@
 (shell_function [
     "shell"
   ] @identifier.function)
+
+(recipe_line
+  ["@" "-" "+"] @keyword.modifier) 
