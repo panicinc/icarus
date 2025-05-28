@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Thread: Sendable {
-    let lldbThread: lldb.SBThread
+    nonisolated(unsafe) let lldbThread: lldb.SBThread
     
     init?(_ lldbThread: lldb.SBThread) {
         guard lldbThread.IsValid() else {
@@ -174,7 +174,7 @@ extension Thread {
     }
     
     public struct StopReasonData: Sendable, RandomAccessCollection {
-        let lldbThread: lldb.SBThread
+        nonisolated(unsafe) let lldbThread: lldb.SBThread
         
         init(_ lldbThread: lldb.SBThread) {
             self.lldbThread = lldbThread
@@ -273,7 +273,7 @@ extension Thread {
 
 extension Thread {
     public struct Frames: Sendable, RandomAccessCollection {
-        let lldbThread: lldb.SBThread
+        nonisolated(unsafe) let lldbThread: lldb.SBThread
         
         init(_ lldbThread: lldb.SBThread) {
             self.lldbThread = lldbThread
@@ -314,7 +314,7 @@ extension Thread {
 }
 
 public struct ThreadEvent: Sendable {
-    let lldbEvent: lldb.SBEvent
+    nonisolated(unsafe) let lldbEvent: lldb.SBEvent
     
     init(_ lldbEvent: lldb.SBEvent) {
         self.lldbEvent = lldbEvent

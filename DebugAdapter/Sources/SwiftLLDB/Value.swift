@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Value: Sendable {
-    let lldbValue: lldb.SBValue
+    nonisolated(unsafe) let lldbValue: lldb.SBValue
     
     init?(_ lldbValue: lldb.SBValue) {
         var lldbValue = lldbValue
@@ -181,7 +181,7 @@ extension Value {
     }
     
     public struct Children: Sendable, RandomAccessCollection {
-        let lldbValue: lldb.SBValue
+        nonisolated(unsafe) let lldbValue: lldb.SBValue
         
         init(_ lldbValue: lldb.SBValue) {
             self.lldbValue = lldbValue

@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Function: Sendable {
-    let lldbFunction: lldb.SBFunction
+    nonisolated(unsafe) let lldbFunction: lldb.SBFunction
     
     init?(_ lldbFunction: lldb.SBFunction) {
         guard lldbFunction.IsValid() else {

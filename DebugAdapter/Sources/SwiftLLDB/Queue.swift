@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Queue: Sendable {
-    let lldbQueue: lldb.SBQueue
+    nonisolated(unsafe) let lldbQueue: lldb.SBQueue
     
     init?(_ lldbQueue: lldb.SBQueue) {
         guard lldbQueue.IsValid() else {
@@ -53,7 +53,7 @@ extension Queue {
 
 extension Queue {
     public struct Threads: Sendable, RandomAccessCollection {
-        let lldbQueue: lldb.SBQueue
+        nonisolated(unsafe) let lldbQueue: lldb.SBQueue
         
         init(_ lldbQueue: lldb.SBQueue) {
             self.lldbQueue = lldbQueue

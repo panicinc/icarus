@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Breakpoint: Sendable {
-    let lldbBreakpoint: lldb.SBBreakpoint
+    nonisolated(unsafe) let lldbBreakpoint: lldb.SBBreakpoint
     
     init?(_ lldbBreakpoint: lldb.SBBreakpoint) {
         guard lldbBreakpoint.IsValid() else {
@@ -118,7 +118,7 @@ extension Breakpoint {
 
 extension Breakpoint {
     public struct Location: Sendable {
-        let lldbLocation: lldb.SBBreakpointLocation
+        nonisolated(unsafe) let lldbLocation: lldb.SBBreakpointLocation
         
         init?(_ lldbLocation: lldb.SBBreakpointLocation) {
             guard lldbLocation.IsValid() else {
@@ -133,7 +133,7 @@ extension Breakpoint {
     }
     
     public struct Locations: Sendable, RandomAccessCollection {
-        let lldbBreakpoint: lldb.SBBreakpoint
+        nonisolated(unsafe) let lldbBreakpoint: lldb.SBBreakpoint
         
         init(_ lldbBreakpoint: lldb.SBBreakpoint) {
             self.lldbBreakpoint = lldbBreakpoint
@@ -249,7 +249,7 @@ extension Breakpoint.Location {
 }
 
 public struct BreakpointEvent: Sendable {
-    let lldbEvent: lldb.SBEvent
+    nonisolated(unsafe) let lldbEvent: lldb.SBEvent
     
     init(_ lldbEvent: lldb.SBEvent) {
         self.lldbEvent = lldbEvent

@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct DataType: Sendable {
-    let lldbType: lldb.SBType
+    nonisolated(unsafe) let lldbType: lldb.SBType
     
     init?(_ lldbType: lldb.SBType) {
         guard lldbType.IsValid() else {

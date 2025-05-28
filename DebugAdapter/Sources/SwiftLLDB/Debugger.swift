@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public final class Debugger: Sendable {
-    let lldbDebugger = lldb.SBDebugger.Create(false)
+    nonisolated(unsafe) let lldbDebugger = lldb.SBDebugger.Create(false)
     
     public init() {
     }
@@ -34,7 +34,7 @@ extension Debugger {
     }
     
     public struct AvailablePlatforms: Sendable, RandomAccessCollection {
-        let lldbDebugger: lldb.SBDebugger
+        nonisolated(unsafe) let lldbDebugger: lldb.SBDebugger
         
         init(_ lldbDebugger: lldb.SBDebugger) {
             self.lldbDebugger = lldbDebugger
@@ -76,7 +76,7 @@ extension Debugger {
 
 extension Debugger {
     public struct Targets: Sendable, RandomAccessCollection {
-        let lldbDebugger: lldb.SBDebugger
+        nonisolated(unsafe) let lldbDebugger: lldb.SBDebugger
         
         init(_ lldbDebugger: lldb.SBDebugger) {
             self.lldbDebugger = lldbDebugger

@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Frame: Sendable {
-    let lldbFrame: lldb.SBFrame
+    nonisolated(unsafe) let lldbFrame: lldb.SBFrame
     
     init?(_ lldbFrame: lldb.SBFrame) {
         guard lldbFrame.IsValid() else {

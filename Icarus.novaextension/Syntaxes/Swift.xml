@@ -2,7 +2,7 @@
 <syntax name="swift">
     <meta>
         <name>Swift</name>
-        <type>script</type>
+        <type>compiled</type>
         <preferred-file-extension>swift</preferred-file-extension>
     </meta>
     

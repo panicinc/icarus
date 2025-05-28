@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Process: Sendable {
-    let lldbProcess: lldb.SBProcess
+    nonisolated(unsafe) let lldbProcess: lldb.SBProcess
     
     init?(_ lldbProcess: lldb.SBProcess) {
         guard lldbProcess.IsValid() else {
@@ -98,7 +98,7 @@ extension Process {
 
 extension Process {
     public struct Threads: Sendable, RandomAccessCollection {
-        let lldbProcess: lldb.SBProcess
+        nonisolated(unsafe) let lldbProcess: lldb.SBProcess
         
         init(_ lldbProcess: lldb.SBProcess) {
             self.lldbProcess = lldbProcess
@@ -294,7 +294,7 @@ extension Process.Info {
 }
 
 public struct ProcessEvent: Sendable {
-    let lldbEvent: lldb.SBEvent
+    nonisolated(unsafe) let lldbEvent: lldb.SBEvent
     
     init(_ lldbEvent: lldb.SBEvent) {
         self.lldbEvent = lldbEvent

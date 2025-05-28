@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct CommandInterpreter: Sendable {
-    let lldbCommandInterpreter: lldb.SBCommandInterpreter
+    nonisolated(unsafe) let lldbCommandInterpreter: lldb.SBCommandInterpreter
     
     init(_ lldbCommandInterpreter: lldb.SBCommandInterpreter) {
         self.lldbCommandInterpreter = lldbCommandInterpreter

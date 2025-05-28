@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Watchpoint: Sendable {
-    let lldbWatchpoint: lldb.SBWatchpoint
+    nonisolated(unsafe) let lldbWatchpoint: lldb.SBWatchpoint
     
     init?(_ lldbWatchpoint: lldb.SBWatchpoint) {
         guard lldbWatchpoint.IsValid() else {

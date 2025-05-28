@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct ExecutionContext: Sendable {
-    let lldbExecutionContext: lldb.SBExecutionContext
+    nonisolated(unsafe) let lldbExecutionContext: lldb.SBExecutionContext
     
     init(_ lldbExecutionContext: lldb.SBExecutionContext) {
         self.lldbExecutionContext = lldbExecutionContext

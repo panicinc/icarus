@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Symbol: Sendable {
-    let lldbSymbol: lldb.SBSymbol
+    nonisolated(unsafe) let lldbSymbol: lldb.SBSymbol
     
     init?(_ lldbSymbol: lldb.SBSymbol) {
         guard lldbSymbol.IsValid() else {

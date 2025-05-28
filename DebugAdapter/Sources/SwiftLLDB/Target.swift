@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Target: Sendable {
-    let lldbTarget: lldb.SBTarget
+    nonisolated(unsafe) let lldbTarget: lldb.SBTarget
     
     init?(_ lldbTarget: lldb.SBTarget) {
         guard lldbTarget.IsValid() else {
@@ -226,7 +226,7 @@ extension Target {
 }
 
 public struct TargetEvent: Sendable {
-    let lldbEvent: lldb.SBEvent
+    nonisolated(unsafe) let lldbEvent: lldb.SBEvent
     
     init(_ lldbEvent: lldb.SBEvent) {
         self.lldbEvent = lldbEvent

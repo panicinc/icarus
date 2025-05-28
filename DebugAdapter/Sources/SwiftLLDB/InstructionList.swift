@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct InstructionList: Sendable {
-    let lldbInstructionList: lldb.SBInstructionList
+    nonisolated(unsafe) let lldbInstructionList: lldb.SBInstructionList
     
     init?(_ lldbInstructionList: lldb.SBInstructionList) {
         guard lldbInstructionList.IsValid() else {

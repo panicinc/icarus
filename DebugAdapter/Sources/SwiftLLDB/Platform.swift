@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Platform: Sendable {
-    let lldbPlatform: lldb.SBPlatform
+    nonisolated(unsafe) let lldbPlatform: lldb.SBPlatform
     
     init?(_ lldbPlatform: lldb.SBPlatform) {
         guard lldbPlatform.IsValid() else {

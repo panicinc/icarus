@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct Instruction: Sendable {
-    let lldbInstruction: lldb.SBInstruction
+    nonisolated(unsafe) let lldbInstruction: lldb.SBInstruction
     
     init?(_ lldbInstruction: lldb.SBInstruction) {
         var lldbInstruction = lldbInstruction

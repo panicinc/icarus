@@ -1,7 +1,7 @@
 import CxxLLDB
 
 public struct DataBuffer: Sendable {
-    let lldbData: lldb.SBData
+    nonisolated(unsafe) let lldbData: lldb.SBData
     
     init?(_ lldbData: lldb.SBData) {
         var lldbData = lldbData
