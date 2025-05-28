@@ -2,7 +2,7 @@
 <syntax name="modulemap">
     <meta>
         <name>Module Map</name>
-        <type>data</type>
+        <type>structured</type>
         <preferred-file-extension>modulemap</preferred-file-extension>
     </meta>
     

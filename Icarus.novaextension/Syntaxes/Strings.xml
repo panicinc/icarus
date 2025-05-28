@@ -2,7 +2,7 @@
 <syntax name="strings">
     <meta>
         <name>Strings</name>
-        <type>data</type>
+        <type>structured</type>
         <preferred-file-extension>strings</preferred-file-extension>
     </meta>
     

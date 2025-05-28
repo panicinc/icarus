@@ -2,7 +2,7 @@
 <syntax name="make">
     <meta>
         <name>Make</name>
-        <type>data</type>
+        <type>config</type>
     </meta>
     
     <detectors>
