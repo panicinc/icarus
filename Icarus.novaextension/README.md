@@ -1,32 +1,30 @@
-Icarus provides first-class language support for **Swift**, **C**, **C++**, and **Objective-C**.
-
-If you are Swift or C-family language developer, Icarus can provide you with first-class support for building client- and server-side applications and frameworks.
-
-✨ Fun fact: This extension's debugging support was built entirely using Nova and Icarus. _"Look ma, no Xcode!"_
-
-## Features
-
-Icarus adds:
+First-class language and debugging support for **Swift**, **Rust**, **C**, **C++**, and **ObjC(++)** in Nova.
 
 - 🖍️ **Syntax highlighting**, symbolication, and code folding using Tree-sitter grammars
-- 🧪 **Language intelligence**, completions, issues, and more via SourceKit-LSP
+- 🧪 **Language intelligence**, completions, issues, and more via SourceKit-LSP and rust-analyzer
 - 🐛 **Debugging** via LLDB both locally and on supported remote platforms
 
 ![](https://github.com/panicinc/icarus/raw/main/screenshot.png)
 
-Intelligence is provided using [SourceKit-LSP](https://github.com/apple/sourcekit-lsp) from the Swift open-source project. This language server provides support for Swift natively and uses `clangd` behind the scenes for C-family languages.
+For Swift and C-family languages, intelligence is provided using [SourceKit-LSP](https://github.com/apple/sourcekit-lsp), which `clangd` behind the scenes for C, C++, and ObjC(++).
 
-Debugging is supported using _LLDB.framework_, distributed with both Apple's Xcode tools and the standalone Swift toolchain.
+For Rust, intelligence is provided using [rust-analyzer](https://rust-analyzer.github.io).
+
+Debugging is supported using _LLDB.framework_, distributed with any Swift toolchain as well as Xcode.
+
+✨ Fun fact: This extension's debugging support was built entirely using Nova and Icarus. _"Look ma, no Xcode!"_
 
 ## Requirements
 
 Syntax highlighting, symbolication, and code folding for all supported languages are included out of the box.
 
-For language intelligence, completions, and debugging, a Swift toolchain is required (even if you are just working with C-family languages, as the toolchain provides support for everything).
+For Swift and C-family language intelligence, completions, and debugging, a Swift toolchain is required (even if you are just working with C-family languages, as the toolchain provides support for both).
 
 - If you already have Apple's Xcode app in your `/Applications` folder, there should be nothing else you'll need to do.
 - Otherwise, the easiest way to get started is to download Apple's Xcode command-line tools using `xcode-select --install`.
 - Alternatively, you can install a [development version of the Swift toolchain](https://www.swift.org/download/) and select it for use in the extension preferences.
+
+For Rust language intelligence, [rust-analyzer](https://rust-analyzer.github.io) is required.
 
 ## C / C++ and Compile Commands
 
@@ -65,5 +63,3 @@ Similarly to local debugging, remote debugging uses a Task in Nova's tasks inter
     - For building locally, you may need to ensure cross-compilation support is set up within your build system and products are sync'd to the remote host.
 
 For the Build pipeline step(s), it should just be a matter of adding the appropriate shell commands to a Build pipeline step to invoke and compile your target or product in the same way you'd build in a terminal.
-
-

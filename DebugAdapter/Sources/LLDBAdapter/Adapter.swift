@@ -81,7 +81,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
         case cxxThrow = "cpp_throw"
         case objcCatch = "objc_catch"
         case objcThrow = "objc_throw"
-        case swiftCatch = "swift_catch"
+        case rustPanic = "rust_panic"
         case swiftThrow = "swift_throw"
         
         var label: String {
@@ -94,8 +94,8 @@ final class Adapter: DebugAdapterServerRequestHandler {
                 return "Objective-C Catch"
             case .objcThrow:
                 return "Objective-C Throw"
-            case .swiftCatch:
-                return "Swift Catch"
+            case .rustPanic:
+                return "Rust Panic"
             case .swiftThrow:
                 return "Swift Throw"
             }
@@ -107,13 +107,14 @@ final class Adapter: DebugAdapterServerRequestHandler {
                 return .cxx
             case .objcCatch, .objcThrow:
                 return .objC
-            case .swiftCatch, .swiftThrow:
+            case .rustPanic:
+                return .rust
+            case .swiftThrow:
                 return .swift
             }
         }
         
         var isCatch: Bool { rawValue.hasSuffix("_catch") }
-        
         var isThrow: Bool { rawValue.hasSuffix("_throw") }
         
         var filter: DebugAdapter.ExceptionBreakpointFilter {
@@ -161,7 +162,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
         capabilities.supportsDataBreakpointBytes = true
         capabilities.supportsInstructionBreakpoints = true
         
-        capabilities.exceptionBreakpointFilters = ExceptionFilter.allCases.map { $0.filter }
+        capabilities.exceptionBreakpointFilters = ExceptionFilter.allCases.map(\.filter)
         capabilities.supportsExceptionFilterOptions = true
         
         capabilities.supportsSteppingGranularity = true
@@ -447,6 +448,19 @@ final class Adapter: DebugAdapterServerRequestHandler {
     private func prepareForStart(target: Target, replyHandler: @escaping (Result<(), Error>) -> Void) {
         self.startReplyHandler = replyHandler
         self.target = target
+        
+        // Load Rust language support
+        let cmd = URL(filePath: CommandLine.arguments.first!, directoryHint: .notDirectory)
+        let parent = cmd.deletingLastPathComponent()
+        let rustLLDB = parent.appending(component: "rust.py")
+        
+        let context = ExecutionContext(from: target)
+        do {
+            _ = try debugger?.commandInterpreter.handleCommand("command script import '\(rustLLDB.path)'", context: context)
+        }
+        catch {
+            output("Error running LLDB commands: \(error)")
+        }
         
         // Listen for breakpoint change events from the target.
         debugger?.startListening(to: target, events: [.breakpointChanged])
@@ -977,7 +991,12 @@ final class Adapter: DebugAdapterServerRequestHandler {
             }
             else if let f = ExceptionFilter(rawValue: options.filterId) {
                 filter = f
-                breakpoint = target.createBreakpoint(forExceptionIn: filter.language, onCatch: filter.isCatch, onThrow: filter.isThrow)
+                switch filter {
+                case .rustPanic:
+                    breakpoint = target.createBreakpoint(name: "rust_panic")
+                default:
+                    breakpoint = target.createBreakpoint(forExceptionIn: filter.language, onCatch: filter.isCatch, onThrow: filter.isThrow)
+                }
                 
                 // See comments for `Self.breakpointLabel` for details of why we add a label to our breakpoints.
                 try? breakpoint.addName(Self.breakpointLabel)
@@ -1745,7 +1764,7 @@ final class Adapter: DebugAdapterServerRequestHandler {
             }
         }
         
-        let result = try debugger.commandInterpreter.handleCommand(expression, context: context, addToHistory: false)
+        let result = try debugger.commandInterpreter.handleCommand(expression, context: context)
         
         return .init(result: result.output ?? "")
     }

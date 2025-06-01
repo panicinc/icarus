@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<syntax name="rust">
+    <meta>
+        <name>Rust</name>
+        <type>compiled</type>
+        <preferred-file-extension>rs</preferred-file-extension>
+    </meta>
+    
+    <detectors>
+        <extension>rs,rlib</extension>
+    </detectors>
+    
+    <indentation>
+        <increase>
+            <expression>(\{[^}"']*$)|(\[[^\]"']*$)|(\([^)"']*$)</expression>
+        </increase>
+        <decrease>
+            <expression>^\s*(\s*/\*.*\*/\s*)*[\}\]\)\\]</expression>
+        </decrease>
+    </indentation>
+    
+    <comments>
+        <single>
+            <expression>//</expression>
+        </single>
+        <multiline>
+            <starts-with>
+                <expression>/*</expression>
+            </starts-with>
+            <ends-with>
+                <expression>*/</expression>
+            </ends-with>
+        </multiline>
+    </comments>
+    
+    <tree-sitter>
+        <highlights path="rust/highlights.scm" />
+        <injections path="rust/injections.scm" />
+        <folds path="rust/folds.scm" />
+        <symbols path="rust/symbols.scm" />
+    </tree-sitter>
+</syntax>

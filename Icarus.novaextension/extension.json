@@ -2,10 +2,10 @@
     "identifier": "panic.Icarus",
     "name": "Icarus",
     "organization": "Panic",
-    "description": "Swift, C, C++, & Objective-C language support and intelligence.",
-    "version": "3.0",
+    "description": "Swift, Rust, C, C++, & ObjC(++) language and debugging support.",
+    "version": "3.1",
     "categories": ["languages"],
-    "keywords": ["swift", "c", "c++", "cpp", "objective-c", "objc", "objective-c++", "objc++", "objcpp", "llvm", "clang", "lldb", "xcode"],
+    "keywords": ["c", "c++", "cpp", "objective-c", "objc", "objective-c++", "objc++", "objcpp", "rust", "swift", "llvm", "clang", "lldb", "xcode"],
     "repository": "https://github.com/panicinc/icarus",
     "bugs": "https://github.com/panicinc/icarus/issues",
     "min_runtime": "10",
@@ -13,11 +13,12 @@
     "main": "main.js",
     
     "activationEvents": [
-        "onLanguage:swift",
         "onLanguage:c",
         "onLanguage:cpp",
         "onLanguage:objc",
         "onLanguage:objcpp",
+        "onLanguage:rust",
+        "onLanguage:swift",
         "onCommand:icarus.resolveLLDBPlatforms"
     ],
     
@@ -27,21 +28,12 @@
     },
     
     "breakpoints": [
-        {
-            "syntax": "swift"
-        },
-        {
-            "syntax": "c"
-        },
-        {
-            "syntax": "cpp"
-        },
-        {
-            "syntax": "objc"
-        },
-        {
-            "syntax": "objcpp"
-        }
+        { "syntax": "c" },
+        { "syntax": "cpp" },
+        { "syntax": "objc" },
+        { "syntax": "objcpp" },
+        { "syntax": "rust" },
+        { "syntax": "swift" }
     ],
     
     "debugAdapters": {
@@ -51,22 +43,36 @@
         }
     },
     
+    "commands": {
+        "extensions": [
+            {
+                "title": "Restart SourceKit-LSP",
+                "command": "icarus.restartSourceKitLSP",
+            },
+            {
+                "title": "Restart rust-analyzer",
+                "command": "icarus.restartRustAnalyzer",
+            }
+        ]
+    },
+    
     "config": [
         {
             "key": "icarus.toolchain",
-            "title": "Toolchain",
+            "title": "Swift Toolchain",
             "type": "enum",
             "description": "The toolchain to use for development and debugging.",
             "values": [
                 ["xcrun", "Xcode (xcrun)"],
                 ["swift", "Swift Trunk (xcrun --toolchain swift)"],
+                ["swiftly", "Swiftly (swiftly run)"],
                 ["custom", "Custom"]
             ],
             "default": "xcrun"
         },
         {
             "key": "icarus.toolchain-path",
-            "title": "Custom Toolchain Path",
+            "title": "Custom Swift Toolchain Path",
             "type": "path",
             "description": "The custom path if your toolchain is set to \"Custom\", such as if you have built the toolchain from source.",
             "allowsFiles": false,
@@ -74,17 +80,23 @@
         },
         {
             "key": "icarus.language-server-path",
-            "title": "Language Server Path",
+            "title": "SourceKit-LSP Path",
             "type": "path",
             "placeholder": "sourcekit-lsp",
             "description": "By default, SourceKit-LSP will be located within your chosen toolchain."
+        },
+        {
+            "key": "icarus.rust-analyzer-path",
+            "title": "rust-analyzer Path",
+            "type": "path",
+            "placeholder": "/usr/loca/bin/rust-analyzer"
         }
     ],
     
     "taskTemplates": {
         "lldbDebug": {
             "name": "LLDB Debug",
-            "description": "Debug Swift, C, C++, and Objective-C applications and command line tools.",
+            "description": "Debug Swift, Rust, C, C++, and ObjC(++) applications and command line tools.",
             "image": "lldb",
             "tasks": {
                 "run": {
@@ -144,7 +156,7 @@
         },
         "lldbRemoteDebug": {
             "name": "LLDB Remote Debug",
-            "description": "Debug Swift, C, C++, and Objective-C applications and command line tools running on a remote system.",
+            "description": "Debug Swift, Rust, C, C++, and ObjC(++) applications and command line tools running on a remote system.",
             "image": "lldb",
             "tasks": {
                 "run": {
