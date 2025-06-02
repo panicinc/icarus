@@ -2,7 +2,6 @@
 
 (type_identifier) @identifier.type
 (primitive_type) @identifier.type.builtin
-(field_identifier) @identifier.property
 
 ; Identifier conventions
 
@@ -11,8 +10,12 @@
  (#match? @identifier.constant "^[A-Z][A-Z\\d_]+$'"))
 
 ; Assume uppercase names are enum constructors
-((identifier) @identifier.function.constructor
- (#match? @identifier.function.constructor "^(?!None$)[A-Z]"))
+;((identifier) @identifier.function.constructor
+; (#match? @identifier.function.constructor "^(?!None$)[A-Z]"))
+
+(tuple_struct_pattern
+  type: (identifier) @identifier.function.constructor
+  (#match? @identifier.function.constructor "^(?!None$)[A-Z]"))
 
 ; Assume that uppercase names in paths are types
 ((scoped_identifier
@@ -41,6 +44,12 @@
 
 (lifetime (identifier) @identifier.label)
 
+; Fields
+
+((field_expression
+  field: (field_identifier) @identifier.property) @_expr
+  (#not-has-parent? @_expr "call_expression"))
+
 ; Function calls
 
 (call_expression
@@ -64,12 +73,12 @@
 
 (macro_invocation
   macro: (identifier) @identifier.function.macro
-  "!" @identifier.function.macro.prefix)
+  "!")
 
 ; Function definitions
 
-(function_item (identifier) @identifier.function)
-(function_signature_item (identifier) @identifier.function)
+;(function_item (identifier) @identifier.function)
+;(function_signature_item (identifier) @identifier.function)
 
 ; Comments
 
@@ -108,12 +117,12 @@
   "break"
   "continue"
   "default"
-  "macro_rules!"
   "match"
   "move"
   "return"
   "use"
   "yield"
+  (crate)
 ] @keyword
 
 [
@@ -131,6 +140,7 @@
   "gen"
   "impl"
   "let"
+  "macro_rules!"
   "mod"
   "struct"
   "trait"
@@ -150,31 +160,26 @@
   "static"
   "unsafe"
   "where"
+  (mutable_specifier)
 ] @keyword.modifier
 
-(crate) @keyword
-(mutable_specifier) @keyword
-(use_list (self) @keyword)
-(scoped_use_list (self) @keyword)
-(scoped_identifier (self) @keyword)
-(super) @keyword
-
+(super) @keyword.self
 (self) @keyword.self
+
+; Literals
 
 ((identifier) @value.null
   (#eq? @value.null "None"))
-
-; Literals
 
 (char_literal) @string
 (string_literal) @string
 (raw_string_literal) @string
 
+(escape_sequence) @string.escape
+
 (boolean_literal) @value.boolean
 (integer_literal) @value.number.integer
 (float_literal) @value.number.float
-
-(escape_sequence) @string.escape
 
 (attribute_item) @processing.directive.attribute
 (inner_attribute_item) @processing.directive.attribute
@@ -193,7 +198,7 @@
   "-="
   "*"
   "*="
-  "/"
+  ;"/" handled below
   "/="
   "%"
   "%="
@@ -223,3 +228,6 @@
   "?"
   "::"
 ] @operator
+
+("/" @operator
+  (#not-has-parent? @operator "outer_doc_comment_marker"))

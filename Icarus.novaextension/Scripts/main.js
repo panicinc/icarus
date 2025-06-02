@@ -454,7 +454,7 @@ class RustAnalyzer extends LanguageServer {
     
     fileChanged(path) {
         let name = nova.path.basename(path);
-        if (name == "Cargo.toml" || name == "rust-project.json") {
+        if (name == "Cargo.toml" || name == "rust-project.json" || name == ".rust-analyzer.json") {
             this.scheduleRestart();
         }
     }
@@ -487,6 +487,25 @@ class RustAnalyzer extends LanguageServer {
             return null;
         }
         
+        let initOptions = {};
+        
+        let configPath = nova.path.join(nova.workspace.path, ".rust-analyzer.json");
+        if (nova.fs.access(configPath, nova.fs.R_OK)) {
+            console.log(`Reading rust-analyzer config from .rust-analyzer.json`);
+            let configFile = nova.fs.open(configPath);
+            let string = configFile.read();
+            if (string) {
+                try {
+                    initOptions = JSON.parse(string);
+                    console.log(string);
+                }
+                catch (err) {
+                    console.error(`Error reading config: ${err}`);
+                }
+            }
+            configFile.close();
+        }
+        
         console.log(`Starting rust-analyze: ${path} ${args.join(" ")}`);
         
         return new LanguageClient(
@@ -498,7 +517,8 @@ class RustAnalyzer extends LanguageServer {
                 env: env
             },
             {
-                syntaxes: ["rust"]
+                syntaxes: ["rust"],
+                initializationOptions: initOptions
             }
         );
     }
