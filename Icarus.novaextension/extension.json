@@ -47,11 +47,11 @@
         "extensions": [
             {
                 "title": "Restart SourceKit-LSP",
-                "command": "icarus.restartSourceKitLSP",
+                "command": "icarus.restartSourceKitLSP"
             },
             {
                 "title": "Restart rust-analyzer",
-                "command": "icarus.restartRustAnalyzer",
+                "command": "icarus.restartRustAnalyzer"
             }
         ]
     },
